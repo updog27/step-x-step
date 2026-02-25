@@ -7,45 +7,65 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>Step x Step</h1>
-</header>
+  <header>
+    <img src="assets/logo.png" alt="Step x Step Logo" id="logo">
+    <h1>Step x Step</h1>
+  </header>
 
-<main>
-  <section id="distance-section">
-    <h2>Enter your distance</h2>
-    <input type="number" id="distance-input" placeholder="Distance in miles">
-    <select id="route-type">
-      <option value="outback">Out-and-back</option>
-      <option value="loop">Loop</option>
-      <option value="freerun">Free-run</option>
-    </select>
-    <button id="start-button">Start</button>
-  </section>
+  <main>
+    <!-- Distance input section -->
+    <section id="distance-section">
+      <h2>Enter your distance</h2>
+      <input type="number" id="distance-input" placeholder="Distance (miles)">
 
-  <section id="step-counter">
-    <h2>Steps: <span id="steps">0</span></h2>
-  </section>
+      <!-- Unit selection -->
+      <select id="distance-unit">
+        <option value="miles" selected>Miles</option>
+        <option value="kilometers">Kilometers</option>
+      </select>
 
-  <section id="achievements">
-    <h2>Achievements</h2>
-    <ul id="achievement-list"></ul>
-  </section>
+      <select id="route-type">
+        <option value="outback">Out-and-back</option>
+        <option value="loop">Loop</option>
+        <option value="freerun">Free-run</option>
+      </select>
 
-  <section id="avatar-section">
-    <h2>Choose Avatar</h2>
-    <img src="assets/avatars/avatar1.png" class="avatar-option" data-avatar="avatar1.png">
-    <img src="assets/avatars/avatar2.png" class="avatar-option" data-avatar="avatar2.png">
-  </section>
+      <button id="start-button">Start</button>
+    </section>
 
-  <section id="social-toggle">
-    <label>
-      <input type="checkbox" id="social-enable">
-      Enable friends/updates
-    </label>
-  </section>
-</main>
+    <!-- Current steps display -->
+    <section id="step-counter">
+      <h2>Steps: <span id="steps">0</span></h2>
+    </section>
 
-<script src="script.js"></script>
+    <!-- Total steps with reset button -->
+    <section id="total-steps-counter">
+      <h2>Total Steps: <span id="total-steps">0</span></h2>
+      <button id="reset-steps-button">Reset Total Steps</button>
+    </section>
+
+    <!-- Achievements -->
+    <section id="achievements">
+      <h2>Achievements</h2>
+      <ul id="achievement-list"></ul>
+    </section>
+
+    <!-- Avatar selection -->
+    <section id="avatar-section">
+      <h2>Choose Avatar</h2>
+      <img src="assets/avatars/avatar1.png" class="avatar-option" data-avatar="avatar1.png">
+      <img src="assets/avatars/avatar2.png" class="avatar-option" data-avatar="avatar2.png">
+    </section>
+
+    <!-- Social toggle -->
+    <section id="social-toggle">
+      <label>
+        <input type="checkbox" id="social-enable">
+        Enable friends/updates
+      </label>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
 </body>
 </html>
