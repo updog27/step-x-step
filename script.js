@@ -6,19 +6,19 @@ const stepsDisplay = document.getElementById("steps");
 const totalStepsDisplay = document.getElementById("total-steps");
 const resetButton = document.getElementById("reset-steps-button");
 
-// Track cumulative steps
-let totalSteps = 0;
+let totalSteps = 0; // Track cumulative steps
 
-// Update placeholder when unit changes
+// Update placeholder dynamically when unit changes
 distanceUnit.addEventListener("change", function() {
   const unit = distanceUnit.value;
   distanceInput.placeholder = `Distance (${unit === "miles" ? "miles" : "km"})`;
 });
 
-// Start button logic
+// Start button event
 startButton.addEventListener("click", function() {
   let distance = parseFloat(distanceInput.value);
-  let unit = distanceUnit.value;
+  let unit = distanceUnit.value; // "miles" or "kilometers"
+  let routeType = document.getElementById("route-type").value;
 
   if (isNaN(distance) || distance <= 0) {
     alert("Please enter a valid distance.");
@@ -32,20 +32,24 @@ startButton.addEventListener("click", function() {
     distance = distance * 0.621371;
   }
 
+  // Step calculation: 2000 steps per mile
   let steps = Math.round(distance * 2000);
   stepsDisplay.textContent = steps;
 
+  // Update total steps
   totalSteps += steps;
   totalStepsDisplay.textContent = totalSteps;
 
+  // Add achievement
   const li = document.createElement("li");
-  li.textContent = `Started a ${displayDistance.toFixed(2)} ${unit} route!`;
+  li.textContent = `Started a ${displayDistance.toFixed(2)} ${unit} ${routeType} route!`;
   achievementList.appendChild(li);
 
+  // Clear input for next entry
   distanceInput.value = "";
 });
 
-// Reset total steps
+// Reset total steps button
 resetButton.addEventListener("click", function() {
   totalSteps = 0;
   totalStepsDisplay.textContent = totalSteps;
