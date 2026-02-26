@@ -1,5 +1,3 @@
-assets/
-    logo.png
-    avatars/
-        avatar1.png
-        avatar2.png
+<img src="assets/logo.png" alt="Step x Step Logo">
+<img src="assets/avatars/avatar1.png" class="avatar-option" data-avatar="avatar1.png">
+<img src="assets/avatars/avatar2.png" class="avatar-option" data-avatar="avatar2.png">
