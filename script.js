@@ -1,66 +1,88 @@
-const distanceInput = document.getElementById("distance-input");
-const distanceUnit = document.getElementById("distance-unit");
-const startButton = document.getElementById("start-button");
-const achievementList = document.getElementById("achievement-list");
-const stepsDisplay = document.getElementById("steps");
-const totalStepsDisplay = document.getElementById("total-steps");
-const resetButton = document.getElementById("reset-steps-button");
+let watchId = null;
+let totalDistance = 0;
+let previousPosition = null;
+let goalDistance = 0;
 
-let totalSteps = 0; // Track cumulative steps
+const startButton = document.getElementById('start-button');
+const stepsDisplay = document.getElementById('steps');
 
-// Update placeholder dynamically when unit changes
-distanceUnit.addEventListener("change", function() {
-  const unit = distanceUnit.value;
-  distanceInput.placeholder = `Distance (${unit === "miles" ? "miles" : "km"})`;
-});
+startButton.addEventListener('click', () => {
+  const distanceInput = document.getElementById('distance-input').value;
+  goalDistance = parseFloat(distanceInput);
 
-// Start button event
-startButton.addEventListener("click", function() {
-  let distance = parseFloat(distanceInput.value);
-  let unit = distanceUnit.value; // "miles" or "kilometers"
-  let routeType = document.getElementById("route-type").value;
-
-  if (isNaN(distance) || distance <= 0) {
-    alert("Please enter a valid distance.");
+  if (isNaN(goalDistance) || goalDistance <= 0) {
+    alert('Please enter a valid distance.');
     return;
   }
 
-  let displayDistance = distance;
+  totalDistance = 0;
+  previousPosition = null;
+  stepsDisplay.textContent = "0.00 miles";
 
-  // Convert km to miles for step calculation
-  if (unit === "kilometers") {
-    distance = distance * 0.621371;
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser.");
+    return;
   }
 
-  // Step calculation: 2000 steps per mile
-  let steps = Math.round(distance * 2000);
-  stepsDisplay.textContent = steps;
-
-  // Update total steps
-  totalSteps += steps;
-  totalStepsDisplay.textContent = totalSteps;
-
-  // Add achievement
-  const li = document.createElement("li");
-  li.textContent = `Started a ${displayDistance.toFixed(2)} ${unit} ${routeType} route!`;
-  achievementList.appendChild(li);
-
-  // Clear input for next entry
-  distanceInput.value = "";
+  watchId = navigator.geolocation.watchPosition(
+    updatePosition,
+    handleError,
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000
+    }
+  );
 });
 
-// Reset total steps button
-resetButton.addEventListener("click", function() {
-  totalSteps = 0;
-  totalStepsDisplay.textContent = totalSteps;
-  alert("Total steps have been reset!");
-});
+function updatePosition(position) {
+  const { latitude, longitude, accuracy } = position.coords;
 
-// Avatar selection
-let avatars = document.querySelectorAll(".avatar-option");
-avatars.forEach(avatar => {
-  avatar.addEventListener("click", function() {
-    avatars.forEach(a => a.classList.remove("selected"));
-    avatar.classList.add("selected");
-  });
-});
+  // Ignore low accuracy readings
+  if (accuracy > 20) return;
+
+  if (previousPosition) {
+    const distance = calculateDistance(
+      previousPosition.latitude,
+      previousPosition.longitude,
+      latitude,
+      longitude
+    );
+
+    // Ignore tiny GPS jitter movements
+    if (distance > 0.003) { // ~5 meters
+      totalDistance += distance;
+      stepsDisplay.textContent = totalDistance.toFixed(2) + " miles";
+
+      if (totalDistance >= goalDistance) {
+        navigator.geolocation.clearWatch(watchId);
+        alert("Goal reached!");
+      }
+    }
+  }
+
+  previousPosition = { latitude, longitude };
+}
+
+function handleError(error) {
+  alert("Error getting location: " + error.message);
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 3958.8; // Earth radius in miles
+  const toRad = angle => (angle * Math.PI) / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
