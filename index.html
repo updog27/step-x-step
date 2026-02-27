@@ -16,20 +16,26 @@
     <section id="distance-section">
       <h2>Enter your distance</h2>
       <input type="number" id="distance-input" placeholder="Distance">
-      <select id="unit-type">
+
+      <!-- New unit selector -->
+      <select id="unit-select">
         <option value="miles">Miles</option>
-        <option value="kilometers">Kilometers</option>
+        <option value="km">Kilometers</option>
       </select>
+
+      <!-- Existing route type selector -->
       <select id="route-type">
         <option value="outback">Out-and-back</option>
         <option value="loop">Loop</option>
         <option value="freerun">Free-run</option>
       </select>
+
       <button id="start-button">Start</button>
     </section>
 
     <section id="step-counter">
       <h2>Steps: <span id="steps">0</span></h2>
+      <p>Distance: <span id="distance">0</span></p>
     </section>
 
     <section id="achievements">
