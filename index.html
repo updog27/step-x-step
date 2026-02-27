@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Step x Step Demo</title>
+<title>Step x Step - Route Tracker</title>
 <link rel="stylesheet" href="style.css">
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
 </head>
 <body>
   <header>
@@ -16,26 +20,26 @@
     <section id="distance-section">
       <h2>Enter your distance</h2>
       <input type="number" id="distance-input" placeholder="Distance">
-
-      <!-- New unit selector -->
-      <select id="unit-select">
+      <select id="distance-unit">
         <option value="miles">Miles</option>
         <option value="km">Kilometers</option>
       </select>
-
-      <!-- Existing route type selector -->
       <select id="route-type">
         <option value="outback">Out-and-back</option>
         <option value="loop">Loop</option>
         <option value="freerun">Free-run</option>
       </select>
+      <button id="start-button">Find Routes</button>
+    </section>
 
-      <button id="start-button">Start</button>
+    <section id="map-section">
+      <h2>Suggested Routes</h2>
+      <div id="map" style="height: 400px;"></div>
+      <ul id="route-list"></ul>
     </section>
 
     <section id="step-counter">
       <h2>Steps: <span id="steps">0</span></h2>
-      <p>Distance: <span id="distance">0</span></p>
     </section>
 
     <section id="achievements">
@@ -57,6 +61,8 @@
     </section>
   </main>
 
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
