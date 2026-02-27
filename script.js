@@ -3,8 +3,8 @@
 let steps = 0;
 let lastStepTime = 0;
 
-const STEP_COOLDOWN = 450; // ms between steps
-const STEP_THRESHOLD = 13; // magnitude threshold for step detection
+const STEP_COOLDOWN = 400; // ms between steps
+const STEP_THRESHOLD = 12; // magnitude threshold for step detection
 
 let distance = 0;
 let targetDistance = 0;
@@ -93,4 +93,5 @@ function updateUI() {
     distanceEl.textContent = distance.toFixed(3);
   }
 }
+
 
