@@ -45,18 +45,18 @@ function handleMotion(event) {
   const acc = event.accelerationIncludingGravity;
   if (!acc) return;
 
-  const totalAcceleration =
-    Math.abs(acc.x || 0) +
-    Math.abs(acc.y || 0) +
-    Math.abs(acc.z || 0);
+  const x = acc.x || 0;
+  const y = acc.y || 0;
+  const z = acc.z || 0;
+
+  // Proper vector magnitude
+  const magnitude = Math.sqrt(x * x + y * y + z * z);
 
   const now = Date.now();
 
-  // FILTER #1: Minimum movement strength
-  if (totalAcceleration > STEP_THRESHOLD) {
-
-    // FILTER #2: Cooldown between steps
-    if (now - lastStepTime > STEP_COOLDOWN) {
+  // More realistic walking threshold
+  if (magnitude > 11) {
+    if (now - lastStepTime > 350) {
       lastStepTime = now;
       steps++;
       updateDistance();
@@ -80,3 +80,4 @@ function updateUI() {
   stepsEl.textContent = steps;
   distanceEl.textContent = distance.toFixed(3);
 }
+
