@@ -1,77 +1,82 @@
-// DOM Elements
-const distanceInput = document.getElementById('distance-input');
-const unitType = document.getElementById('unit-type');
-const startButton = document.getElementById('start-button');
-const stepsDisplay = document.getElementById('steps');
-const achievementList = document.getElementById('achievement-list');
-const avatarOptions = document.querySelectorAll('.avatar-option');
-
 let steps = 0;
-let totalSteps = 0;
-let stepInterval = null;
+let lastStepTime = 0;
 
-// Convert distance to total steps
-function calculateTotalSteps(distance, unit) {
-  if (unit === 'miles') return Math.round(distance * 2000);
-  if (unit === 'kilometers') return Math.round(distance * 1312);
-  return 0;
-}
+const STEP_COOLDOWN = 400; // ms between steps (prevents rapid counting)
+const STEP_THRESHOLD = 12; // sensitivity (higher = less sensitive)
 
-// Convert steps back to distance for display
-function stepsToDistance(steps, unit) {
-  if (unit === 'miles') return (steps / 2000).toFixed(2);
-  if (unit === 'kilometers') return (steps / 1312).toFixed(2);
-  return 0;
-}
+let distance = 0;
+let targetDistance = 0;
+let unit = "miles";
 
-// Start step counter
-function startStepCounter() {
-  const distance = parseFloat(distanceInput.value);
-  const unit = unitType.value;
+const stepsEl = document.getElementById("steps");
+const distanceEl = document.getElementById("distance");
+const inputDistance = document.getElementById("distanceInput");
+const unitSelect = document.getElementById("unitSelect");
+const startBtn = document.getElementById("startBtn");
 
-  if (isNaN(distance) || distance <= 0) {
-    alert('Please enter a valid distance.');
-    return;
-  }
+startBtn.addEventListener("click", startTracking);
 
-  // Reset previous counter
-  clearInterval(stepInterval);
+function startTracking() {
   steps = 0;
-  totalSteps = calculateTotalSteps(distance, unit);
-  stepsDisplay.textContent = `0 steps (0 ${unit})`;
-  achievementList.innerHTML = '';
+  distance = 0;
+  lastStepTime = 0;
 
-  // Increment steps visually
-  stepInterval = setInterval(() => {
-    steps++;
-    const displayDistance = stepsToDistance(steps, unit);
-    stepsDisplay.textContent = `${steps} steps (${displayDistance} ${unit})`;
+  targetDistance = parseFloat(inputDistance.value) || 0;
+  unit = unitSelect.value;
 
-    // Achievements
-    if (steps === 5000) {
-      const li = document.createElement('li');
-      li.textContent = 'Reached 5,000 steps!';
-      achievementList.appendChild(li);
-    }
-    if (steps === 10000) {
-      const li = document.createElement('li');
-      li.textContent = 'Reached 10,000 steps!';
-      achievementList.appendChild(li);
-    }
+  updateUI();
 
-    if (steps >= totalSteps) {
-      clearInterval(stepInterval);
-    }
-  }, 50); // Adjust speed: smaller = faster
+  // iPhone permission request
+  if (typeof DeviceMotionEvent !== "undefined" &&
+      typeof DeviceMotionEvent.requestPermission === "function") {
+    DeviceMotionEvent.requestPermission().then(permission => {
+      if (permission === "granted") {
+        window.addEventListener("devicemotion", handleMotion);
+      } else {
+        alert("Motion permission denied");
+      }
+    });
+  } else {
+    window.addEventListener("devicemotion", handleMotion);
+  }
 }
 
-// Avatar selection
-avatarOptions.forEach(avatar => {
-  avatar.addEventListener('click', () => {
-    avatarOptions.forEach(a => a.classList.remove('selected'));
-    avatar.classList.add('selected');
-  });
-});
+function handleMotion(event) {
+  const acc = event.accelerationIncludingGravity;
+  if (!acc) return;
 
-// Event listener
-startButton.addEventListener('click', startStepCounter);
+  const totalAcceleration =
+    Math.abs(acc.x || 0) +
+    Math.abs(acc.y || 0) +
+    Math.abs(acc.z || 0);
+
+  const now = Date.now();
+
+  // FILTER #1: Minimum movement strength
+  if (totalAcceleration > STEP_THRESHOLD) {
+
+    // FILTER #2: Cooldown between steps
+    if (now - lastStepTime > STEP_COOLDOWN) {
+      lastStepTime = now;
+      steps++;
+      updateDistance();
+      updateUI();
+    }
+  }
+}
+
+function updateDistance() {
+  const strideMeters = 0.78; // avg step length
+  const meters = steps * strideMeters;
+
+  if (unit === "miles") {
+    distance = meters / 1609;
+  } else {
+    distance = meters / 1000;
+  }
+}
+
+function updateUI() {
+  stepsEl.textContent = steps;
+  distanceEl.textContent = distance.toFixed(3);
+}
