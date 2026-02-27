@@ -1,97 +1,97 @@
-// ===== Step x Step App Script =====
-
+// ----------------------
+// Step Counter Variables
+// ----------------------
 let steps = 0;
 let lastStepTime = 0;
+const STEP_THRESHOLD = 12.3; 
+const STEP_COOLDOWN = 400;
 
-const STEP_COOLDOWN = 400; // ms between steps
-const STEP_THRESHOLD = 12; // magnitude threshold for step detection
-
-let distance = 0;
-let targetDistance = 0;
-let unit = "miles";
-
+// ----------------------
 // DOM Elements
-const stepsEl = document.getElementById("steps");
-const distanceEl = document.getElementById("distance");
-const inputDistance = document.getElementById("distance-input");
-const unitSelect = document.getElementById("unit-select");
-const startBtn = document.getElementById("start-button");
+// ----------------------
+const stepsSpan = document.getElementById('steps');
+const distanceInput = document.getElementById('distance-input');
+const distanceUnit = document.getElementById('distance-unit');
+const routeTypeSelect = document.getElementById('route-type');
+const startButton = document.getElementById('start-button');
+const routeList = document.getElementById('route-list');
 
-// ===== Start Button Logic =====
-startBtn.addEventListener("click", async () => {
-  // Reset counters
-  steps = 0;
-  distance = 0;
-  lastStepTime = 0;
-  updateUI();
+// ----------------------
+// Map Setup
+// ----------------------
+const map = L.map('map').setView([27.9506, -82.4572], 13); // Tampa default
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-  targetDistance = parseFloat(inputDistance.value) || 0;
-  unit = unitSelect.value;
+let routeLayers = [];
 
-  // iOS motion permission
-  if (typeof DeviceMotionEvent !== "undefined" &&
-      typeof DeviceMotionEvent.requestPermission === "function") {
-    try {
-      const permission = await DeviceMotionEvent.requestPermission();
-      if (permission === "granted") {
-        window.addEventListener("devicemotion", handleMotion);
-        console.log("Motion permission granted");
-      } else {
-        alert("Motion permission denied. Steps won't count.");
-      }
-    } catch (e) {
-      alert("Error requesting motion permission");
-      console.error(e);
-    }
-  } else {
-    // Android / normal browsers
-    window.addEventListener("devicemotion", handleMotion);
-  }
-});
+// ----------------------
+// Step Counter
+// ----------------------
+function updateUI() {
+  stepsSpan.textContent = steps;
+}
 
-// ===== Handle Motion Event =====
+// Handle phone motion for steps
 function handleMotion(event) {
   const acc = event.accelerationIncludingGravity;
   if (!acc) return;
-
-  const x = acc.x || 0;
-  const y = acc.y || 0;
   const z = acc.z || 0;
-
-  // Vector magnitude
-  const magnitude = Math.sqrt(x * x + y * y + z * z);
-
   const now = Date.now();
+  const delta = Math.abs(z);
 
-  if (magnitude > STEP_THRESHOLD) {
+  if (delta > STEP_THRESHOLD) {
     if (now - lastStepTime > STEP_COOLDOWN) {
       lastStepTime = now;
       steps++;
-      updateDistance();
       updateUI();
     }
   }
 }
 
-// ===== Update Distance Based on Steps =====
-function updateDistance() {
-  const strideMeters = 0.78; // average step length
+if (window.DeviceMotionEvent) {
+  window.addEventListener('devicemotion', handleMotion, true);
+}
 
-  const meters = steps * strideMeters;
+// ----------------------
+// Route Generation
+// ----------------------
+function generateRoutes() {
+  const distance = parseFloat(distanceInput.value);
+  const unit = distanceUnit.value;
+  const routeType = routeTypeSelect.value;
 
-  if (unit === "miles") {
-    distance = meters / 1609;
-  } else {
-    distance = meters / 1000;
+  if (isNaN(distance) || distance <= 0) {
+    alert('Please enter a valid distance');
+    return;
+  }
+
+  // Clear previous routes
+  routeList.innerHTML = '';
+  routeLayers.forEach(layer => map.removeLayer(layer));
+  routeLayers = [];
+
+  // Example: Generate 3 simple "mock" routes (random offsets for demo)
+  for (let i = 1; i <= 3; i++) {
+    const lat = 27.9506 + Math.random() * 0.01 * i;
+    const lng = -82.4572 + Math.random() * 0.01 * i;
+    const lat2 = lat + 0.005;
+    const lng2 = lng + 0.005;
+
+    const polyline = L.polyline([[lat, lng], [lat2, lng2]], { color: 'blue' }).addTo(map);
+    routeLayers.push(polyline);
+
+    const routeItem = document.createElement('li');
+    routeItem.textContent = `${routeType} route #${i} ~ ${distance} ${unit}`;
+    routeItem.onclick = () => {
+      map.fitBounds(polyline.getBounds());
+    };
+    routeList.appendChild(routeItem);
   }
 }
 
-// ===== Update UI =====
-function updateUI() {
-  stepsEl.textContent = steps;
-  if (distanceEl) {
-    distanceEl.textContent = distance.toFixed(3);
-  }
-}
-
-
+// ----------------------
+// Button Events
+// ----------------------
+startButton.addEventListener('click', generateRoutes);
