@@ -54,72 +54,32 @@ if (window.DeviceMotionEvent) {
 }
 
 // ----------------------
-// Route Generation (Working Tampa Test Route)
+// Route Generation (Static Test Route)
 // ----------------------
-async function generateRoutes() {
+function generateRoutes() {
   // Clear previous routes
   routeList.innerHTML = '';
   routeLayers.forEach(layer => map.removeLayer(layer));
   routeLayers = [];
 
-  // Coordinates along real Tampa streets
-  const startLat = 27.950618;
-  const startLng = -82.457176;
-  const offsetLat = 27.952354;
-  const offsetLng = -82.454902;
+  // Static test route along Tampa streets
+  const coords = [
+    [27.950618, -82.457176], // start
+    [27.951200, -82.456000], // mid-point
+    [27.952354, -82.454902]  // end
+  ];
 
-  console.log("Test route coordinates:", startLat, startLng, offsetLat, offsetLng);
+  const polyline = L.polyline(coords, { color: "red", weight: 4 }).addTo(map);
+  routeLayers.push(polyline);
 
-  try {
-    const response = await fetch(
-      "https://api.openrouteservice.org/v2/directions/foot-walking",
-      {
-        method: "POST",
-        headers: {
-          "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQ1MWI1ZTUyYjlhZjQ3YmFhNzkyZWRkMDMwNDJhMDk5IiwiaCI6Im11cm11cjY0In0=", // <-- REPLACE with your actual key
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          coordinates: [
-            [startLng, startLat],
-            [offsetLng, offsetLat]
-          ]
-        })
-      }
-    );
+  // Fit map to route
+  map.fitBounds(polyline.getBounds());
 
-    if (!response.ok) {
-      console.error(`ORS request failed: ${response.status} ${response.statusText}`);
-      alert(`Routing error: ${response.status} ${response.statusText}`);
-      return;
-    }
-
-    const data = await response.json();
-    console.log("ORS test response:", data);
-
-    if (!data.features || data.features.length === 0) {
-      console.error("No route returned from ORS");
-      alert("ORS returned no route for test coordinates");
-      return;
-    }
-
-    const coords = data.features[0].geometry.coordinates;
-    const latlngs = coords.map(c => [c[1], c[0]]);
-
-    const polyline = L.polyline(latlngs, { color: "red", weight: 4 }).addTo(map);
-    routeLayers.push(polyline);
-
-    map.fitBounds(polyline.getBounds());
-
-    const item = document.createElement("li");
-    item.textContent = "Test Route";
-    item.onclick = () => map.fitBounds(polyline.getBounds());
-    routeList.appendChild(item);
-
-  } catch (error) {
-    console.error("Routing error:", error);
-    alert("Routing error: " + error);
-  }
+  // Add list item
+  const item = document.createElement("li");
+  item.textContent = "Static Test Route";
+  item.onclick = () => map.fitBounds(polyline.getBounds());
+  routeList.appendChild(item);
 }
 
 // ----------------------
