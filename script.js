@@ -53,103 +53,73 @@ if (window.DeviceMotionEvent) {
   window.addEventListener('devicemotion', handleMotion, true);
 }
 
-// ----------------------
-// Route Generation
-// ----------------------
 async function generateRoutes() {
-  const distance = parseFloat(distanceInput.value);
-  const unit = distanceUnit.value;
-
-  if (isNaN(distance) || distance <= 0) {
-    alert("Please enter a valid distance");
-    return;
-  }
-
   // Clear previous routes
   routeList.innerHTML = '';
   routeLayers.forEach(layer => map.removeLayer(layer));
   routeLayers = [];
 
-  // Convert distance to meters
-  let meters = distance;
-  if (unit === "miles") meters = distance * 1609.34;
-  if (unit === "km") meters = distance * 1000;
+  // Hard-coded coordinates (downtown Tampa, FL)
+  const startLat = 27.9506;
+  const startLng = -82.4572;
+  const offsetLat = 27.9550; // ~500m north
+  const offsetLng = -82.4572;
 
-  navigator.geolocation.getCurrentPosition(async function(pos) {
-    const startLat = pos.coords.latitude;
-    const startLng = pos.coords.longitude;
+  console.log("Test route coordinates:", startLat, startLng, offsetLat, offsetLng);
 
-    map.setView([startLat, startLng], 15);
-
-    console.log("User location:", startLat, startLng);
-    console.log("Distance (meters):", meters);
-
-    // Three directions: 0°, 120°, 240°
-    const directions = [0, 120, 240];
-
-    for (let i = 0; i < directions.length; i++) {
-      const angle = directions[i] * Math.PI / 180;
-
-      // Correct latitude-to-radian conversion
-      const latRad = startLat * Math.PI / 180;
-
-      const offsetLat = startLat + (meters / 111111) * Math.cos(angle);
-      const offsetLng = startLng + (meters / (111111 * Math.cos(latRad))) * Math.sin(angle);
-
-      console.log(`Route ${i + 1} target coordinates:`, offsetLat, offsetLng);
-
-      try {
-        const response = await fetch(
-          "https://api.openrouteservice.org/v2/directions/foot-walking",
-          {
-            method: "POST",
-            headers: {
-              "Authorization": "YOUR_ORS_API_KEY", // <-- Replace with your valid key
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              coordinates: [
-                [startLng, startLat],
-                [offsetLng, offsetLat]
-              ]
-            })
-          }
-        );
-
-        if (!response.ok) {
-          console.error(`ORS request failed: ${response.status} ${response.statusText}`);
-          alert(`Routing error: ${response.status} ${response.statusText}`);
-          continue;
-        }
-
-        const data = await response.json();
-        console.log("ORS response:", data);
-
-        if (!data.features || data.features.length === 0) {
-          console.error("No route returned from ORS");
-          continue;
-        }
-
-        const coords = data.features[0].geometry.coordinates;
-        const latlngs = coords.map(c => [c[1], c[0]]);
-
-        const polyline = L.polyline(latlngs, {
-          color: "blue",
-          weight: 4
-        }).addTo(map);
-
-        routeLayers.push(polyline);
-
-        const item = document.createElement("li");
-        item.textContent = `Route ${i + 1} ~ ${distance} ${unit}`;
-        item.onclick = () => map.fitBounds(polyline.getBounds());
-        routeList.appendChild(item);
-
-      } catch (error) {
-        console.error("Routing error:", error);
+  try {
+    const response = await fetch(
+      "https://api.openrouteservice.org/v2/directions/foot-walking",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": "YOUR_ORS_API_KEY", // <-- Make sure this is your valid key
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          coordinates: [
+            [startLng, startLat],
+            [offsetLng, offsetLat]
+          ]
+        })
       }
+    );
+
+    if (!response.ok) {
+      console.error(`ORS request failed: ${response.status} ${response.statusText}`);
+      alert(`Routing error: ${response.status} ${response.statusText}`);
+      return;
     }
-  },
+
+    const data = await response.json();
+    console.log("ORS test response:", data);
+
+    if (!data.features || data.features.length === 0) {
+      console.error("No route returned from ORS");
+      alert("ORS returned no route for test coordinates");
+      return;
+    }
+
+    const coords = data.features[0].geometry.coordinates;
+    const latlngs = coords.map(c => [c[1], c[0]]);
+
+    const polyline = L.polyline(latlngs, { color: "red", weight: 4 }).addTo(map);
+    routeLayers.push(polyline);
+
+    // Fit map to route
+    map.fitBounds(polyline.getBounds());
+
+    // Add a simple list item
+    const item = document.createElement("li");
+    item.textContent = "Test Route";
+    item.onclick = () => map.fitBounds(polyline.getBounds());
+    routeList.appendChild(item);
+
+  } catch (error) {
+    console.error("Routing error:", error);
+    alert("Routing error: " + error);
+  }
+}
   function(error) {
     alert("Location permission required.");
     console.error("Geolocation error:", error);
@@ -160,3 +130,4 @@ async function generateRoutes() {
 // Button Event
 // ----------------------
 startButton.addEventListener("click", generateRoutes);
+
