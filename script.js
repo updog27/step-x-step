@@ -54,32 +54,88 @@ if (window.DeviceMotionEvent) {
 }
 
 // ----------------------
-// Route Generation (Static Test Route)
+// 3-Route Generation
 // ----------------------
-function generateRoutes() {
+async function generateRoutes() {
+  const distance = parseFloat(distanceInput.value);
+  const unit = distanceUnit.value;
+
+  if (isNaN(distance) || distance <= 0) {
+    alert("Please enter a valid distance");
+    return;
+  }
+
+  // Convert distance to meters
+  let meters = distance;
+  if (unit === "miles") meters *= 1609.34;
+  if (unit === "km") meters *= 1000;
+
   // Clear previous routes
   routeList.innerHTML = '';
   routeLayers.forEach(layer => map.removeLayer(layer));
   routeLayers = [];
 
-  // Static test route along Tampa streets
-  const coords = [
-    [27.950618, -82.457176], // start
-    [27.951200, -82.456000], // mid-point
-    [27.952354, -82.454902]  // end
-  ];
+  // Get user location
+  navigator.geolocation.getCurrentPosition(async function(pos) {
+    const startLat = pos.coords.latitude;
+    const startLng = pos.coords.longitude;
 
-  const polyline = L.polyline(coords, { color: "red", weight: 4 }).addTo(map);
-  routeLayers.push(polyline);
+    map.setView([startLat, startLng], 15);
 
-  // Fit map to route
-  map.fitBounds(polyline.getBounds());
+    // 3 directions: 0°, 120°, 240°
+    const directions = [0, 120, 240];
 
-  // Add list item
-  const item = document.createElement("li");
-  item.textContent = "Static Test Route";
-  item.onclick = () => map.fitBounds(polyline.getBounds());
-  routeList.appendChild(item);
+    for (let i = 0; i < directions.length; i++) {
+      const angleRad = directions[i] * Math.PI / 180;
+
+      // Offset coordinates along a straight line
+      const offsetLat = startLat + (meters / 111111) * Math.cos(angleRad);
+      const offsetLng = startLng + (meters / (111111 * Math.cos(startLat * Math.PI / 180))) * Math.sin(angleRad);
+
+      try {
+        const response = await fetch("https://api.openrouteservice.org/v2/directions/foot-walking", {
+          method: "POST",
+          headers: {
+            "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQ1MWI1ZTUyYjlhZjQ3YmFhNzkyZWRkMDMwNDJhMDk5IiwiaCI6Im11cm11cjY0In0=", // <-- Replace with your actual key
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            coordinates: [
+              [startLng, startLat],
+              [offsetLng, offsetLat]
+            ]
+          })
+        });
+
+        if (!response.ok) {
+          console.error(`ORS request failed: ${response.status} ${response.statusText}`);
+          continue;
+        }
+
+        const data = await response.json();
+        if (!data.features || data.features.length === 0) {
+          console.error("No route returned from ORS for direction", i);
+          continue;
+        }
+
+        const coords = data.features[0].geometry.coordinates;
+        const latlngs = coords.map(c => [c[1], c[0]]);
+
+        const polyline = L.polyline(latlngs, { color: "blue", weight: 4 }).addTo(map);
+        routeLayers.push(polyline);
+
+        const item = document.createElement("li");
+        item.textContent = `Route ${i + 1} ~ ${distance} ${unit}`;
+        item.onclick = () => map.fitBounds(polyline.getBounds());
+        routeList.appendChild(item);
+
+      } catch (error) {
+        console.error("Routing error:", error);
+      }
+    }
+  }, function(error) {
+    alert("Location permission required.");
+  });
 }
 
 // ----------------------
