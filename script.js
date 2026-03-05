@@ -63,10 +63,10 @@ async function generateRoutes() {
   routeLayers = [];
 
   // Hard-coded test coordinates along Tampa streets
-  const startLat = 27.9500;
-  const startLng = -82.4570;
-  const offsetLat = 27.9520;  // ~200-300m north-east along streets
-  const offsetLng = -82.4550;
+  const startLat = 27.950618;
+  const startLng = -82.457176;
+  const offsetLat = 27.952354;  // ~200-300m north-east along streets
+  const offsetLng = -82.454902;
 
   console.log("Test route coordinates:", startLat, startLng, offsetLat, offsetLng);
 
@@ -128,4 +128,5 @@ async function generateRoutes() {
 // Button Event
 // ----------------------
 startButton.addEventListener("click", generateRoutes);
+
 
