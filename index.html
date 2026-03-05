@@ -1,67 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Step x Step - Route Tracker</title>
-<link rel="stylesheet" href="style.css">
-
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
+  <title>Step x Step</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #map { height: 500px; margin-top: 20px; }
+    ul { padding-left: 20px; }
+    li { cursor: pointer; margin-bottom: 5px; }
+  </style>
 </head>
 <body>
-  <header>
-    <img src="assets/logo.png" alt="Step x Step Logo" id="logo">
-    <h1>Step x Step</h1>
-  </header>
+  <h1>Step x Step Walking App</h1>
 
-  <main>
-    <section id="distance-section">
-      <h2>Enter your distance</h2>
-      <input type="number" id="distance-input" placeholder="Distance">
-      <select id="distance-unit">
-        <option value="miles">Miles</option>
-        <option value="km">Kilometers</option>
-      </select>
-      <select id="route-type">
-        <option value="outback">Out-and-back</option>
-        <option value="loop">Loop</option>
-        <option value="freerun">Free-run</option>
-      </select>
-      <button id="start-button">Find Routes</button>
-    </section>
+  <label>Distance: <input id="distance-input" type="number" value="1"></label>
+  <select id="distance-unit">
+    <option value="miles">miles</option>
+    <option value="km">km</option>
+    <option value="meters">meters</option>
+  </select>
+  <button id="start-button">Start</button>
 
-    <section id="map-section">
-      <h2>Suggested Routes</h2>
-      <div id="map" style="height: 400px;"></div>
-      <ul id="route-list"></ul>
-    </section>
+  <ul id="route-list"></ul>
+  <div id="map"></div>
 
-    <section id="step-counter">
-      <h2>Steps: <span id="steps">0</span></h2>
-    </section>
-
-    <section id="achievements">
-      <h2>Achievements</h2>
-      <ul id="achievement-list"></ul>
-    </section>
-
-    <section id="avatar-section">
-      <h2>Choose Avatar</h2>
-      <img src="assets/avatars/avatar1.png" class="avatar-option" data-avatar="avatar1.png">
-      <img src="assets/avatars/avatar2.png" class="avatar-option" data-avatar="avatar2.png">
-    </section>
-
-    <section id="social-toggle">
-      <label>
-        <input type="checkbox" id="social-enable">
-        Enable friends/updates
-      </label>
-    </section>
-  </main>
-
-  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="script.js"></script>
 </body>
