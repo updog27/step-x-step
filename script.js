@@ -19,7 +19,7 @@ const routeList = document.getElementById('route-list');
 // ----------------------
 // Map Setup
 // ----------------------
-const map = L.map('map').setView([27.9506, -82.4572], 13);
+const map = L.map('map').setView([27.9506, -82.4572], 15);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
@@ -54,7 +54,7 @@ if (window.DeviceMotionEvent) {
 }
 
 // ----------------------
-// Route Generation (Hard-coded Test)
+// Route Generation (Test Route)
 // ----------------------
 async function generateRoutes() {
   // Clear previous routes
@@ -62,11 +62,11 @@ async function generateRoutes() {
   routeLayers.forEach(layer => map.removeLayer(layer));
   routeLayers = [];
 
-  // Hard-coded coordinates (downtown Tampa, FL)
-  const startLat = 27.9506;
-  const startLng = -82.4572;
-  const offsetLat = 27.9550; // ~500m north
-  const offsetLng = -82.4572;
+  // Hard-coded test coordinates along Tampa streets
+  const startLat = 27.9500;
+  const startLng = -82.4570;
+  const offsetLat = 27.9520;  // ~200-300m north-east along streets
+  const offsetLng = -82.4550;
 
   console.log("Test route coordinates:", startLat, startLng, offsetLat, offsetLng);
 
@@ -128,4 +128,3 @@ async function generateRoutes() {
 // Button Event
 // ----------------------
 startButton.addEventListener("click", generateRoutes);
-
