@@ -53,6 +53,9 @@ if (window.DeviceMotionEvent) {
   window.addEventListener('devicemotion', handleMotion, true);
 }
 
+// ----------------------
+// Route Generation (Hard-coded Test)
+// ----------------------
 async function generateRoutes() {
   // Clear previous routes
   routeList.innerHTML = '';
@@ -73,7 +76,7 @@ async function generateRoutes() {
       {
         method: "POST",
         headers: {
-          "Authorization": "YOUR_ORS_API_KEY", // <-- Make sure this is your valid key
+          "Authorization": "YOUR_ORS_API_KEY", // <-- Replace with your valid key
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -120,14 +123,8 @@ async function generateRoutes() {
     alert("Routing error: " + error);
   }
 }
-  function(error) {
-    alert("Location permission required.");
-    console.error("Geolocation error:", error);
-  });
-}
 
 // ----------------------
 // Button Event
 // ----------------------
 startButton.addEventListener("click", generateRoutes);
-
