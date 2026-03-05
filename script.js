@@ -76,7 +76,7 @@ async function generateRoutes() {
       {
         method: "POST",
         headers: {
-          "Authorization": "YOUR_ORS_API_KEY", // <-- REPLACE with your actual API key
+          "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQ1MWI1ZTUyYjlhZjQ3YmFhNzkyZWRkMDMwNDJhMDk5IiwiaCI6Im11cm11cjY0In0=", //
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -128,3 +128,4 @@ async function generateRoutes() {
 // Button Event
 // ----------------------
 startButton.addEventListener("click", generateRoutes);
+
