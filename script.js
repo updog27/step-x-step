@@ -54,7 +54,7 @@ if (window.DeviceMotionEvent) {
 }
 
 // ----------------------
-// Route Generation (Test Route)
+// Route Generation (Working Tampa Test Route)
 // ----------------------
 async function generateRoutes() {
   // Clear previous routes
@@ -62,10 +62,10 @@ async function generateRoutes() {
   routeLayers.forEach(layer => map.removeLayer(layer));
   routeLayers = [];
 
-  // Hard-coded test coordinates along Tampa streets
+  // Coordinates along real Tampa streets
   const startLat = 27.950618;
   const startLng = -82.457176;
-  const offsetLat = 27.952354;  // ~200-300m north-east along streets
+  const offsetLat = 27.952354;
   const offsetLng = -82.454902;
 
   console.log("Test route coordinates:", startLat, startLng, offsetLat, offsetLng);
@@ -76,7 +76,7 @@ async function generateRoutes() {
       {
         method: "POST",
         headers: {
-          "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQ1MWI1ZTUyYjlhZjQ3YmFhNzkyZWRkMDMwNDJhMDk5IiwiaCI6Im11cm11cjY0In0=", //
+          "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQ1MWI1ZTUyYjlhZjQ3YmFhNzkyZWRkMDMwNDJhMDk5IiwiaCI6Im11cm11cjY0In0=", // <-- REPLACE with your actual key
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -109,10 +109,8 @@ async function generateRoutes() {
     const polyline = L.polyline(latlngs, { color: "red", weight: 4 }).addTo(map);
     routeLayers.push(polyline);
 
-    // Fit map to route
     map.fitBounds(polyline.getBounds());
 
-    // Add a simple list item
     const item = document.createElement("li");
     item.textContent = "Test Route";
     item.onclick = () => map.fitBounds(polyline.getBounds());
@@ -128,5 +126,3 @@ async function generateRoutes() {
 // Button Event
 // ----------------------
 startButton.addEventListener("click", generateRoutes);
-
-
