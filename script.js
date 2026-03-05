@@ -74,7 +74,7 @@ const preVerifiedRoutes = [
 ];
 
 // ----------------------
-// Route Generation using ORS
+// Route Generation (uses ORS key if available)
 // ----------------------
 async function generateRoutes() {
   const distance = parseFloat(distanceInput.value);
@@ -99,7 +99,7 @@ async function generateRoutes() {
       const response = await fetch("https://api.openrouteservice.org/v2/directions/foot-walking", {
         method: "POST",
         headers: {
-          "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYzZjhiZWRhMmFhMzQyM2E5ODk1ZGZiM2I4ZWExNmIyIiwiaCI6Im11cm11cjY0In0=", // <-- Replace with your new walking-enabled key
+          "Authorization": "YOUR_ORS_API_KEY", // <-- Replace with your walking-enabled key
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
