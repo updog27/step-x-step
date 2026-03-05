@@ -38,7 +38,7 @@ async function generateRoutes() {
       const response = await fetch(url, {
         method: "POST",
         headers: {
-          "Authorization": "PASTE_YOUR_API_KEY_HERE",
+          "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjQ1MWI1ZTUyYjlhZjQ3YmFhNzkyZWRkMDMwNDJhMDk5IiwiaCI6Im11cm11cjY0In0=",
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
@@ -73,3 +73,4 @@ async function generateRoutes() {
   });
 
 }
+
