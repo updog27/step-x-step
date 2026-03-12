@@ -1,51 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Step x Step</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Step x Step</title>
 
-  <!-- App Icons -->
-  <link rel="icon" type="image/png" sizes="192x192" href="assets/app-icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="assets/app-icon-512.png">
-
-  <!-- Splash Screen (iOS / PWA) -->
-  <link rel="apple-touch-startup-image" href="assets/splash-screen.png">
-
-  <!-- Styles -->
-  <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-  <!-- Onboarding / Welcome Screen -->
-  <div id="welcome-screen">
-    <img src="assets/background-waves.png" alt="Background Waves" class="waves">
-    <img src="assets/onboarding-logo.png" alt="Step x Step Logo" class="logo">
-  </div>
+<header>
+  <img src="assets/logo.png" alt="Step x Step Logo" id="logo">
+  <h1>Step x Step</h1>
+</header>
 
-  <!-- Your main app content goes here -->
-  <div id="app-content" style="display:none;">
-    <!-- App HTML here -->
-    <h1>Welcome to Step x Step!</h1>
-  </div>
+<main>
 
-  <script>
-    // Fade out onboarding screen
-    window.addEventListener('load', () => {
-      const welcome = document.getElementById('welcome-screen');
-      const appContent = document.getElementById('app-content');
+<!-- Distance Input -->
+<section id="distance-section">
+  <h2>Enter Your Distance</h2>
 
-      setTimeout(() => {
-        welcome.style.opacity = 0;
-        welcome.style.transition = 'opacity 0.8s ease';
-      }, 2000);
+  <input
+    type="number"
+    id="distance-input"
+    placeholder="Distance (miles)"
+    step="0.01"
+  >
 
-      // Remove from view and show app content after fade
-      setTimeout(() => {
-        welcome.style.display = 'none';
-        appContent.style.display = 'block';
-      }, 2800);
-    });
-  </script>
+  <select id="distance-unit">
+    <option value="miles" selected>Miles</option>
+    <option value="kilometers">Kilometers</option>
+  </select>
+
+  <select id="route-type">
+    <option value="outback">Out-and-back</option>
+    <option value="loop">Loop</option>
+    <option value="freerun">Free Run</option>
+  </select>
+
+  <button id="start-button">Start</button>
+</section>
+
+<!-- Live Distance Display -->
+<section id="step-counter">
+  <h2>Distance Traveled</h2>
+  <p id="steps">0.00 miles</p>
+</section>
+
+<!-- Achievements -->
+<section id="achievements">
+  <h2>Achievements</h2>
+  <ul id="achievement-list"></ul>
+</section>
+
+<!-- Avatar Selection -->
+<section id="avatar-section">
+  <h2>Choose Avatar</h2>
+
+  <img
+    src="assets/avatars/avatar1.png"
+    class="avatar-option"
+    data-avatar="avatar1.png"
+    width="60"
+  >
+
+  <img
+    src="assets/avatars/avatar2.png"
+    class="avatar-option"
+    data-avatar="avatar2.png"
+    width="60"
+  >
+</section>
+
+<!-- Social Toggle -->
+<section id="social-toggle">
+  <label>
+    <input type="checkbox" id="social-enable">
+    Enable friends / updates
+  </label>
+</section>
+
+</main>
+
+<script src="script.js"></script>
+
 </body>
 </html>
