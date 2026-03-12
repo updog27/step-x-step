@@ -1,84 +1,134 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Step x Step</title>
 
 <link rel="stylesheet" href="style.css">
+
+<style>
+
+body{
+font-family: Arial, Helvetica, sans-serif;
+text-align:center;
+margin:0;
+padding:20px;
+background:#f5f5f5;
+}
+
+header{
+margin-bottom:20px;
+}
+
+#logo{
+width:120px;
+margin-bottom:10px;
+}
+
+section{
+margin:20px 0;
+}
+
+input, select, button{
+padding:10px;
+margin:5px;
+font-size:16px;
+}
+
+.avatar-option{
+width:70px;
+margin:10px;
+border-radius:10px;
+cursor:pointer;
+border:2px solid transparent;
+}
+
+.avatar-option.selected{
+border:2px solid #2a7cff;
+}
+
+</style>
+
 </head>
 
 <body>
 
 <header>
-  <img src="assets/logo.png" alt="Step x Step Logo" id="logo">
-  <h1>Step x Step</h1>
+
+<img src="logo.png" alt="Step x Step Logo" id="logo">
+
+<h1>Step x Step</h1>
+
 </header>
 
 <main>
 
-<!-- Distance Input -->
 <section id="distance-section">
-  <h2>Enter Your Distance</h2>
 
-  <input
-    type="number"
-    id="distance-input"
-    placeholder="Distance (miles)"
-    step="0.01"
-  >
+<h2>Enter Your Distance</h2>
 
-  <select id="distance-unit">
-    <option value="miles" selected>Miles</option>
-    <option value="kilometers">Kilometers</option>
-  </select>
+<input
+type="number"
+id="distance-input"
+placeholder="Distance (miles)"
+step="0.01"
+>
 
-  <select id="route-type">
-    <option value="outback">Out-and-back</option>
-    <option value="loop">Loop</option>
-    <option value="freerun">Free Run</option>
-  </select>
+<select id="distance-unit">
+<option value="miles" selected>Miles</option>
+<option value="kilometers">Kilometers</option>
+</select>
 
-  <button id="start-button">Start</button>
+<select id="route-type">
+<option value="outback">Out-and-back</option>
+<option value="loop">Loop</option>
+<option value="freerun">Free Run</option>
+</select>
+
+<br>
+
+<button id="start-button">Start</button>
+
 </section>
 
-<!-- Live Distance Display -->
 <section id="step-counter">
-  <h2>Distance Traveled</h2>
-  <p id="steps">0.00 miles</p>
+
+<h2>Distance Traveled</h2>
+
+<p id="steps">0.00 miles</p>
+
 </section>
 
-<!-- Achievements -->
 <section id="achievements">
-  <h2>Achievements</h2>
-  <ul id="achievement-list"></ul>
+
+<h2>Achievements</h2>
+
+<ul id="achievement-list"></ul>
+
 </section>
 
-<!-- Avatar Selection -->
 <section id="avatar-section">
-  <h2>Choose Avatar</h2>
 
-  <img
-    src="assets/avatars/avatar1.png"
-    class="avatar-option"
-    data-avatar="avatar1.png"
-    width="60"
-  >
+<h2>Choose Avatar</h2>
 
-  <img
-    src="assets/avatars/avatar2.png"
-    class="avatar-option"
-    data-avatar="avatar2.png"
-    width="60"
-  >
+<img src="avatar1.png" class="avatar-option" data-avatar="avatar1.png">
+
+<img src="avatar2.png" class="avatar-option" data-avatar="avatar2.png">
+
 </section>
 
-<!-- Social Toggle -->
 <section id="social-toggle">
-  <label>
-    <input type="checkbox" id="social-enable">
-    Enable friends / updates
-  </label>
+
+<label>
+
+<input type="checkbox" id="social-enable">
+
+Enable friends / updates
+
+</label>
+
 </section>
 
 </main>
@@ -86,4 +136,5 @@
 <script src="script.js"></script>
 
 </body>
+
 </html>
