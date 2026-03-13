@@ -2,8 +2,10 @@
 <html lang="en">
 
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Step x Step</title>
 
 <link rel="stylesheet" href="style.css">
@@ -18,7 +20,7 @@ font-family: Arial, Helvetica, sans-serif;
 text-align:center;
 margin:0;
 padding:20px;
-background:#f5f5f5;
+background:#f4f6f8;
 }
 
 #logo{
@@ -27,7 +29,7 @@ margin-bottom:10px;
 }
 
 section{
-margin:20px 0;
+margin:25px 0;
 }
 
 input, select, button{
@@ -37,10 +39,10 @@ font-size:16px;
 }
 
 #map{
-height:300px;
+height:320px;
 width:100%;
-margin-top:20px;
 border-radius:10px;
+margin-top:15px;
 }
 
 .avatar-option{
@@ -59,39 +61,37 @@ border:2px solid #2a7cff;
 
 </head>
 
+
 <body>
 
 <header>
 
 <img src="logo.png" alt="Step x Step Logo" id="logo">
+
 <h1>Step x Step</h1>
 
 </header>
+
 
 <main>
 
 <section id="distance-section">
 
-<h2>Enter Your Distance</h2>
+<h2>Enter Distance</h2>
 
-<input type="number" id="distance-input" placeholder="Distance (miles)" step="0.01">
-
-<select id="distance-unit">
-<option value="miles" selected>Miles</option>
-<option value="kilometers">Kilometers</option>
-</select>
-
-<select id="route-type">
-<option value="outback">Out-and-back</option>
-<option value="loop">Loop</option>
-<option value="freerun">Free Run</option>
-</select>
+<input
+type="number"
+id="distance-input"
+placeholder="Distance (miles)"
+step="0.01">
 
 <br>
 
-<button id="start-button">Start</button>
+<button id="start-button">Start Walk</button>
 
 </section>
+
+
 
 <section id="step-counter">
 
@@ -103,42 +103,62 @@ border:2px solid #2a7cff;
 
 </section>
 
-<!-- MAP -->
+
+
 <section>
+
 <h2>Your Route</h2>
+
 <div id="map"></div>
+
 </section>
+
+
 
 <section id="achievements">
 
 <h2>Achievements</h2>
+
 <ul id="achievement-list"></ul>
 
 </section>
 
+
+
 <section id="avatar-section">
 
-<h2>Choose Avatar</h2>
+<h2>Choose Your Avatar</h2>
 
 <img src="avatar1.png" class="avatar-option">
 <img src="avatar2.png" class="avatar-option">
 
 </section>
 
+
+
 <section id="social-toggle">
 
 <label>
+
 <input type="checkbox" id="social-enable">
-Enable friends / updates
+
+Enable Friends / Updates
+
 </label>
 
 </section>
 
 </main>
 
+
+
+<!-- Leaflet Map Library -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+
+<!-- Your App Script -->
 <script src="script.js"></script>
+
 
 </body>
 </html>
-
