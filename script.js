@@ -9,16 +9,23 @@ let routeCoordinates = [];
 
 let watchId = null;
 let previousPosition = null;
+
 let totalDistance = 0;
 let goalDistance = 0;
+let halfDistance = 0;
 
 let stepCount = 0;
 
 const STEPS_PER_MILE = 2300;
 
+let turnaroundTriggered = false;
+
 const startButton = document.getElementById("start-button");
 const distanceDisplay = document.getElementById("distance");
 const stepDisplay = document.getElementById("steps");
+
+const routeTypeSelect =
+document.getElementById("route-type");
 
 
 // ===============================
@@ -71,13 +78,28 @@ alert("Enter valid distance");
 return;
 }
 
+const routeType = routeTypeSelect.value;
+
 totalDistance = 0;
 stepCount = 0;
 previousPosition = null;
 routeCoordinates = [];
 
+turnaroundTriggered = false;
+
 distanceDisplay.textContent = "0.00 miles";
 stepDisplay.textContent = "0";
+
+// turnaround calculation
+if (routeType === "outback") {
+
+halfDistance = goalDistance / 2;
+
+} else {
+
+halfDistance = 0;
+
+}
 
 watchId = navigator.geolocation.watchPosition(
 updatePosition,
@@ -120,20 +142,42 @@ lat,
 lon
 );
 
-// allow smaller GPS movement
 if (dist > 0.0002) {
 
 totalDistance += dist;
 
+// update distance
 distanceDisplay.textContent =
 totalDistance.toFixed(2) + " miles";
 
-// steps based on distance
+// update steps
 stepCount = Math.round(
 totalDistance * STEPS_PER_MILE
 );
 
 stepDisplay.textContent = stepCount;
+
+
+// =========================
+// TURNAROUND ALERT
+// =========================
+
+if (
+halfDistance > 0 &&
+!turnaroundTriggered &&
+totalDistance >= halfDistance
+) {
+
+turnaroundTriggered = true;
+
+alert("Turn around now");
+
+}
+
+
+// =========================
+// GOAL REACHED
+// =========================
 
 if (totalDistance >= goalDistance) {
 
