@@ -14,10 +14,11 @@ let goalDistance = 0;
 
 // step counter
 let steps = 0;
+let lastMagnitude = 0;
 let lastStepTime = 0;
 
-const STEP_THRESHOLD = 12.3;
-const STEP_COOLDOWN = 400;
+const STEP_THRESHOLD = 1.2;
+const STEP_COOLDOWN = 350;
 
 const startButton = document.getElementById("start-button");
 const distanceDisplay = document.getElementById("distance");
@@ -135,7 +136,6 @@ totalDistance.toFixed(2) + " miles";
 if (totalDistance >= goalDistance) {
 
 navigator.geolocation.clearWatch(watchId);
-
 alert("Goal reached");
 
 }
@@ -191,15 +191,20 @@ const acc = event.accelerationIncludingGravity;
 
 if (!acc) return;
 
-const magnitude =
-Math.abs(acc.x) +
-Math.abs(acc.y) +
-Math.abs(acc.z);
+// calculate magnitude
+const magnitude = Math.sqrt(
+acc.x * acc.x +
+acc.y * acc.y +
+acc.z * acc.z
+);
+
+// difference from previous
+const diff = Math.abs(magnitude - lastMagnitude);
 
 const now = Date.now();
 
 if (
-magnitude > STEP_THRESHOLD &&
+diff > STEP_THRESHOLD &&
 now - lastStepTime > STEP_COOLDOWN
 ) {
 
@@ -209,6 +214,8 @@ stepDisplay.textContent = steps;
 lastStepTime = now;
 
 }
+
+lastMagnitude = magnitude;
 
 });
 
