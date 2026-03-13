@@ -17,8 +17,8 @@ let steps = 0;
 let lastMagnitude = 0;
 let lastStepTime = 0;
 
-const STEP_THRESHOLD = 1.2;
-const STEP_COOLDOWN = 350;
+const STEP_THRESHOLD = 12.3;
+const STEP_COOLDOWN = 400;
 
 const startButton = document.getElementById("start-button");
 const distanceDisplay = document.getElementById("distance");
@@ -261,3 +261,4 @@ function handleError(err) {
 alert("GPS error: " + err.message);
 
 }
+
