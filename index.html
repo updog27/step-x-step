@@ -1,164 +1,240 @@
-<!DOCTYPE html>
-<html lang="en">
+// ===============================
+// GLOBAL VARIABLES
+// ===============================
 
-<head>
+let map;
+let userMarker;
+let routeLine;
+let routeCoordinates = [];
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+let watchId = null;
+let previousPosition = null;
 
-<title>Step x Step</title>
+let totalDistance = 0;
+let goalDistance = 0;
+let halfDistance = 0;
 
-<link rel="stylesheet" href="style.css">
+let stepCount = 0;
 
-<!-- Leaflet Map Library -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+const STEPS_PER_MILE = 2300;
 
-<style>
+let turnaroundTriggered = false;
 
-body{
-font-family: Arial, Helvetica, sans-serif;
-text-align:center;
-margin:0;
-padding:20px;
-background:#f4f6f8;
+const startButton = document.getElementById("start-button");
+const distanceDisplay = document.getElementById("distance");
+const stepDisplay = document.getElementById("steps");
+
+const routeTypeSelect =
+document.getElementById("route-type");
+
+
+// ===============================
+// MAP INIT
+// ===============================
+
+map = L.map("map").setView([27.9506, -82.4572], 13);
+
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+{ maxZoom: 19 }
+).addTo(map);
+
+routeLine = L.polyline([], { color: "blue" }).addTo(map);
+
+
+// ===============================
+// GET USER LOCATION
+// ===============================
+
+if (navigator.geolocation) {
+
+navigator.geolocation.getCurrentPosition(function (pos) {
+
+const lat = pos.coords.latitude;
+const lon = pos.coords.longitude;
+
+map.setView([lat, lon], 17);
+
+userMarker = L.marker([lat, lon]).addTo(map);
+
+});
+
 }
 
-#logo{
-width:120px;
-margin-bottom:10px;
+
+// ===============================
+// START BUTTON
+// ===============================
+
+startButton.addEventListener("click", () => {
+
+const distanceInput =
+document.getElementById("distance-input").value;
+
+goalDistance = parseFloat(distanceInput);
+
+if (isNaN(goalDistance) || goalDistance <= 0) {
+alert("Enter valid distance");
+return;
 }
 
-section{
-margin:25px 0;
+const routeType = routeTypeSelect.value;
+
+totalDistance = 0;
+stepCount = 0;
+previousPosition = null;
+routeCoordinates = [];
+
+turnaroundTriggered = false;
+
+distanceDisplay.textContent = "0.00 miles";
+stepDisplay.textContent = "0";
+
+// turnaround calculation
+if (routeType === "outback") {
+
+halfDistance = goalDistance / 2;
+
+} else {
+
+halfDistance = 0;
+
 }
 
-input, select, button{
-padding:10px;
-margin:5px;
-font-size:16px;
+watchId = navigator.geolocation.watchPosition(
+updatePosition,
+handleError,
+{
+enableHighAccuracy: true,
+maximumAge: 0,
+timeout: 10000
+}
+);
+
+});
+
+
+// ===============================
+// GPS UPDATE
+// ===============================
+
+function updatePosition(position) {
+
+const lat = position.coords.latitude;
+const lon = position.coords.longitude;
+
+if (!userMarker) {
+userMarker = L.marker([lat, lon]).addTo(map);
 }
 
-#map{
-height:320px;
-width:100%;
-border-radius:10px;
-margin-top:15px;
+userMarker.setLatLng([lat, lon]);
+map.panTo([lat, lon]);
+
+routeCoordinates.push([lat, lon]);
+routeLine.setLatLngs(routeCoordinates);
+
+if (previousPosition) {
+
+const dist = calculateDistance(
+previousPosition.latitude,
+previousPosition.longitude,
+lat,
+lon
+);
+
+if (dist > 0.0002) {
+
+totalDistance += dist;
+
+// update distance
+distanceDisplay.textContent =
+totalDistance.toFixed(2) + " miles";
+
+// update steps
+stepCount = Math.round(
+totalDistance * STEPS_PER_MILE
+);
+
+stepDisplay.textContent = stepCount;
+
+
+// =========================
+// TURNAROUND ALERT
+// =========================
+
+if (
+halfDistance > 0 &&
+!turnaroundTriggered &&
+totalDistance >= halfDistance
+) {
+
+turnaroundTriggered = true;
+
+alert("Turn around now");
+
 }
 
-.avatar-option{
-width:70px;
-margin:10px;
-border-radius:10px;
-cursor:pointer;
-border:2px solid transparent;
+
+// =========================
+// GOAL REACHED
+// =========================
+
+if (totalDistance >= goalDistance) {
+
+navigator.geolocation.clearWatch(watchId);
+
+alert("Goal reached");
+
 }
 
-.avatar-option.selected{
-border:2px solid #2a7cff;
 }
 
-</style>
+}
 
-</head>
+previousPosition = {
+latitude: lat,
+longitude: lon
+};
 
-
-<body>
-
-<header>
-
-<img src="logo.png" alt="Step x Step Logo" id="logo">
-
-<h1>Step x Step</h1>
-
-</header>
+}
 
 
-<main>
+// ===============================
+// DISTANCE FORMULA
+// ===============================
 
-<section id="distance-section">
+function calculateDistance(lat1, lon1, lat2, lon2) {
 
-<h2>Enter Distance</h2>
+const R = 3958.8;
 
-<input
-type="number"
-id="distance-input"
-placeholder="Distance (miles)"
-step="0.01">
+const toRad = d => d * Math.PI / 180;
 
-<br>
+const dLat = toRad(lat2 - lat1);
+const dLon = toRad(lon2 - lon1);
 
-<button id="start-button">Start Walk</button>
+const a =
+Math.sin(dLat / 2) ** 2 +
+Math.cos(toRad(lat1)) *
+Math.cos(toRad(lat2)) *
+Math.sin(dLon / 2) ** 2;
 
-</section>
+const c =
+2 * Math.atan2(
+Math.sqrt(a),
+Math.sqrt(1 - a)
+);
 
+return R * c;
 
-
-<section id="step-counter">
-
-<h2>Distance Traveled</h2>
-<p id="distance">0.00 miles</p>
-
-<h2>Steps</h2>
-<p id="steps">0</p>
-
-</section>
-
+}
 
 
-<section>
+// ===============================
+// ERROR
+// ===============================
 
-<h2>Your Route</h2>
+function handleError(err) {
 
-<div id="map"></div>
+alert("GPS error: " + err.message);
 
-</section>
-
-
-
-<section id="achievements">
-
-<h2>Achievements</h2>
-
-<ul id="achievement-list"></ul>
-
-</section>
-
-
-
-<section id="avatar-section">
-
-<h2>Choose Your Avatar</h2>
-
-<img src="avatar1.png" class="avatar-option">
-<img src="avatar2.png" class="avatar-option">
-
-</section>
-
-
-
-<section id="social-toggle">
-
-<label>
-
-<input type="checkbox" id="social-enable">
-
-Enable Friends / Updates
-
-</label>
-
-</section>
-
-</main>
-
-
-
-<!-- Leaflet Map Library -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-
-<!-- Your App Script -->
-<script src="script.js"></script>
-
-
-</body>
-</html>
+}
