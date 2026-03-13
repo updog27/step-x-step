@@ -11,12 +11,37 @@ let goalDistance = 0;
 const startButton = document.getElementById("start-button");
 const stepsDisplay = document.getElementById("steps");
 
+
+// INITIAL MAP LOAD
+if (navigator.geolocation) {
+navigator.geolocation.getCurrentPosition(initMap);
+}
+
+function initMap(position){
+
+const lat = position.coords.latitude;
+const lon = position.coords.longitude;
+
+map = L.map('map').setView([lat, lon], 17);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19
+}).addTo(map);
+
+userMarker = L.marker([lat, lon]).addTo(map);
+
+routeLine = L.polyline([], {color:'blue'}).addTo(map);
+
+}
+
+
+// START BUTTON
 startButton.addEventListener("click", () => {
 
 const distanceInput = document.getElementById("distance-input").value;
 goalDistance = parseFloat(distanceInput);
 
-if (isNaN(goalDistance) || goalDistance <= 0) {
+if (isNaN(goalDistance) || goalDistance <= 0){
 alert("Please enter a valid distance.");
 return;
 }
@@ -27,42 +52,27 @@ routeCoordinates = [];
 
 stepsDisplay.textContent = "0.00 miles";
 
-if (!navigator.geolocation) {
-alert("Geolocation is not supported by your browser.");
-return;
-}
-
-watchId = navigator.geolocation.watchPosition(updatePosition, handleError, {
-enableHighAccuracy: true,
-maximumAge: 0,
-timeout: 10000
+watchId = navigator.geolocation.watchPosition(updatePosition, handleError,{
+enableHighAccuracy:true,
+maximumAge:0,
+timeout:10000
 });
 
 });
 
+
+// GPS UPDATE
 function updatePosition(position){
 
 const lat = position.coords.latitude;
 const lon = position.coords.longitude;
 
-if(!map){
+userMarker.setLatLng([lat,lon]);
 
-map = L.map('map').setView([lat, lon], 17);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-maxZoom: 19
-}).addTo(map);
-
-userMarker = L.marker([lat, lon]).addTo(map);
-
-routeLine = L.polyline([], {color:'blue'}).addTo(map);
-
-}
-
-userMarker.setLatLng([lat, lon]);
-
-routeCoordinates.push([lat, lon]);
+routeCoordinates.push([lat,lon]);
 routeLine.setLatLngs(routeCoordinates);
+
+map.panTo([lat,lon]);
 
 if(previousPosition){
 
@@ -73,13 +83,18 @@ lat,
 lon
 );
 
-if(distance > 0.003){
+if(distance > 0.002){
+
 totalDistance += distance;
+
 stepsDisplay.textContent = totalDistance.toFixed(2) + " miles";
 
 if(totalDistance >= goalDistance){
+
 navigator.geolocation.clearWatch(watchId);
+
 alert("Goal reached!");
+
 }
 
 }
@@ -90,10 +105,16 @@ previousPosition = {latitude:lat, longitude:lon};
 
 }
 
+
+// ERROR HANDLING
 function handleError(error){
+
 alert("Location error: " + error.message);
+
 }
 
+
+// DISTANCE CALCULATION
 function calculateDistance(lat1, lon1, lat2, lon2){
 
 const R = 3958.8;
