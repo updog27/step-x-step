@@ -1,3 +1,7 @@
+// ===============================
+// GLOBAL VARIABLES
+// ===============================
+
 let map;
 let userMarker;
 let routeLine;
@@ -8,143 +12,209 @@ let previousPosition = null;
 let totalDistance = 0;
 let goalDistance = 0;
 
+let stepCount = 0;
+let lastAcceleration = 0;
+
 const startButton = document.getElementById("start-button");
-const stepsDisplay = document.getElementById("steps");
+const distanceDisplay = document.getElementById("distance");
+const stepDisplay = document.getElementById("steps");
 
 
-// LOAD MAP IMMEDIATELY (default location)
-map = L.map('map').setView([27.9506, -82.4572], 13); // Tampa default
+// ===============================
+// MAP INITIALIZATION
+// ===============================
+
+// Default map location (Tampa)
+map = L.map('map').setView([27.9506, -82.4572], 13);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-maxZoom: 19
+    maxZoom: 19
 }).addTo(map);
 
 routeLine = L.polyline([], {color:'blue'}).addTo(map);
 
 
-// TRY TO GET USER LOCATION
+// ===============================
+// GET USER LOCATION
+// ===============================
+
 if (navigator.geolocation) {
 
-navigator.geolocation.getCurrentPosition(function(position){
+    navigator.geolocation.getCurrentPosition(function(position){
 
-const lat = position.coords.latitude;
-const lon = position.coords.longitude;
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
 
-map.setView([lat, lon], 17);
+        map.setView([lat, lon], 17);
 
-userMarker = L.marker([lat, lon]).addTo(map);
+        userMarker = L.marker([lat, lon]).addTo(map);
 
-});
+    });
 
 }
 
 
-// START WALK
+// ===============================
+// START WALK BUTTON
+// ===============================
+
 startButton.addEventListener("click", () => {
 
-const distanceInput = document.getElementById("distance-input").value;
-goalDistance = parseFloat(distanceInput);
+    const distanceInput = document.getElementById("distance-input").value;
+    goalDistance = parseFloat(distanceInput);
 
-if (isNaN(goalDistance) || goalDistance <= 0){
-alert("Enter a valid distance");
-return;
-}
+    if (isNaN(goalDistance) || goalDistance <= 0){
+        alert("Enter a valid distance");
+        return;
+    }
 
-totalDistance = 0;
-previousPosition = null;
-routeCoordinates = [];
+    totalDistance = 0;
+    stepCount = 0;
+    previousPosition = null;
+    routeCoordinates = [];
 
-stepsDisplay.textContent = "0.00 miles";
+    distanceDisplay.textContent = "0.00 miles";
+    stepDisplay.textContent = "0";
 
-watchId = navigator.geolocation.watchPosition(updatePosition, handleError,{
-enableHighAccuracy:true,
-maximumAge:0,
-timeout:10000
+    watchId = navigator.geolocation.watchPosition(
+        updatePosition,
+        handleError,
+        {
+            enableHighAccuracy:true,
+            maximumAge:0,
+            timeout:10000
+        }
+    );
+
 });
 
-});
 
+// ===============================
+// GPS POSITION UPDATE
+// ===============================
 
-// GPS UPDATE
 function updatePosition(position){
 
-const lat = position.coords.latitude;
-const lon = position.coords.longitude;
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
 
-if(!userMarker){
-userMarker = L.marker([lat,lon]).addTo(map);
+    if(!userMarker){
+        userMarker = L.marker([lat,lon]).addTo(map);
+    }
+
+    userMarker.setLatLng([lat,lon]);
+
+    map.panTo([lat,lon]);
+
+    // add route point
+    routeCoordinates.push([lat,lon]);
+
+    routeLine.setLatLngs(routeCoordinates);
+
+
+    // calculate distance
+    if(previousPosition){
+
+        const distance = calculateDistance(
+            previousPosition.latitude,
+            previousPosition.longitude,
+            lat,
+            lon
+        );
+
+        if(distance > 0.001){
+
+            totalDistance += distance;
+
+            distanceDisplay.textContent =
+            totalDistance.toFixed(2) + " miles";
+
+            if(totalDistance >= goalDistance){
+
+                navigator.geolocation.clearWatch(watchId);
+
+                alert("Goal reached!");
+
+            }
+
+        }
+
+    }
+
+    previousPosition = {latitude:lat, longitude:lon};
+
 }
 
-userMarker.setLatLng([lat,lon]);
 
-map.panTo([lat,lon]);
+// ===============================
+// ERROR HANDLING
+// ===============================
 
-// ALWAYS push coordinate
-routeCoordinates.push([lat,lon]);
-
-// redraw route
-routeLine.setLatLngs(routeCoordinates);
-
-
-// distance calculation
-if(previousPosition){
-
-const distance = calculateDistance(
-previousPosition.latitude,
-previousPosition.longitude,
-lat,
-lon
-);
-
-if(distance > 0.001){
-
-totalDistance += distance;
-
-stepsDisplay.textContent =
-totalDistance.toFixed(2) + " miles";
-
-if(totalDistance >= goalDistance){
-
-navigator.geolocation.clearWatch(watchId);
-
-alert("Goal reached!");
-
-}
-
-}
-
-}
-
-previousPosition = {latitude:lat, longitude:lon};
-
-}
-
-
-// ERROR
 function handleError(error){
-alert("GPS Error: " + error.message);
+
+    alert("GPS Error: " + error.message);
+
 }
 
 
-// DISTANCE FORMULA
+// ===============================
+// DISTANCE CALCULATION
+// ===============================
+
 function calculateDistance(lat1, lon1, lat2, lon2){
 
-const R = 3958.8;
+    const R = 3958.8;
 
-const toRad = deg => deg * Math.PI / 180;
+    const toRad = deg => deg * Math.PI / 180;
 
-const dLat = toRad(lat2-lat1);
-const dLon = toRad(lon2-lon1);
+    const dLat = toRad(lat2-lat1);
+    const dLon = toRad(lon2-lon1);
 
-const a =
-Math.sin(dLat/2) * Math.sin(dLat/2) +
-Math.cos(toRad(lat1)) *
-Math.cos(toRad(lat2)) *
-Math.sin(dLon/2) *
-Math.sin(dLon/2);
+    const a =
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon/2) *
+        Math.sin(dLon/2);
 
-const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
-return R * c;
+    return R * c;
+
+}
+
+
+// ===============================
+// STEP COUNTER (PHONE MOTION)
+// ===============================
+
+if (window.DeviceMotionEvent){
+
+    window.addEventListener("devicemotion", function(event){
+
+        const acc = event.accelerationIncludingGravity;
+
+        if(!acc) return;
+
+        const magnitude = Math.sqrt(
+            acc.x * acc.x +
+            acc.y * acc.y +
+            acc.z * acc.z
+        );
+
+        const delta = Math.abs(magnitude - lastAcceleration);
+
+        // sensitivity threshold
+        if(delta > 1.2){
+
+            stepCount++;
+
+            stepDisplay.textContent = stepCount;
+
+        }
+
+        lastAcceleration = magnitude;
+
+    });
 
 }
