@@ -174,12 +174,19 @@ activateStepDetection();
 }
 
 
-function activateStepDetection(){
+// ===============================
+// IMPROVED STEP COUNTER
+// ===============================
+
+let lastStepTime = 0;
+const STEP_THRESHOLD = 12.3;      // higher = less sensitive
+const STEP_DELAY = 400;          // milliseconds between steps
+
+if(window.DeviceMotionEvent){
 
 window.addEventListener("devicemotion", function(event){
 
 const acc = event.accelerationIncludingGravity;
-
 if(!acc) return;
 
 const magnitude = Math.sqrt(
@@ -190,10 +197,15 @@ acc.z * acc.z
 
 const delta = Math.abs(magnitude - lastAcceleration);
 
-if(delta > 1.2){
+const now = Date.now();
+
+// detect step
+if(delta > STEP_THRESHOLD && (now - lastStepTime) > STEP_DELAY){
 
 stepCount++;
 stepDisplay.textContent = stepCount;
+
+lastStepTime = now;
 
 }
 
@@ -239,3 +251,4 @@ function handleError(error){
 alert("GPS Error: " + error.message);
 
 }
+
