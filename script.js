@@ -1,148 +1,116 @@
-// ----------------------
-// Step Counter Variables
-// ----------------------
-let steps = 0;
-let lastStepTime = 0;
-const STEP_THRESHOLD = 12.3;
-const STEP_COOLDOWN = 400;
+let map;
+let userMarker;
+let routeLine;
+let routeCoordinates = [];
 
-// ----------------------
-// DOM Elements
-// ----------------------
-const stepsSpan = document.getElementById('steps');
-const distanceInput = document.getElementById('distance-input');
-const distanceUnit = document.getElementById('distance-unit');
-const startButton = document.getElementById('start-button');
-const routeList = document.getElementById('route-list');
+let watchId = null;
+let previousPosition = null;
+let totalDistance = 0;
+let goalDistance = 0;
 
-// ----------------------
-// Map Setup
-// ----------------------
-const map = L.map('map').setView([27.9506, -82.4572], 15);
+const startButton = document.getElementById("start-button");
+const stepsDisplay = document.getElementById("steps");
+
+startButton.addEventListener("click", () => {
+
+const distanceInput = document.getElementById("distance-input").value;
+goalDistance = parseFloat(distanceInput);
+
+if (isNaN(goalDistance) || goalDistance <= 0) {
+alert("Please enter a valid distance.");
+return;
+}
+
+totalDistance = 0;
+previousPosition = null;
+routeCoordinates = [];
+
+stepsDisplay.textContent = "0.00 miles";
+
+if (!navigator.geolocation) {
+alert("Geolocation is not supported by your browser.");
+return;
+}
+
+watchId = navigator.geolocation.watchPosition(updatePosition, handleError, {
+enableHighAccuracy: true,
+maximumAge: 0,
+timeout: 10000
+});
+
+});
+
+function updatePosition(position){
+
+const lat = position.coords.latitude;
+const lon = position.coords.longitude;
+
+if(!map){
+
+map = L.map('map').setView([lat, lon], 17);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
+maxZoom: 19
 }).addTo(map);
 
-let routeLayers = [];
+userMarker = L.marker([lat, lon]).addTo(map);
 
-// ----------------------
-// Step Counter
-// ----------------------
-function updateUI() {
-  stepsSpan.textContent = steps;
+routeLine = L.polyline([], {color:'blue'}).addTo(map);
+
 }
 
-function handleMotion(event) {
-  const acc = event.accelerationIncludingGravity;
-  if (!acc) return;
+userMarker.setLatLng([lat, lon]);
 
-  const z = acc.z || 0;
-  const delta = Math.abs(z);
-  const now = Date.now();
+routeCoordinates.push([lat, lon]);
+routeLine.setLatLngs(routeCoordinates);
 
-  if (delta > STEP_THRESHOLD && now - lastStepTime > STEP_COOLDOWN) {
-    lastStepTime = now;
-    steps++;
-    updateUI();
-  }
+if(previousPosition){
+
+const distance = calculateDistance(
+previousPosition.latitude,
+previousPosition.longitude,
+lat,
+lon
+);
+
+if(distance > 0.003){
+totalDistance += distance;
+stepsDisplay.textContent = totalDistance.toFixed(2) + " miles";
+
+if(totalDistance >= goalDistance){
+navigator.geolocation.clearWatch(watchId);
+alert("Goal reached!");
 }
 
-if (window.DeviceMotionEvent) {
-  window.addEventListener('devicemotion', handleMotion, true);
 }
 
-// ----------------------
-// Pre-verified walking coordinates for 3 routes
-// ----------------------
-const preVerifiedRoutes = [
-  // Route 1
-  [
-    [27.950618, -82.457176],
-    [27.951200, -82.456000]
-  ],
-  // Route 2
-  [
-    [27.950618, -82.457176],
-    [27.949900, -82.455800]
-  ],
-  // Route 3
-  [
-    [27.950618, -82.457176],
-    [27.952000, -82.455500]
-  ]
-];
-
-// ----------------------
-// Route Generation (uses ORS key if available)
-// ----------------------
-async function generateRoutes() {
-  const distance = parseFloat(distanceInput.value);
-  const unit = distanceUnit.value;
-
-  if (isNaN(distance) || distance <= 0) {
-    alert("Please enter a valid distance");
-    return;
-  }
-
-  // Clear previous routes
-  routeList.innerHTML = '';
-  routeLayers.forEach(layer => map.removeLayer(layer));
-  routeLayers = [];
-
-  for (let i = 0; i < preVerifiedRoutes.length; i++) {
-    const coords = preVerifiedRoutes[i];
-    const start = coords[0];
-    const end = coords[1];
-
-    try {
-      const response = await fetch("https://api.openrouteservice.org/v2/directions/foot-walking", {
-        method: "POST",
-        headers: {
-          "Authorization": "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjYzZjhiZWRhMmFhMzQyM2E5ODk1ZGZiM2I4ZWExNmIyIiwiaCI6Im11cm11cjY0In0=", // <-- Replace with your walking-enabled key
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          coordinates: [
-            [start[1], start[0]], // [lng, lat]
-            [end[1], end[0]]
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        console.error(`ORS request failed: ${response.status} ${response.statusText}`);
-        continue;
-      }
-
-      const data = await response.json();
-
-      if (!data.features || data.features.length === 0) {
-        console.error("No route returned from ORS for Route", i + 1);
-        continue;
-      }
-
-      const routeCoords = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-      const polyline = L.polyline(routeCoords, { color: "blue", weight: 4 }).addTo(map);
-      routeLayers.push(polyline);
-
-      const item = document.createElement("li");
-      item.textContent = `Route ${i + 1} ~ ${distance} ${unit}`;
-      item.onclick = () => map.fitBounds(polyline.getBounds());
-      routeList.appendChild(item);
-
-    } catch (error) {
-      console.error("Routing error:", error);
-    }
-  }
-
-  if (routeLayers.length > 0) {
-    map.fitBounds(routeLayers[0].getBounds());
-  }
 }
 
-// ----------------------
-// Button Event
-// ----------------------
-startButton.addEventListener("click", generateRoutes);
+previousPosition = {latitude:lat, longitude:lon};
 
+}
+
+function handleError(error){
+alert("Location error: " + error.message);
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2){
+
+const R = 3958.8;
+
+const toRad = angle => angle * Math.PI / 180;
+
+const dLat = toRad(lat2-lat1);
+const dLon = toRad(lon2-lon1);
+
+const a =
+Math.sin(dLat/2)*Math.sin(dLat/2) +
+Math.cos(toRad(lat1)) *
+Math.cos(toRad(lat2)) *
+Math.sin(dLon/2)*Math.sin(dLon/2);
+
+const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+return R * c;
+
+}
