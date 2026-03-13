@@ -16,7 +16,7 @@ let stepCount = 0;
 let lastMagnitude = 0;
 let lastStepTime = 0;
 
-const STEP_THRESHOLD = 0.9;   // lower = detects walking
+const STEP_THRESHOLD = 6.9;   // lower = detects walking
 const STEP_DELAY = 350;       // ms between steps
 
 const startButton = document.getElementById("start-button");
@@ -257,4 +257,5 @@ function handleError(err) {
 alert("GPS error: " + err.message);
 
 }
+
 
