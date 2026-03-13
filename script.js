@@ -14,7 +14,7 @@ let goalDistance = 0;
 
 let stepCount = 0;
 
-const STEPS_PER_MILE = 2000;
+const STEPS_PER_MILE = 2300;
 
 const startButton = document.getElementById("start-button");
 const distanceDisplay = document.getElementById("distance");
@@ -194,3 +194,4 @@ function handleError(err) {
 alert("GPS error: " + err.message);
 
 }
+
