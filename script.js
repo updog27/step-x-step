@@ -12,9 +12,12 @@ let previousPosition = null;
 let totalDistance = 0;
 let goalDistance = 0;
 
-let stepCount = 0;
+// step counter
+let steps = 0;
+let lastStepTime = 0;
 
-const STEPS_PER_MILE = 2300;
+const STEP_THRESHOLD = 12.3;
+const STEP_COOLDOWN = 400;
 
 const startButton = document.getElementById("start-button");
 const distanceDisplay = document.getElementById("distance");
@@ -59,7 +62,7 @@ userMarker = L.marker([lat, lon]).addTo(map);
 // START BUTTON
 // ===============================
 
-startButton.addEventListener("click", () => {
+startButton.addEventListener("click", async () => {
 
 const distanceInput =
 document.getElementById("distance-input").value;
@@ -72,12 +75,14 @@ return;
 }
 
 totalDistance = 0;
-stepCount = 0;
+steps = 0;
 previousPosition = null;
 routeCoordinates = [];
 
 distanceDisplay.textContent = "0.00 miles";
 stepDisplay.textContent = "0";
+
+await requestMotionPermission();
 
 watchId = navigator.geolocation.watchPosition(
 updatePosition,
@@ -124,16 +129,8 @@ if (dist > 0.001) {
 
 totalDistance += dist;
 
-// update distance
 distanceDisplay.textContent =
 totalDistance.toFixed(2) + " miles";
-
-// update steps from distance
-stepCount = Math.round(
-totalDistance * STEPS_PER_MILE
-);
-
-stepDisplay.textContent = stepCount;
 
 if (totalDistance >= goalDistance) {
 
@@ -151,6 +148,69 @@ previousPosition = {
 latitude: lat,
 longitude: lon
 };
+
+}
+
+
+// ===============================
+// STEP COUNTER
+// ===============================
+
+async function requestMotionPermission() {
+
+if (
+typeof DeviceMotionEvent !== "undefined" &&
+typeof DeviceMotionEvent.requestPermission === "function"
+) {
+
+try {
+
+const p =
+await DeviceMotionEvent.requestPermission();
+
+if (p === "granted") {
+startStepCounter();
+}
+
+} catch {}
+
+} else {
+
+startStepCounter();
+
+}
+
+}
+
+
+function startStepCounter() {
+
+window.addEventListener("devicemotion", function (event) {
+
+const acc = event.accelerationIncludingGravity;
+
+if (!acc) return;
+
+const magnitude =
+Math.abs(acc.x) +
+Math.abs(acc.y) +
+Math.abs(acc.z);
+
+const now = Date.now();
+
+if (
+magnitude > STEP_THRESHOLD &&
+now - lastStepTime > STEP_COOLDOWN
+) {
+
+steps++;
+stepDisplay.textContent = steps;
+
+lastStepTime = now;
+
+}
+
+});
 
 }
 
@@ -194,4 +254,3 @@ function handleError(err) {
 alert("GPS error: " + err.message);
 
 }
-
