@@ -16,6 +16,8 @@ const STEPS_PER_MILE = 2300;
 
 let turnaroundTriggered = false;
 
+const TURN_BUFFER = 0.003;
+
 const startButton =
 document.getElementById("start-button");
 
@@ -32,9 +34,7 @@ const unitSelect =
 document.getElementById("distance-unit");
 
 
-// ======================
-// MAP INIT
-// ======================
+// MAP
 
 map = L.map("map").setView([27.95, -82.45], 13);
 
@@ -48,9 +48,7 @@ L.polyline([], { color: "blue" })
 .addTo(map);
 
 
-// ======================
-// GET LOCATION
-// ======================
+// LOCATION
 
 if (navigator.geolocation) {
 
@@ -69,9 +67,7 @@ L.marker([lat, lon]).addTo(map);
 }
 
 
-// ======================
-// START BUTTON
-// ======================
+// START
 
 startButton.addEventListener("click", () => {
 
@@ -88,12 +84,8 @@ return;
 const unit = unitSelect.value;
 const routeType = routeTypeSelect.value;
 
-// convert km → miles
 if (unit === "km") {
-
-goalDistance =
-goalDistance * 0.621371;
-
+goalDistance *= 0.621371;
 }
 
 totalDistance = 0;
@@ -110,8 +102,7 @@ stepDisplay.textContent = "0";
 
 if (routeType === "outback") {
 
-halfDistance =
-goalDistance / 2;
+halfDistance = goalDistance / 2;
 
 } else {
 
@@ -133,9 +124,7 @@ timeout: 10000
 });
 
 
-// ======================
-// GPS UPDATE
-// ======================
+// UPDATE
 
 function updatePosition(position) {
 
@@ -172,13 +161,9 @@ if (dist > 0.0002) {
 
 totalDistance += dist;
 
-// distance display
-
 distanceDisplay.textContent =
 totalDistance.toFixed(2) +
 " miles";
-
-// steps
 
 stepCount =
 Math.round(
@@ -190,12 +175,13 @@ stepDisplay.textContent =
 stepCount;
 
 
-// turnaround
+// TURNAROUND WITH BUFFER
 
 if (
 halfDistance > 0 &&
 !turnaroundTriggered &&
-totalDistance >= halfDistance
+totalDistance >=
+halfDistance - TURN_BUFFER
 ) {
 
 turnaroundTriggered = true;
@@ -205,7 +191,7 @@ alert("Turn around now");
 }
 
 
-// goal reached
+// GOAL
 
 if (totalDistance >= goalDistance) {
 
@@ -229,9 +215,7 @@ longitude: lon
 }
 
 
-// ======================
-// DISTANCE FORMULA
-// ======================
+// DISTANCE
 
 function calculateDistance(
 lat1,
@@ -268,10 +252,6 @@ return R * c;
 
 }
 
-
-// ======================
-// ERROR
-// ======================
 
 function handleError(err) {
 
