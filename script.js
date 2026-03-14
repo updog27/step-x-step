@@ -157,22 +157,14 @@ function updatePosition(position) {
 const lat = position.coords.latitude;
 const lon = position.coords.longitude;
 
-if (!userMarker) {
-
-userMarker =
-L.marker([lat, lon])
-.addTo(map);
-
-}
-
-userMarker.setLatLng([lat, lon]);
-
 if (!halfwayMarker) {
 
 halfwayMarker =
 L.marker([lat, lon]).addTo(map);
 
 }
+
+userMarker.setLatLng([lat, lon]);
 
 map.panTo([lat, lon]);
 
@@ -194,7 +186,13 @@ if (dist > 0.0005) {
 
 totalDistance += dist;
 
-if (!halfwayMarker && halfDistance > 0) {
+if (
+halfDistance > 0 &&
+!directionSet &&
+totalDistance > 0.003
+) {
+
+directionSet = true;
 
 const target =
 projectPoint(
@@ -209,7 +207,7 @@ halfwayMarker =
 L.marker([target.lat, target.lon])
 .addTo(map);
 
-}  
+} 
 
 if (
 halfDistance > 0 &&
@@ -410,6 +408,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
