@@ -190,7 +190,7 @@ lat,
 lon
 );
 
-if (dist > 0.0002) {
+if (dist > 0.0005) {
 
 totalDistance += dist;
 
@@ -410,6 +410,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
