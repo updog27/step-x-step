@@ -226,7 +226,8 @@ turnaroundTriggered = true;
 
 statusBox.textContent =
 "Turn around now";
-
+buzz([200,100,200,100,200]);
+  
 }
 
 
@@ -245,7 +246,8 @@ watchId
 
 statusBox.textContent =
 "Goal reached";
-
+buzz([400,200,400]);
+  
 }
 
 }
@@ -304,4 +306,13 @@ statusBox.textContent =
 }
 
 
+function buzz(ms) {
+
+if (navigator.vibrate) {
+
+navigator.vibrate(ms);
+
+}
+
+}
 
