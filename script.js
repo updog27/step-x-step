@@ -190,10 +190,12 @@ totalDistance += dist;
 if (
 halfDistance > 0 &&
 !directionSet &&
-totalDistance > 0.005
+totalDistance > 0.002
 ) {
 
 directionSet = true;
+
+console.log("placing marker");
 
 const target =
 projectPoint(
@@ -206,8 +208,7 @@ halfDistance
 
 halfwayMarker =
 L.marker([target.lat, target.lon])
-.addTo(map)
-.bindPopup("Turnaround point");
+.addTo(map);
 
 }
 
@@ -385,6 +386,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
