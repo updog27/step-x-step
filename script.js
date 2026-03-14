@@ -167,6 +167,13 @@ L.marker([lat, lon])
 
 userMarker.setLatLng([lat, lon]);
 
+if (!halfwayMarker) {
+
+halfwayMarker =
+L.marker([lat, lon]).addTo(map);
+
+}
+
 map.panTo([lat, lon]);
 
 routeCoordinates.push([lat, lon]);
@@ -403,6 +410,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
