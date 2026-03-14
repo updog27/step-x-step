@@ -3,6 +3,10 @@ let userMarker;
 let routeLine;
 let routeCoordinates = [];
 
+let halfwayMarker = null;
+let startPoint = null;
+let directionSet = false;
+
 let watchId = null;
 let previousPosition = null;
 
@@ -63,6 +67,15 @@ navigator.geolocation.getCurrentPosition(pos => {
 const lat = pos.coords.latitude;
 const lon = pos.coords.longitude;
 
+if (!startPoint) {
+
+startPoint = {
+lat: lat,
+lon: lon
+};
+
+}
+  
 map.setView([lat, lon], 17);
 
 userMarker =
@@ -173,6 +186,30 @@ lon
 if (dist > 0.0002) {
 
 totalDistance += dist;
+
+if (
+halfDistance > 0 &&
+!directionSet &&
+totalDistance > 0.005
+) {
+
+directionSet = true;
+
+const target =
+projectPoint(
+startPoint.lat,
+startPoint.lon,
+lat,
+lon,
+halfDistance
+);
+
+halfwayMarker =
+L.marker([target.lat, target.lon])
+.addTo(map)
+.bindPopup("Turnaround point");
+
+}
 
 distanceDisplay.textContent =
 totalDistance.toFixed(2) +
@@ -308,6 +345,36 @@ statusBox.textContent =
 
 }
 
+function projectPoint(
+lat1,
+lon1,
+lat2,
+lon2,
+distanceMiles
+) {
+
+const dx = lat2 - lat1;
+const dy = lon2 - lon1;
+
+const length =
+Math.sqrt(dx * dx + dy * dy);
+
+if (length === 0) {
+return { lat: lat1, lon: lon1 };
+}
+
+const scale =
+distanceMiles / length;
+
+return {
+
+lat: lat1 + dx * scale,
+lon: lon1 + dy * scale
+
+};
+
+}
+
 
 function buzz(ms) {
 
@@ -318,5 +385,6 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
