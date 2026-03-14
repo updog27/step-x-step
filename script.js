@@ -246,6 +246,9 @@ watchId
 
 statusBox.textContent =
 "Goal reached";
+
+progressBar.style.width = "100%";
+  
 buzz([400,200,400]);
   
 }
@@ -315,4 +318,5 @@ navigator.vibrate(ms);
 }
 
 }
+
 
