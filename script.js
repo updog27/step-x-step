@@ -30,6 +30,9 @@ document.getElementById("steps");
 const statusBox =
 document.getElementById("statusBox");
 
+const progressBar =
+document.getElementById("progressBar");
+
 const routeTypeSelect =
 document.getElementById("route-type");
 
@@ -175,6 +178,16 @@ distanceDisplay.textContent =
 totalDistance.toFixed(2) +
 " miles";
 
+let progress =
+(totalDistance / goalDistance) * 100;
+
+if (progress > 100) {
+progress = 100;
+}
+
+progressBar.style.width =
+progress + "%";
+  
 stepCount =
 Math.round(
 totalDistance *
@@ -289,5 +302,6 @@ statusBox.textContent =
 "GPS error";
 
 }
+
 
 
