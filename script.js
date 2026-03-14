@@ -187,6 +187,23 @@ if (dist > 0.0002) {
 
 totalDistance += dist;
 
+if (!halfwayMarker && halfDistance > 0) {
+
+const target =
+projectPoint(
+startPoint.lat,
+startPoint.lon,
+lat,
+lon,
+halfDistance
+);
+
+halfwayMarker =
+L.marker([target.lat, target.lon])
+.addTo(map);
+
+}  
+
 if (
 halfDistance > 0 &&
 !directionSet &&
@@ -386,6 +403,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
