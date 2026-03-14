@@ -10,10 +10,8 @@
 
 <link rel="stylesheet" href="style.css">
 
-<link
-rel="stylesheet"
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
 
@@ -43,8 +41,16 @@ font-size:16px;
 #map{
 height:320px;
 width:100%;
-margin-top:10px;
 border-radius:10px;
+}
+
+#statusBox{
+background:#222;
+color:white;
+padding:10px;
+border-radius:8px;
+margin-top:10px;
+font-size:18px;
 }
 
 .avatar-option{
@@ -63,7 +69,6 @@ border:2px solid #2a7cff;
 
 </head>
 
-
 <body>
 
 <header>
@@ -74,10 +79,7 @@ border:2px solid #2a7cff;
 
 </header>
 
-
 <main>
-
-<!-- DISTANCE INPUT -->
 
 <section>
 
@@ -93,33 +95,24 @@ placeholder="Distance"
 <br>
 
 <select id="distance-unit">
-
 <option value="miles">Miles</option>
 <option value="km">Kilometers</option>
-
 </select>
 
 <select id="route-type">
-
 <option value="outback">Out-and-back</option>
 <option value="loop">Loop</option>
 <option value="free">Free run</option>
-
 </select>
 
 <br>
 
 <button id="start-button">
-
 Start Walk
-
 </button>
 
 </section>
 
-
-
-<!-- DISTANCE + STEPS -->
 
 <section id="step-counter">
 
@@ -132,8 +125,16 @@ Start Walk
 </section>
 
 
+<section>
 
-<!-- MAP -->
+<h2>Status</h2>
+
+<div id="statusBox">
+Ready
+</div>
+
+</section>
+
 
 <section>
 
@@ -144,56 +145,9 @@ Start Walk
 </section>
 
 
-
-<!-- ACHIEVEMENTS -->
-
-<section>
-
-<h2>Achievements</h2>
-
-<ul id="achievement-list"></ul>
-
-</section>
-
-
-
-<!-- AVATAR -->
-
-<section>
-
-<h2>Avatar</h2>
-
-<img src="avatar1.png" class="avatar-option">
-<img src="avatar2.png" class="avatar-option">
-
-</section>
-
-
-
-<!-- SOCIAL -->
-
-<section>
-
-<label>
-
-<input type="checkbox">
-
-Enable friends / updates
-
-</label>
-
-</section>
-
-</main>
-
-
-
-<script
-src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script src="script.js"></script>
-
 
 </body>
 </html>
