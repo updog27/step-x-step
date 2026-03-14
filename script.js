@@ -27,6 +27,9 @@ document.getElementById("distance");
 const stepDisplay =
 document.getElementById("steps");
 
+const statusBox =
+document.getElementById("statusBox");
+
 const routeTypeSelect =
 document.getElementById("route-type");
 
@@ -77,7 +80,10 @@ document.getElementById("distance-input").value;
 goalDistance = parseFloat(input);
 
 if (isNaN(goalDistance) || goalDistance <= 0) {
-alert("Enter valid distance");
+
+statusBox.textContent =
+"Enter valid distance";
+
 return;
 }
 
@@ -100,9 +106,13 @@ distanceDisplay.textContent =
 
 stepDisplay.textContent = "0";
 
+statusBox.textContent =
+"Walking...";
+
 if (routeType === "outback") {
 
-halfDistance = goalDistance / 2;
+halfDistance =
+goalDistance / 2;
 
 } else {
 
@@ -175,7 +185,7 @@ stepDisplay.textContent =
 stepCount;
 
 
-// TURNAROUND WITH BUFFER
+// TURN
 
 if (
 halfDistance > 0 &&
@@ -186,7 +196,8 @@ halfDistance - TURN_BUFFER
 
 turnaroundTriggered = true;
 
-alert("Turn around now");
+statusBox.textContent =
+"Turn around now";
 
 }
 
@@ -199,7 +210,8 @@ navigator.geolocation.clearWatch(
 watchId
 );
 
-alert("Goal reached");
+statusBox.textContent =
+"Goal reached";
 
 }
 
@@ -214,8 +226,6 @@ longitude: lon
 
 }
 
-
-// DISTANCE
 
 function calculateDistance(
 lat1,
@@ -255,9 +265,7 @@ return R * c;
 
 function handleError(err) {
 
-alert(
-"GPS error: " +
-err.message
-);
+statusBox.textContent =
+"GPS error";
 
 }
