@@ -185,6 +185,21 @@ stepDisplay.textContent =
 stepCount;
 
 
+// DISTANCE REMAINING
+
+let remaining =
+goalDistance - totalDistance;
+
+if (remaining < 0) {
+remaining = 0;
+}
+
+statusBox.textContent =
+"Walking… " +
+remaining.toFixed(2) +
+" miles remaining";
+
+
 // TURN
 
 if (
@@ -274,4 +289,5 @@ statusBox.textContent =
 "GPS error";
 
 }
+
 
