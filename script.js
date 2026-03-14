@@ -204,7 +204,12 @@ statusBox.textContent =
 
 // GOAL
 
-if (totalDistance >= goalDistance) {
+const GOAL_BUFFER = 0.003;
+
+if (
+totalDistance >=
+goalDistance - GOAL_BUFFER
+) {
 
 navigator.geolocation.clearWatch(
 watchId
@@ -269,3 +274,4 @@ statusBox.textContent =
 "GPS error";
 
 }
+
