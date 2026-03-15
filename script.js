@@ -183,8 +183,9 @@ lon: previousPosition.longitude
 
 if (
 halfDistance > 0 &&
-!directionSet &&
-totalDistance > 0.02
+startPoint &&
+!halfwayMarker &&
+totalDistance > 0.015
 ) {
 
 directionSet = true;
@@ -201,6 +202,8 @@ halfDistance
 halfwayMarker =
 L.marker([target.lat, target.lon])
 .addTo(map);
+
+console.log("halfway marker placed");
 
 }
 
@@ -389,6 +392,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
