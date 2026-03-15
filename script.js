@@ -66,15 +66,6 @@ navigator.geolocation.getCurrentPosition(pos => {
 
 const lat = pos.coords.latitude;
 const lon = pos.coords.longitude;
-
-if (!startPoint) {
-
-startPoint = {
-lat: lat,
-lon: lon
-};
-
-}
   
 map.setView([lat, lon], 17);
 
@@ -157,13 +148,6 @@ function updatePosition(position) {
 const lat = position.coords.latitude;
 const lon = position.coords.longitude;
 
-if (!halfwayMarker) {
-
-halfwayMarker =
-L.marker([lat, lon]).addTo(map);
-
-}
-
 userMarker.setLatLng([lat, lon]);
 
 map.panTo([lat, lon]);
@@ -186,12 +170,82 @@ if (dist > 0.0005) {
 
 totalDistance += dist;
 
+if (!startPoint && totalDistance > 0.01) {
+
+startPoint = {
+lat: previousPosition.latitude,
+lon: previousPosition.longitude
+};
+
+}
+
 if (
 halfDistance > 0 &&
 !directionSet &&
-totalDistance > 0.003
+totalDistance > 0.02
 ) {
 
+directionSet = true;
+
+const target =
+projectPoint(
+startPoint.lat,
+startPoint.lon,
+lat,
+lon,
+halfDistance
+);
+
+halfwayMarker =
+L.marker([target.lat, target.lon])
+.addTo(map);
+
+}
+  
+directionSet = true;
+
+const target =
+projectPoint(
+startPoint.lat,
+startPoint.lon,
+lat,
+lon,
+halfDistance
+);
+
+halfwayMarker =
+L.marker([target.lat, target.lon])
+.addTo(map);
+
+} 
+
+if (
+halfDistance > 0 &&
+!directionSet &&
+totalDistance > 0.02
+) {
+
+directionSet = true;
+
+console.log("placing marker");
+
+const target =
+projectPoint(
+startPoint.lat,
+startPoint.lon,
+lat,
+lon,
+halfDistance
+);
+
+halfwayMarker =
+L.marker([target.lat, target.lon])
+.addTo(map);
+
+}
+
+
+  
 directionSet = true;
 
 const target =
@@ -408,6 +462,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
