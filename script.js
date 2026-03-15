@@ -44,7 +44,7 @@ const unitSelect =
 document.getElementById("distance-unit");
 
 
-// MAP
+// ================= MAP =================
 
 map = L.map("map").setView([27.95, -82.45], 13);
 
@@ -58,7 +58,7 @@ L.polyline([], { color: "blue" })
 .addTo(map);
 
 
-// LOCATION
+// ================= LOCATION =================
 
 if (navigator.geolocation) {
 
@@ -66,7 +66,7 @@ navigator.geolocation.getCurrentPosition(pos => {
 
 const lat = pos.coords.latitude;
 const lon = pos.coords.longitude;
-  
+
 map.setView([lat, lon], 17);
 
 userMarker =
@@ -77,7 +77,7 @@ L.marker([lat, lon]).addTo(map);
 }
 
 
-// START
+// ================= START =================
 
 startButton.addEventListener("click", () => {
 
@@ -106,25 +106,21 @@ stepCount = 0;
 previousPosition = null;
 routeCoordinates = [];
 
+startPoint = null;
+directionSet = false;
+halfwayMarker = null;
+
 turnaroundTriggered = false;
 
-distanceDisplay.textContent =
-"0.00 miles";
-
+distanceDisplay.textContent = "0.00 miles";
 stepDisplay.textContent = "0";
 
-statusBox.textContent =
-"Walking...";
+statusBox.textContent = "Walking...";
 
 if (routeType === "outback") {
-
-halfDistance =
-goalDistance / 2;
-
+halfDistance = goalDistance / 2;
 } else {
-
 halfDistance = 0;
-
 }
 
 watchId =
@@ -141,7 +137,7 @@ timeout: 10000
 });
 
 
-// UPDATE
+// ================= UPDATE =================
 
 function updatePosition(position) {
 
@@ -170,6 +166,9 @@ if (dist > 0.0005) {
 
 totalDistance += dist;
 
+
+// lock start point AFTER movement
+
 if (!startPoint && totalDistance > 0.01) {
 
 startPoint = {
@@ -179,6 +178,9 @@ lon: previousPosition.longitude
 
 }
 
+
+// place halfway marker AFTER direction known
+
 if (
 halfDistance > 0 &&
 !directionSet &&
@@ -201,125 +203,40 @@ L.marker([target.lat, target.lon])
 .addTo(map);
 
 }
-  
-directionSet = true;
-
-const target =
-projectPoint(
-startPoint.lat,
-startPoint.lon,
-lat,
-lon,
-halfDistance
-);
-
-halfwayMarker =
-L.marker([target.lat, target.lon])
-.addTo(map);
-
-} 
-
-if (
-halfDistance > 0 &&
-!directionSet &&
-totalDistance > 0.02
-) {
-
-directionSet = true;
-
-console.log("placing marker");
-
-const target =
-projectPoint(
-startPoint.lat,
-startPoint.lon,
-lat,
-lon,
-halfDistance
-);
-
-halfwayMarker =
-L.marker([target.lat, target.lon])
-.addTo(map);
-
-}
 
 
-  
-directionSet = true;
-
-const target =
-projectPoint(
-startPoint.lat,
-startPoint.lon,
-lat,
-lon,
-halfDistance
-);
-
-halfwayMarker =
-L.marker([target.lat, target.lon])
-.addTo(map);
-
-} 
-
-if (
-halfDistance > 0 &&
-!directionSet &&
-totalDistance > 0.02
-) {
-
-directionSet = true;
-
-console.log("placing marker");
-
-const target =
-projectPoint(
-startPoint.lat,
-startPoint.lon,
-lat,
-lon,
-halfDistance
-);
-
-halfwayMarker =
-L.marker([target.lat, target.lon])
-.addTo(map);
-
-}
+// distance display
 
 distanceDisplay.textContent =
-totalDistance.toFixed(2) +
-" miles";
+totalDistance.toFixed(2) + " miles";
+
+
+// progress bar
 
 let progress =
 (totalDistance / goalDistance) * 100;
 
-if (progress > 100) {
-progress = 100;
-}
+if (progress > 100) progress = 100;
 
 progressBar.style.width =
 progress + "%";
-  
+
+
+// steps
+
 stepCount =
-Math.round(
-totalDistance *
-STEPS_PER_MILE
-);
+Math.round(totalDistance * STEPS_PER_MILE);
 
 stepDisplay.textContent =
 stepCount;
 
 
-// DISTANCE REMAINING
+// remaining
 
 let remaining =
 goalDistance - totalDistance;
 
-if (remaining < 0) {
-remaining = 0;
-}
+if (remaining < 0) remaining = 0;
 
 statusBox.textContent =
 "Walking… " +
@@ -327,7 +244,7 @@ remaining.toFixed(2) +
 " miles remaining";
 
 
-// TURN
+// TURNAROUND
 
 if (
 halfDistance > 0 &&
@@ -340,8 +257,9 @@ turnaroundTriggered = true;
 
 statusBox.textContent =
 "Turn around now";
+
 buzz([200,100,200,100,200]);
-  
+
 }
 
 
@@ -362,9 +280,9 @@ statusBox.textContent =
 "Goal reached";
 
 progressBar.style.width = "100%";
-  
+
 buzz([400,200,400]);
-  
+
 }
 
 }
@@ -378,6 +296,8 @@ longitude: lon
 
 }
 
+
+// ================= DISTANCE =================
 
 function calculateDistance(
 lat1,
@@ -398,14 +318,14 @@ const dLon =
 toRad(lon2 - lon1);
 
 const a =
-Math.sin(dLat / 2) ** 2 +
+Math.sin(dLat/2) * Math.sin(dLat/2) +
 Math.cos(toRad(lat1)) *
 Math.cos(toRad(lat2)) *
-Math.sin(dLon / 2) ** 2;
+Math.sin(dLon/2) *
+Math.sin(dLon/2);
 
 const c =
-2 *
-Math.atan2(
+2 * Math.atan2(
 Math.sqrt(a),
 Math.sqrt(1 - a)
 );
@@ -415,12 +335,17 @@ return R * c;
 }
 
 
+// ================= ERROR =================
+
 function handleError(err) {
 
 statusBox.textContent =
 "GPS error";
 
 }
+
+
+// ================= PROJECTION =================
 
 function projectPoint(
 lat1,
@@ -434,7 +359,7 @@ const dx = lat2 - lat1;
 const dy = lon2 - lon1;
 
 const length =
-Math.sqrt(dx * dx + dy * dy);
+Math.sqrt(dx*dx + dy*dy);
 
 if (length === 0) {
 return { lat: lat1, lon: lon1 };
@@ -453,6 +378,8 @@ lon: lon1 + dy * scale
 }
 
 
+// ================= BUZZ =================
+
 function buzz(ms) {
 
 if (navigator.vibrate) {
@@ -462,6 +389,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
