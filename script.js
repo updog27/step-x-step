@@ -212,7 +212,7 @@ L.marker([target.lat, target.lon])
 if (
 halfDistance > 0 &&
 !directionSet &&
-totalDistance > 0.002
+totalDistance > 0.02
 ) {
 
 directionSet = true;
@@ -408,6 +408,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
