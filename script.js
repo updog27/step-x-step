@@ -188,23 +188,30 @@ startPoint &&
 totalDistance > 0.02
 ) {
 
-const target =
-projectPoint(
-startPoint.lat,
-startPoint.lon,
-lat,
-lon,
-halfDistance
-);
+const dx = lat - startPoint.lat;
+const dy = lon - startPoint.lon;
+
+const length = Math.sqrt(dx*dx + dy*dy);
+
+if (length > 0) {
+
+const scale = halfDistance / totalDistance;
+
+const targetLat =
+startPoint.lat + dx * scale;
+
+const targetLon =
+startPoint.lon + dy * scale;
 
 halfwayMarker =
-L.marker([target.lat, target.lon])
+L.marker([targetLat, targetLon])
 .addTo(map);
 
 console.log("halfway marker placed");
 
 }
 
+}
 
 // distance display
 
@@ -390,6 +397,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
