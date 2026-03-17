@@ -169,7 +169,7 @@ totalDistance += dist;
 
 // lock start point AFTER movement
 
-if (!startPoint && totalDistance > 0.01) {
+if (!startPoint && previousPosition) {
 
 startPoint = {
 lat: previousPosition.latitude,
@@ -408,6 +408,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
