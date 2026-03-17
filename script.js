@@ -185,7 +185,7 @@ if (
 halfDistance > 0 &&
 startPoint &&
 !halfwayMarker &&
-totalDistance > 0.02
+totalDistance > 0.04
 ) {
 
 const dx = lat - startPoint.lat;
@@ -399,6 +399,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
