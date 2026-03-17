@@ -191,11 +191,13 @@ totalDistance > 0.02
 const dx = lat - startPoint.lat;
 const dy = lon - startPoint.lon;
 
-const length = Math.sqrt(dx*dx + dy*dy);
+const straightDistance =
+Math.sqrt(dx*dx + dy*dy);
 
-if (length > 0) {
+if (straightDistance > 0) {
 
-const scale = halfDistance / totalDistance;
+const scale =
+halfDistance / straightDistance;
 
 const targetLat =
 startPoint.lat + dx * scale;
@@ -397,6 +399,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
