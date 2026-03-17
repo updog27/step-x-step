@@ -184,8 +184,8 @@ lon: previousPosition.longitude
 if (
 halfDistance > 0 &&
 startPoint &&
-!halfwayMarker &&
-totalDistance > goalDistance * 0.2
+totalDistance > goalDistance * 0.1 &&
+totalDistance < halfDistance
 ) {
 
 const dx = lat - startPoint.lat;
@@ -205,11 +205,20 @@ startPoint.lat + dx * scale;
 const targetLon =
 startPoint.lon + dy * scale;
 
+if (!halfwayMarker) {
+
 halfwayMarker =
 L.marker([targetLat, targetLon])
 .addTo(map);
 
-console.log("halfway marker placed");
+} else {
+
+halfwayMarker.setLatLng([
+targetLat,
+targetLon
+]);
+
+}
 
 }
 
@@ -399,6 +408,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
