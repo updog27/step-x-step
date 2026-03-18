@@ -6,18 +6,16 @@ let routeCoordinates = [];
 
 let watchId = null;
 let previousPosition = null;
+let startPoint = null;
 
 let totalDistance = 0;
 let goalDistance = 0;
 let halfDistance = 0;
 
-let stepCount = 0;
-
-const STEPS_PER_MILE = 2300;
-
 let turnaroundTriggered = false;
 
 const TURN_BUFFER = 0.003;
+const STEPS_PER_MILE = 2300;
 
 const startButton =
 document.getElementById("start-button");
@@ -69,8 +67,6 @@ L.polyline([], { color: "blue" })
 
 // ---------- LOCATION ----------
 
-if (navigator.geolocation) {
-
 navigator.geolocation.getCurrentPosition(pos => {
 
 const lat = pos.coords.latitude;
@@ -83,8 +79,6 @@ L.marker([lat, lon]).addTo(map);
 
 });
 
-}
-
 
 // ---------- START ----------
 
@@ -95,14 +89,6 @@ document.getElementById("distance-input").value;
 
 goalDistance = parseFloat(input);
 
-if (isNaN(goalDistance) || goalDistance <= 0) {
-
-statusBox.textContent =
-"Enter valid distance";
-
-return;
-}
-
 if (unitSelect.value === "km") {
 goalDistance *= 0.621371;
 }
@@ -111,17 +97,16 @@ halfDistance = goalDistance / 2;
 
 totalDistance = 0;
 previousPosition = null;
-routeCoordinates = [];
+startPoint = null;
 halfwayMarker = null;
+routeCoordinates = [];
 turnaroundTriggered = false;
 
 watchId =
 navigator.geolocation.watchPosition(
 updatePosition,
 handleError,
-{
-enableHighAccuracy: true
-}
+{ enableHighAccuracy: true }
 );
 
 });
@@ -140,6 +125,20 @@ routeCoordinates.push([lat, lon]);
 routeLine.setLatLngs(routeCoordinates);
 
 
+// set start point
+
+if (!startPoint && previousPosition) {
+
+startPoint = {
+lat: previousPosition.latitude,
+lon: previousPosition.longitude
+};
+
+}
+
+
+// distance
+
 if (previousPosition) {
 
 const dist =
@@ -157,17 +156,48 @@ totalDistance += dist;
 }
 
 
-// ---------- FORCE SECOND MARKER ----------
+// ---------- HALF WAY MARKER ----------
+
+if (
+startPoint &&
+halfDistance > 0 &&
+totalDistance < halfDistance
+) {
+
+const dx = lat - startPoint.lat;
+const dy = lon - startPoint.lon;
+
+const straight =
+Math.sqrt(dx*dx + dy*dy);
+
+if (straight > 0) {
+
+const scale =
+halfDistance / straight;
+
+const targetLat =
+startPoint.lat + dx * scale;
+
+const targetLon =
+startPoint.lon + dy * scale;
 
 if (!halfwayMarker) {
 
 halfwayMarker =
-L.marker([lat, lon], { icon: redIcon })
-.addTo(map);
+L.marker(
+[targetLat, targetLon],
+{ icon: redIcon }
+).addTo(map);
 
 } else {
 
-halfwayMarker.setLatLng([lat, lon]);
+halfwayMarker.setLatLng(
+[targetLat, targetLon]
+);
+
+}
+
+}
 
 }
 
@@ -185,19 +215,15 @@ if (progress > 100) progress = 100;
 progressBar.style.width =
 progress + "%";
 
-stepCount =
-Math.round(totalDistance * STEPS_PER_MILE);
-
 stepDisplay.textContent =
-stepCount;
+Math.round(totalDistance * STEPS_PER_MILE);
 
 
 // ---------- TURN ----------
 
 if (
 !turnaroundTriggered &&
-totalDistance >=
-halfDistance - TURN_BUFFER
+totalDistance >= halfDistance - TURN_BUFFER
 ) {
 
 turnaroundTriggered = true;
@@ -219,9 +245,8 @@ watchId
 statusBox.textContent =
 "Goal reached";
 
-progressBar.style.width = "100%";
-
 }
+
 
 previousPosition = {
 latitude: lat,
@@ -252,25 +277,22 @@ const dLon =
 toRad(lon2 - lon1);
 
 const a =
-Math.sin(dLat/2) *
-Math.sin(dLat/2) +
+Math.sin(dLat/2)**2 +
 Math.cos(toRad(lat1)) *
 Math.cos(toRad(lat2)) *
-Math.sin(dLon/2) *
-Math.sin(dLon/2);
+Math.sin(dLon/2)**2;
 
 const c =
-2 * Math.atan2(
+2*Math.atan2(
 Math.sqrt(a),
-Math.sqrt(1 - a)
+Math.sqrt(1-a)
 );
 
-return R * c;
+return R*c;
 
 }
 
-
-function handleError(err) {
+function handleError() {
 
 statusBox.textContent =
 "GPS error";
