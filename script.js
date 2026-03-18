@@ -1,10 +1,8 @@
 let map;
 let userMarker;
+let halfwayMarker;
 let routeLine;
 let routeCoordinates = [];
-
-let halfwayMarker = null;
-let startPoint = null;
 
 let watchId = null;
 let previousPosition = null;
@@ -43,7 +41,19 @@ const unitSelect =
 document.getElementById("distance-unit");
 
 
-// ================= MAP =================
+// ---------- RED ICON ----------
+
+const redIcon = new L.Icon({
+iconUrl:
+"https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
+shadowUrl:
+"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+iconSize: [25, 41],
+iconAnchor: [12, 41]
+});
+
+
+// ---------- MAP ----------
 
 map = L.map("map").setView([27.95, -82.45], 13);
 
@@ -57,7 +67,7 @@ L.polyline([], { color: "blue" })
 .addTo(map);
 
 
-// ================= LOCATION =================
+// ---------- LOCATION ----------
 
 if (navigator.geolocation) {
 
@@ -76,7 +86,7 @@ L.marker([lat, lon]).addTo(map);
 }
 
 
-// ================= START =================
+// ---------- START ----------
 
 startButton.addEventListener("click", () => {
 
@@ -93,49 +103,31 @@ statusBox.textContent =
 return;
 }
 
-const unit = unitSelect.value;
-const routeType = routeTypeSelect.value;
-
-if (unit === "km") {
+if (unitSelect.value === "km") {
 goalDistance *= 0.621371;
 }
 
+halfDistance = goalDistance / 2;
+
 totalDistance = 0;
-stepCount = 0;
 previousPosition = null;
 routeCoordinates = [];
-
-startPoint = null;
 halfwayMarker = null;
-
 turnaroundTriggered = false;
-
-distanceDisplay.textContent = "0.00 miles";
-stepDisplay.textContent = "0";
-
-statusBox.textContent = "Walking...";
-
-if (routeType === "outback") {
-halfDistance = goalDistance / 2;
-} else {
-halfDistance = 0;
-}
 
 watchId =
 navigator.geolocation.watchPosition(
 updatePosition,
 handleError,
 {
-enableHighAccuracy: true,
-maximumAge: 0,
-timeout: 10000
+enableHighAccuracy: true
 }
 );
 
 });
 
 
-// ================= UPDATE =================
+// ---------- UPDATE ----------
 
 function updatePosition(position) {
 
@@ -144,13 +136,9 @@ const lon = position.coords.longitude;
 
 userMarker.setLatLng([lat, lon]);
 
-map.panTo([lat, lon]);
-
 routeCoordinates.push([lat, lon]);
 routeLine.setLatLngs(routeCoordinates);
 
-
-// ---------- DISTANCE ----------
 
 if (previousPosition) {
 
@@ -162,30 +150,20 @@ lat,
 lon
 );
 
-if (!startPoint) {
-
-startPoint = {
-lat: previousPosition.latitude,
-lon: previousPosition.longitude
-};
-
-}
-
 if (dist > 0.0005) {
-
 totalDistance += dist;
-
 }
 
 }
 
 
-// ---------- TEST MARKER (ALWAYS RUNS) ----------
+// ---------- FORCE SECOND MARKER ----------
 
 if (!halfwayMarker) {
 
 halfwayMarker =
-L.marker([lat, lon]).addTo(map);
+L.marker([lat, lon], { icon: redIcon })
+.addTo(map);
 
 } else {
 
@@ -197,7 +175,7 @@ halfwayMarker.setLatLng([lat, lon]);
 // ---------- DISPLAY ----------
 
 distanceDisplay.textContent =
-totalDistance.toFixed(2) + " miles";
+totalDistance.toFixed(2);
 
 let progress =
 (totalDistance / goalDistance) * 100;
@@ -213,21 +191,10 @@ Math.round(totalDistance * STEPS_PER_MILE);
 stepDisplay.textContent =
 stepCount;
 
-let remaining =
-goalDistance - totalDistance;
-
-if (remaining < 0) remaining = 0;
-
-statusBox.textContent =
-"Walking… " +
-remaining.toFixed(2) +
-" miles remaining";
-
 
 // ---------- TURN ----------
 
 if (
-halfDistance > 0 &&
 !turnaroundTriggered &&
 totalDistance >=
 halfDistance - TURN_BUFFER
@@ -236,21 +203,14 @@ halfDistance - TURN_BUFFER
 turnaroundTriggered = true;
 
 statusBox.textContent =
-"Turn around now";
-
-buzz([200,100,200,100,200]);
+"Turn around";
 
 }
 
 
 // ---------- GOAL ----------
 
-const GOAL_BUFFER = 0.003;
-
-if (
-totalDistance >=
-goalDistance - GOAL_BUFFER
-) {
+if (totalDistance >= goalDistance) {
 
 navigator.geolocation.clearWatch(
 watchId
@@ -261,10 +221,7 @@ statusBox.textContent =
 
 progressBar.style.width = "100%";
 
-buzz([400,200,400]);
-
 }
-
 
 previousPosition = {
 latitude: lat,
@@ -274,7 +231,7 @@ longitude: lon
 }
 
 
-// ================= DISTANCE =================
+// ---------- DISTANCE ----------
 
 function calculateDistance(
 lat1,
@@ -295,7 +252,8 @@ const dLon =
 toRad(lon2 - lon1);
 
 const a =
-Math.sin(dLat/2) * Math.sin(dLat/2) +
+Math.sin(dLat/2) *
+Math.sin(dLat/2) +
 Math.cos(toRad(lat1)) *
 Math.cos(toRad(lat2)) *
 Math.sin(dLon/2) *
@@ -312,24 +270,9 @@ return R * c;
 }
 
 
-// ================= ERROR =================
-
 function handleError(err) {
 
 statusBox.textContent =
 "GPS error";
-
-}
-
-
-// ================= BUZZ =================
-
-function buzz(ms) {
-
-if (navigator.vibrate) {
-
-navigator.vibrate(ms);
-
-}
 
 }
