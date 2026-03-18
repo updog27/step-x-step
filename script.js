@@ -5,7 +5,6 @@ let routeCoordinates = [];
 
 let halfwayMarker = null;
 let startPoint = null;
-let directionSet = false;
 
 let watchId = null;
 let previousPosition = null;
@@ -107,7 +106,6 @@ previousPosition = null;
 routeCoordinates = [];
 
 startPoint = null;
-directionSet = false;
 halfwayMarker = null;
 
 turnaroundTriggered = false;
@@ -149,8 +147,10 @@ userMarker.setLatLng([lat, lon]);
 map.panTo([lat, lon]);
 
 routeCoordinates.push([lat, lon]);
-
 routeLine.setLatLngs(routeCoordinates);
+
+
+// ---------- DISTANCE ----------
 
 if (previousPosition) {
 
@@ -162,14 +162,7 @@ lat,
 lon
 );
 
-if (dist > 0.0005) {
-
-totalDistance += dist;
-
-
-// lock start point AFTER movement
-
-if (!startPoint && previousPosition) {
+if (!startPoint) {
 
 startPoint = {
 lat: previousPosition.latitude,
@@ -178,10 +171,16 @@ lon: previousPosition.longitude
 
 }
 
+if (dist > 0.0005) {
 
-// place halfway marker AFTER direction known
+totalDistance += dist;
 
-// ===== TEST MARKER
+}
+
+}
+
+
+// ---------- TEST MARKER (ALWAYS RUNS) ----------
 
 if (!halfwayMarker) {
 
@@ -193,13 +192,12 @@ L.marker([lat, lon]).addTo(map);
 halfwayMarker.setLatLng([lat, lon]);
 
 }
-// distance display
+
+
+// ---------- DISPLAY ----------
 
 distanceDisplay.textContent =
 totalDistance.toFixed(2) + " miles";
-
-
-// progress bar
 
 let progress =
 (totalDistance / goalDistance) * 100;
@@ -209,17 +207,11 @@ if (progress > 100) progress = 100;
 progressBar.style.width =
 progress + "%";
 
-
-// steps
-
 stepCount =
 Math.round(totalDistance * STEPS_PER_MILE);
 
 stepDisplay.textContent =
 stepCount;
-
-
-// remaining
 
 let remaining =
 goalDistance - totalDistance;
@@ -232,7 +224,7 @@ remaining.toFixed(2) +
 " miles remaining";
 
 
-// TURNAROUND
+// ---------- TURN ----------
 
 if (
 halfDistance > 0 &&
@@ -251,7 +243,7 @@ buzz([200,100,200,100,200]);
 }
 
 
-// GOAL
+// ---------- GOAL ----------
 
 const GOAL_BUFFER = 0.003;
 
@@ -273,9 +265,6 @@ buzz([400,200,400]);
 
 }
 
-}
-
-}
 
 previousPosition = {
 latitude: lat,
@@ -333,39 +322,6 @@ statusBox.textContent =
 }
 
 
-// ================= PROJECTION =================
-
-function projectPoint(
-lat1,
-lon1,
-lat2,
-lon2,
-distanceMiles
-) {
-
-const dx = lat2 - lat1;
-const dy = lon2 - lon1;
-
-const length =
-Math.sqrt(dx*dx + dy*dy);
-
-if (length === 0) {
-return { lat: lat1, lon: lon1 };
-}
-
-const scale =
-distanceMiles / length;
-
-return {
-
-lat: lat1 + dx * scale,
-lon: lon1 + dy * scale
-
-};
-
-}
-
-
 // ================= BUZZ =================
 
 function buzz(ms) {
@@ -377,24 +333,3 @@ navigator.vibrate(ms);
 }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
