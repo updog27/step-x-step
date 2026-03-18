@@ -184,7 +184,6 @@ lon: previousPosition.longitude
 if (
 halfDistance > 0 &&
 startPoint &&
-totalDistance > goalDistance * 0.1 &&
 totalDistance < halfDistance
 ) {
 
@@ -408,6 +407,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
