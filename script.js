@@ -12,11 +12,33 @@ let totalDistance = 0;
 let goalDistance = 0;
 let halfDistance = 0;
 
+let stepCount = 0;
+
+const STEPS_PER_MILE = 2300;
+const TURN_BUFFER = 0.003;
+
+let turnaroundTriggered = false;
+
+
+// ---------- UI ----------
+
 const startButton =
 document.getElementById("start-button");
 
+const distanceDisplay =
+document.getElementById("distance");
+
+const stepDisplay =
+document.getElementById("steps");
+
 const statusBox =
 document.getElementById("statusBox");
+
+const progressBar =
+document.getElementById("progressBar");
+
+const unitSelect =
+document.getElementById("distance-unit");
 
 
 // ---------- RED ICON ----------
@@ -69,6 +91,10 @@ document.getElementById("distance-input").value;
 
 goalDistance = parseFloat(input);
 
+if (unitSelect.value === "km") {
+goalDistance *= 0.621371;
+}
+
 halfDistance = goalDistance / 2;
 
 totalDistance = 0;
@@ -76,6 +102,8 @@ previousPosition = null;
 startPoint = null;
 halfwayMarker = null;
 routeCoordinates = [];
+
+turnaroundTriggered = false;
 
 watchId =
 navigator.geolocation.watchPosition(
@@ -95,7 +123,7 @@ const lat = position.coords.latitude;
 const lon = position.coords.longitude;
 
 
-// BLUE MARKER
+// USER MARKER
 
 if (!userMarker) {
 
@@ -109,7 +137,13 @@ userMarker.setLatLng([lat, lon]);
 }
 
 
-// save start point
+// DRAW LINE
+
+routeCoordinates.push([lat, lon]);
+routeLine.setLatLngs(routeCoordinates);
+
+
+// SAVE START POINT
 
 if (!startPoint && previousPosition) {
 
@@ -121,7 +155,7 @@ lon: previousPosition.longitude
 }
 
 
-// distance
+// DISTANCE
 
 if (previousPosition) {
 
@@ -140,7 +174,7 @@ totalDistance += dist;
 }
 
 
-// ---------- RED MARKER TEST ----------
+// ---------- RED MARKER ----------
 
 if (startPoint) {
 
@@ -165,6 +199,61 @@ halfwayMarker.setLatLng(
 );
 
 }
+
+}
+
+
+// ---------- DISPLAY ----------
+
+distanceDisplay.textContent =
+totalDistance.toFixed(2);
+
+stepCount =
+Math.round(totalDistance * STEPS_PER_MILE);
+
+stepDisplay.textContent =
+stepCount;
+
+
+// PROGRESS
+
+let progress =
+(totalDistance / goalDistance) * 100;
+
+if (progress > 100) progress = 100;
+
+progressBar.style.width =
+progress + "%";
+
+
+// TURN
+
+if (
+!turnaroundTriggered &&
+totalDistance >=
+halfDistance - TURN_BUFFER
+) {
+
+turnaroundTriggered = true;
+
+statusBox.textContent =
+"Turn around";
+
+}
+
+
+// GOAL
+
+if (totalDistance >= goalDistance) {
+
+navigator.geolocation.clearWatch(
+watchId
+);
+
+statusBox.textContent =
+"Goal reached";
+
+progressBar.style.width = "100%";
 
 }
 
