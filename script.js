@@ -119,7 +119,16 @@ function updatePosition(position) {
 const lat = position.coords.latitude;
 const lon = position.coords.longitude;
 
+if (!userMarker) {
+
+userMarker =
+L.marker([lat, lon]).addTo(map);
+
+} else {
+
 userMarker.setLatLng([lat, lon]);
+
+}
 
 routeCoordinates.push([lat, lon]);
 routeLine.setLatLngs(routeCoordinates);
