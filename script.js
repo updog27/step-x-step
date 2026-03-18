@@ -181,48 +181,18 @@ lon: previousPosition.longitude
 
 // place halfway marker AFTER direction known
 
-if (
-halfDistance > 0 &&
-startPoint &&
-totalDistance < halfDistance
-) {
-
-const dx = lat - startPoint.lat;
-const dy = lon - startPoint.lon;
-
-const straightDistance =
-Math.sqrt(dx*dx + dy*dy);
-
-if (straightDistance > 0) {
-
-const scale =
-halfDistance / straightDistance;
-
-const targetLat =
-startPoint.lat + dx * scale;
-
-const targetLon =
-startPoint.lon + dy * scale;
+// ===== TEST MARKER
 
 if (!halfwayMarker) {
 
 halfwayMarker =
-L.marker([targetLat, targetLon])
-.addTo(map);
+L.marker([lat, lon]).addTo(map);
 
 } else {
 
-halfwayMarker.setLatLng([
-targetLat,
-targetLon
-]);
+halfwayMarker.setLatLng([lat, lon]);
 
 }
-
-}
-
-}
-
 // distance display
 
 distanceDisplay.textContent =
@@ -407,6 +377,7 @@ navigator.vibrate(ms);
 }
 
 }
+
 
 
 
