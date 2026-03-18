@@ -12,31 +12,11 @@ let totalDistance = 0;
 let goalDistance = 0;
 let halfDistance = 0;
 
-let turnaroundTriggered = false;
-
-const TURN_BUFFER = 0.003;
-const STEPS_PER_MILE = 2300;
-
 const startButton =
 document.getElementById("start-button");
 
-const distanceDisplay =
-document.getElementById("distance");
-
-const stepDisplay =
-document.getElementById("steps");
-
 const statusBox =
 document.getElementById("statusBox");
-
-const progressBar =
-document.getElementById("progressBar");
-
-const routeTypeSelect =
-document.getElementById("route-type");
-
-const unitSelect =
-document.getElementById("distance-unit");
 
 
 // ---------- RED ICON ----------
@@ -89,10 +69,6 @@ document.getElementById("distance-input").value;
 
 goalDistance = parseFloat(input);
 
-if (unitSelect.value === "km") {
-goalDistance *= 0.621371;
-}
-
 halfDistance = goalDistance / 2;
 
 totalDistance = 0;
@@ -100,7 +76,6 @@ previousPosition = null;
 startPoint = null;
 halfwayMarker = null;
 routeCoordinates = [];
-turnaroundTriggered = false;
 
 watchId =
 navigator.geolocation.watchPosition(
@@ -119,6 +94,9 @@ function updatePosition(position) {
 const lat = position.coords.latitude;
 const lon = position.coords.longitude;
 
+
+// BLUE MARKER
+
 if (!userMarker) {
 
 userMarker =
@@ -130,11 +108,8 @@ userMarker.setLatLng([lat, lon]);
 
 }
 
-routeCoordinates.push([lat, lon]);
-routeLine.setLatLngs(routeCoordinates);
 
-
-// set start point
+// save start point
 
 if (!startPoint && previousPosition) {
 
@@ -165,30 +140,15 @@ totalDistance += dist;
 }
 
 
-// ---------- HALF WAY MARKER ----------
+// ---------- RED MARKER TEST ----------
 
-if (
-startPoint &&
-halfDistance > 0 &&
-totalDistance < halfDistance
-) {
+if (startPoint) {
 
 const dx = lat - startPoint.lat;
 const dy = lon - startPoint.lon;
 
-const straight =
-Math.sqrt(dx*dx + dy*dy);
-
-if (straight > 0) {
-
-const scale =
-halfDistance / straight;
-
-const targetLat =
-startPoint.lat + dx * scale;
-
-const targetLon =
-startPoint.lon + dy * scale;
+const targetLat = lat + dx;
+const targetLon = lon + dy;
 
 if (!halfwayMarker) {
 
@@ -205,54 +165,6 @@ halfwayMarker.setLatLng(
 );
 
 }
-
-}
-
-}
-
-
-// ---------- DISPLAY ----------
-
-distanceDisplay.textContent =
-totalDistance.toFixed(2);
-
-let progress =
-(totalDistance / goalDistance) * 100;
-
-if (progress > 100) progress = 100;
-
-progressBar.style.width =
-progress + "%";
-
-stepDisplay.textContent =
-Math.round(totalDistance * STEPS_PER_MILE);
-
-
-// ---------- TURN ----------
-
-if (
-!turnaroundTriggered &&
-totalDistance >= halfDistance - TURN_BUFFER
-) {
-
-turnaroundTriggered = true;
-
-statusBox.textContent =
-"Turn around";
-
-}
-
-
-// ---------- GOAL ----------
-
-if (totalDistance >= goalDistance) {
-
-navigator.geolocation.clearWatch(
-watchId
-);
-
-statusBox.textContent =
-"Goal reached";
 
 }
 
@@ -300,6 +212,7 @@ Math.sqrt(1-a)
 return R*c;
 
 }
+
 
 function handleError() {
 
