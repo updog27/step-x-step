@@ -145,15 +145,14 @@ routeLine.setLatLngs(routeCoordinates);
 
 // SAVE START POINT
 
-if (!startPoint && previousPosition) {
+if (!startPoint) {
 
 startPoint = {
-lat: previousPosition.latitude,
-lon: previousPosition.longitude
+lat: lat,
+lon: lon
 };
 
 }
-
 
 // DISTANCE
 
