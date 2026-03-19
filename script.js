@@ -145,14 +145,15 @@ routeLine.setLatLngs(routeCoordinates);
 
 // SAVE START POINT
 
-if (!startPoint) {
+if (!startPoint && previousPosition) {
 
 startPoint = {
-lat: lat,
-lon: lon
+lat: previousPosition.latitude,
+lon: previousPosition.longitude
 };
 
 }
+
 
 // DISTANCE
 
@@ -173,31 +174,17 @@ totalDistance += dist;
 }
 
 
-// ---------- RED MARKER ----------
+// ---------- FORWARD MARKER (WORKING VERSION) ----------
 
-if (
-startPoint &&
-halfDistance > 0 &&
-!halfwayMarker &&
-totalDistance > 0.01
-) {
+if (startPoint) {
 
 const dx = lat - startPoint.lat;
 const dy = lon - startPoint.lon;
 
-const straight =
-Math.sqrt(dx * dx + dy * dy);
+const targetLat = lat + dx;
+const targetLon = lon + dy;
 
-if (straight > 0) {
-
-const scale =
-halfDistance / straight;
-
-const targetLat =
-startPoint.lat + dx * scale;
-
-const targetLon =
-startPoint.lon + dy * scale;
+if (!halfwayMarker) {
 
 halfwayMarker =
 L.marker(
@@ -205,11 +192,18 @@ L.marker(
 { icon: redIcon }
 ).addTo(map);
 
-}
+} else {
+
+halfwayMarker.setLatLng(
+[targetLat, targetLon]
+);
 
 }
 
-// ---------- DISPLAY ----------
+}
+
+
+// DISPLAY
 
 distanceDisplay.textContent =
 totalDistance.toFixed(2);
