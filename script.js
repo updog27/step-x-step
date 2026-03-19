@@ -179,7 +179,8 @@ totalDistance += dist;
 if (
 startPoint &&
 halfDistance > 0 &&
-!halfwayMarker
+!halfwayMarker &&
+totalDistance > 0.01
 ) {
 
 const dx = lat - startPoint.lat;
@@ -188,7 +189,7 @@ const dy = lon - startPoint.lon;
 const straight =
 Math.sqrt(dx * dx + dy * dy);
 
-if (straight > 0.001) {
+if (straight > 0) {
 
 const scale =
 halfDistance / straight;
@@ -208,7 +209,6 @@ L.marker(
 }
 
 }
-
 
 // ---------- DISPLAY ----------
 
