@@ -176,27 +176,34 @@ totalDistance += dist;
 
 // ---------- RED MARKER ----------
 
-if (startPoint) {
+if (
+startPoint &&
+halfDistance > 0 &&
+!halfwayMarker
+) {
 
 const dx = lat - startPoint.lat;
 const dy = lon - startPoint.lon;
 
-const targetLat = lat + dx;
-const targetLon = lon + dy;
+const straight =
+Math.sqrt(dx * dx + dy * dy);
 
-if (!halfwayMarker) {
+if (straight > 0.001) {
+
+const scale =
+halfDistance / straight;
+
+const targetLat =
+startPoint.lat + dx * scale;
+
+const targetLon =
+startPoint.lon + dy * scale;
 
 halfwayMarker =
 L.marker(
 [targetLat, targetLon],
 { icon: redIcon }
 ).addTo(map);
-
-} else {
-
-halfwayMarker.setLatLng(
-[targetLat, targetLon]
-);
 
 }
 
