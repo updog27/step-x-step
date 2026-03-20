@@ -176,7 +176,11 @@ totalDistance += dist;
 
 // ---------- FORWARD MARKER (WORKING VERSION) ----------
 
-if (startPoint && !halfwayMarker) {
+if (
+startPoint &&
+!halfwayMarker &&
+totalDistance > 0.02
+) {
 
 const dx = lat - startPoint.lat;
 const dy = lon - startPoint.lon;
