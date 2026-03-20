@@ -176,7 +176,7 @@ totalDistance += dist;
 
 // ---------- FORWARD MARKER (WORKING VERSION) ----------
 
-if (startPoint) {
+if (startPoint && !halfwayMarker) {
 
 const dx = lat - startPoint.lat;
 const dy = lon - startPoint.lon;
@@ -184,21 +184,11 @@ const dy = lon - startPoint.lon;
 const targetLat = lat + dx;
 const targetLon = lon + dy;
 
-if (!halfwayMarker) {
-
 halfwayMarker =
 L.marker(
 [targetLat, targetLon],
 { icon: redIcon }
 ).addTo(map);
-
-} else {
-
-halfwayMarker.setLatLng(
-[targetLat, targetLon]
-);
-
-}
 
 }
 
