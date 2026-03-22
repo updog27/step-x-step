@@ -185,14 +185,27 @@ totalDistance > 0.02
 const dx = lat - startPoint.lat;
 const dy = lon - startPoint.lon;
 
-const targetLat = lat + dx;
-const targetLon = lon + dy;
+const straight =
+Math.sqrt(dx * dx + dy * dy);
+
+if (straight > 0) {
+
+const scale =
+halfDistance / straight;
+
+const targetLat =
+startPoint.lat + dx * scale;
+
+const targetLon =
+startPoint.lon + dy * scale;
 
 halfwayMarker =
 L.marker(
 [targetLat, targetLon],
 { icon: redIcon }
 ).addTo(map);
+
+}
 
 }
 
