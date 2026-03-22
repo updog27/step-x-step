@@ -188,8 +188,7 @@ const dy = lon - startPoint.lon;
 const straight =
 Math.sqrt(dx * dx + dy * dy);
 
-// wait until direction is stable
-if (straight > 0.005) {
+if (straight > 0) {
 
 const scale =
 halfDistance / straight;
