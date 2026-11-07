@@ -1,317 +1,262 @@
 let map;
 let userMarker;
-let halfwayMarker;
-let routeLine;
-let routeCoordinates = [];
-
+let plannedRouteLine;
+let actualRouteLine;
+let selectedRoute = null;
+let routeChoices = [];
 let watchId = null;
 let previousPosition = null;
-let startPoint = null;
-
-let totalDistance = 0;
-let goalDistance = 0;
-let halfDistance = 0;
-
+let totalDistanceMiles = 0;
+let goalDistanceMiles = 0;
 let stepCount = 0;
+let currentUnit = "miles";
 
 const STEPS_PER_MILE = 2300;
-const TURN_BUFFER = 0.003;
-
-let turnaroundTriggered = false;
-
-
-// ---------- UI ----------
-
-const startButton =
-document.getElementById("start-button");
-
-const distanceDisplay =
-document.getElementById("distance");
-
-const stepDisplay =
-document.getElementById("steps");
-
-const statusBox =
-document.getElementById("statusBox");
-
-const progressBar =
-document.getElementById("progressBar");
-
-const unitSelect =
-document.getElementById("distance-unit");
-
-
-// ---------- RED ICON ----------
-
-const redIcon = new L.Icon({
-iconUrl:
-"https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png",
-shadowUrl:
-"https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-iconSize: [25, 41],
-iconAnchor: [12, 41]
-});
-
-
-// ---------- MAP ----------
+const $ = (id) => document.getElementById(id);
+const statusBox = $("statusBox");
+const startButton = $("start-button");
+const stopButton = $("stop-button");
+const generateButton = $("generate-routes-button");
+const distanceDisplay = $("distance");
+const stepDisplay = $("steps");
+const progressBar = $("progressBar");
+const progressText = $("progress-text");
+const routeList = $("route-list");
+const routesPanel = $("routes-panel");
 
 map = L.map("map").setView([27.95, -82.45], 13);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
 
-L.tileLayer(
-"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-{ maxZoom: 19 }
-).addTo(map);
+plannedRouteLine = L.polyline([], { color: "#1769d2", weight: 5 }).addTo(map);
+actualRouteLine = L.polyline([], { color: "#f28c28", weight: 4 }).addTo(map);
 
-routeLine =
-L.polyline([], { color: "blue" })
-.addTo(map);
+function setStatus(message) { statusBox.textContent = message; }
 
+function getGoalMiles() {
+  const value = Number($("distance-input").value);
+  if (!Number.isFinite(value) || value <= 0) throw new Error("Enter a distance greater than zero.");
+  return $("distance-unit").value === "km" ? value * 0.621371 : value;
+}
 
-// ---------- LOCATION ----------
+function getCurrentPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("This device does not support location services."));
+    navigator.geolocation.getCurrentPosition(resolve, () => reject(new Error("Location access failed. Check that location permission is enabled and try again.")), {
+      enableHighAccuracy: true, timeout: 15000, maximumAge: 10000
+    });
+  });
+}
 
-navigator.geolocation.getCurrentPosition(pos => {
+function milesToMeters(miles) { return miles * 1609.344; }
 
-const lat = pos.coords.latitude;
-const lon = pos.coords.longitude;
+function formatDistance(miles) {
+  return currentUnit === "km" ? (miles / 0.621371).toFixed(2) + " km" : miles.toFixed(2) + " mi";
+}
 
-map.setView([lat, lon], 17);
+function coordinatesToLatLngs(coords) {
+  return coords.map(([lon, lat]) => [lat, lon]);
+}
 
-userMarker =
-L.marker([lat, lon]).addTo(map);
+function drawSelectedRoute(route) {
+  selectedRoute = route;
+  const latLngs = coordinatesToLatLngs(route.coordinates);
+  plannedRouteLine.setLatLngs(latLngs);
+  if (latLngs.length) {
+    map.fitBounds(plannedRouteLine.getBounds(), { padding: [30, 30] });
+  }
+  const miles = route.distanceMeters / 1609.344;
+  $("route-summary").textContent = formatDistance(miles) + " planned";
+  startButton.disabled = false;
+  renderRouteChoices();
+  setStatus("Route selected. Press Start Walk when you're ready.");
+}
 
+function renderRouteChoices() {
+  routeList.innerHTML = "";
+  routeChoices.forEach((route, index) => {
+    const card = document.createElement("div");
+    card.className = "route-card" + (selectedRoute?.id === route.id ? " selected" : "");
+    const info = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = route.label || ("Route " + (index + 1));
+    const detail = document.createElement("p");
+    const miles = route.distanceMeters / 1609.344;
+    const difference = Math.abs(miles - goalDistanceMiles);
+    detail.textContent = formatDistance(miles) + " · " + difference.toFixed(2) + " mi from target";
+    info.append(title, detail);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "secondary";
+    button.textContent = selectedRoute?.id === route.id ? "Selected" : "Select";
+    button.addEventListener("click", () => drawSelectedRoute(route));
+    card.append(info, button);
+    routeList.appendChild(card);
+  });
+}
+
+async function generateRoutes() {
+  if (watchId !== null) return setStatus("Stop your current walk before planning another route.");
+  let goalMiles;
+  try { goalMiles = getGoalMiles(); } catch (error) { return setStatus(error.message); }
+
+  const type = $("route-type").value;
+  currentUnit = $("distance-unit").value;
+  goalDistanceMiles = goalMiles;
+  selectedRoute = null;
+  routeChoices = [];
+  startButton.disabled = true;
+  generateButton.disabled = true;
+  routesPanel.hidden = true;
+  plannedRouteLine.setLatLngs([]);
+  $("route-summary").textContent = "Finding routes…";
+
+  try {
+    const position = await getCurrentPosition();
+    const { latitude, longitude } = position.coords;
+    if (userMarker) userMarker.setLatLng([latitude, longitude]);
+    else userMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("Your starting point");
+    map.setView([latitude, longitude], 16);
+
+    if (type === "free") {
+      selectedRoute = null;
+      $("route-summary").textContent = "Free run · no planned route";
+      startButton.disabled = false;
+      setStatus("Starting point found. Your route will be recorded as you move.");
+      return;
+    }
+
+    setStatus("Finding walkable routes near your location…");
+    const response = await fetch("/.netlify/functions/routes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        latitude, longitude,
+        distanceMeters: milesToMeters(goalMiles),
+        routeType: type
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Route generation failed. Please try again.");
+    if (!Array.isArray(result.routes) || !result.routes.length) throw new Error("No routes were returned. Try another distance.");
+
+    routeChoices = result.routes;
+    routesPanel.hidden = false;
+    drawSelectedRoute(routeChoices[0]);
+  } catch (error) {
+    setStatus(error.message || "Unable to find routes.");
+    $("route-summary").textContent = "No route selected";
+  } finally {
+    generateButton.disabled = false;
+  }
+}
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 3958.8;
+  const toRad = value => value * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function updateProgress() {
+  distanceDisplay.textContent = formatDistance(totalDistanceMiles);
+  stepCount = Math.round(totalDistanceMiles * STEPS_PER_MILE);
+  stepDisplay.textContent = stepCount.toLocaleString();
+  const percent = goalDistanceMiles > 0 ? Math.min(100, totalDistanceMiles / goalDistanceMiles * 100) : 0;
+  progressBar.style.width = percent + "%";
+  progressText.textContent = Math.round(percent) + "%";
+}
+
+function startWalk() {
+  if (watchId !== null) return;
+  try { goalDistanceMiles = getGoalMiles(); } catch (error) { return setStatus(error.message); }
+  currentUnit = $("distance-unit").value;
+  if ($("route-type").value !== "free" && !selectedRoute) {
+    return setStatus("Find and select a route before starting.");
+  }
+  totalDistanceMiles = 0;
+  stepCount = 0;
+  previousPosition = null;
+  actualRouteLine.setLatLngs([]);
+  updateProgress();
+  startButton.disabled = true;
+  generateButton.disabled = true;
+  stopButton.disabled = false;
+  setStatus("Walk started. GPS tracking is active.");
+
+  watchId = navigator.geolocation.watchPosition(position => {
+    const { latitude, longitude, accuracy } = position.coords;
+    if (accuracy && accuracy > 60) {
+      setStatus("GPS signal is weak. Move to an open area for better accuracy.");
+    }
+    const point = [latitude, longitude];
+    if (userMarker) userMarker.setLatLng(point);
+    else userMarker = L.marker(point).addTo(map);
+    if (previousPosition) {
+      const segment = calculateDistance(previousPosition[0], previousPosition[1], latitude, longitude);
+      // Ignore tiny GPS jitter and implausible jumps.
+      if (segment >= 0.003 && segment <= 0.15 && (!accuracy || accuracy <= 60)) {
+        totalDistanceMiles += segment;
+      }
+    }
+    const points = actualRouteLine.getLatLngs();
+    points.push(point);
+    actualRouteLine.setLatLngs(points);
+    previousPosition = point;
+    updateProgress();
+
+    if (goalDistanceMiles > 0 && totalDistanceMiles >= goalDistanceMiles) {
+      stopWalk("Distance goal reached!");
+    }
+  }, error => {
+    const messages = {
+      1: "Location permission was denied. Enable it in your browser settings.",
+      2: "Your current location is unavailable.",
+      3: "GPS timed out. Move to an area with a clearer signal."
+    };
+    setStatus(messages[error.code] || "GPS tracking error.");
+    stopWalk();
+  }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
+}
+
+function stopWalk(message) {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  previousPosition = null;
+  startButton.disabled = !selectedRoute && $("route-type").value !== "free";
+  generateButton.disabled = false;
+  stopButton.disabled = true;
+  setStatus(message || "Walk stopped. Total distance: " + formatDistance(totalDistanceMiles));
+}
+
+generateButton.addEventListener("click", generateRoutes);
+startButton.addEventListener("click", startWalk);
+stopButton.addEventListener("click", () => stopWalk());
+
+$("distance-unit").addEventListener("change", () => {
+  currentUnit = $("distance-unit").value;
+  updateProgress();
+  if (selectedRoute) $("route-summary").textContent = formatDistance(selectedRoute.distanceMeters / 1609.344) + " planned";
 });
 
-
-// ---------- START ----------
-
-startButton.addEventListener("click", () => {
-
-let input =
-document.getElementById("distance-input").value;
-
-goalDistance = parseFloat(input);
-
-if (unitSelect.value === "km") {
-goalDistance *= 0.621371;
-}
-
-halfDistance = goalDistance / 2;
-
-totalDistance = 0;
-previousPosition = null;
-startPoint = null;
-halfwayMarker = null;
-routeCoordinates = [];
-
-turnaroundTriggered = false;
-
-watchId =
-navigator.geolocation.watchPosition(
-updatePosition,
-handleError,
-{ enableHighAccuracy: true }
-);
-
+$("route-type").addEventListener("change", () => {
+  selectedRoute = null;
+  routeChoices = [];
+  routeList.innerHTML = "";
+  routesPanel.hidden = true;
+  plannedRouteLine.setLatLngs([]);
+  $("route-summary").textContent = "No route selected";
+  startButton.disabled = true;
 });
 
-
-// ---------- UPDATE ----------
-
-function updatePosition(position) {
-
-const lat = position.coords.latitude;
-const lon = position.coords.longitude;
-
-
-// USER MARKER
-
-if (!userMarker) {
-
-userMarker =
-L.marker([lat, lon]).addTo(map);
-
-} else {
-
-userMarker.setLatLng([lat, lon]);
-
-}
-
-
-// DRAW LINE
-
-routeCoordinates.push([lat, lon]);
-routeLine.setLatLngs(routeCoordinates);
-
-
-// SAVE START POINT
-
-if (!startPoint && previousPosition) {
-
-startPoint = {
-lat: previousPosition.latitude,
-lon: previousPosition.longitude
-};
-
-}
-
-
-// DISTANCE
-
-if (previousPosition) {
-
-const dist =
-calculateDistance(
-previousPosition.latitude,
-previousPosition.longitude,
-lat,
-lon
-);
-
-if (dist > 0.0005) {
-totalDistance += dist;
-}
-
-}
-
-
-// ---------- FORWARD MARKER (WORKING VERSION) ----------
-
-if (
-startPoint &&
-!halfwayMarker &&
-totalDistance > 0.02
-) {
-
-const dx = lat - startPoint.lat;
-const dy = lon - startPoint.lon;
-
-const straight =
-Math.sqrt(dx * dx + dy * dy);
-
-if (straight > 0) {
-
-const scale =
-halfDistance / straight;
-
-const targetLat =
-startPoint.lat + dx * scale;
-
-const targetLon =
-startPoint.lon + dy * scale;
-
-halfwayMarker =
-L.marker(
-[targetLat, targetLon],
-{ icon: redIcon }
-).addTo(map);
-
-}
-
-}
-
-// DISPLAY
-
-distanceDisplay.textContent =
-totalDistance.toFixed(2);
-
-stepCount =
-Math.round(totalDistance * STEPS_PER_MILE);
-
-stepDisplay.textContent =
-stepCount;
-
-
-// PROGRESS
-
-let progress =
-(totalDistance / goalDistance) * 100;
-
-if (progress > 100) progress = 100;
-
-progressBar.style.width =
-progress + "%";
-
-
-// TURN
-
-if (
-!turnaroundTriggered &&
-totalDistance >=
-halfDistance - TURN_BUFFER
-) {
-
-turnaroundTriggered = true;
-
-statusBox.textContent =
-"Turn around";
-
-}
-
-
-// GOAL
-
-if (totalDistance >= goalDistance) {
-
-navigator.geolocation.clearWatch(
-watchId
-);
-
-statusBox.textContent =
-"Goal reached";
-
-progressBar.style.width = "100%";
-
-}
-
-
-previousPosition = {
-latitude: lat,
-longitude: lon
-};
-
-}
-
-
-// ---------- DISTANCE ----------
-
-function calculateDistance(
-lat1,
-lon1,
-lat2,
-lon2
-) {
-
-const R = 3958.8;
-
-const toRad =
-d => d * Math.PI / 180;
-
-const dLat =
-toRad(lat2 - lat1);
-
-const dLon =
-toRad(lon2 - lon1);
-
-const a =
-Math.sin(dLat/2)**2 +
-Math.cos(toRad(lat1)) *
-Math.cos(toRad(lat2)) *
-Math.sin(dLon/2)**2;
-
-const c =
-2*Math.atan2(
-Math.sqrt(a),
-Math.sqrt(1-a)
-);
-
-return R*c;
-
-}
-
-
-function handleError() {
-
-statusBox.textContent =
-"GPS error";
-
-}
+getCurrentPosition().then(position => {
+  const point = [position.coords.latitude, position.coords.longitude];
+  map.setView(point, 16);
+  userMarker = L.marker(point).addTo(map).bindPopup("Your location");
+  setStatus("Location found. Enter a distance and find a route.");
+}).catch(() => setStatus("Enter a distance, then allow location access when you find a route."));
