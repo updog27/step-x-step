@@ -1,160 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Step x Step</title>
-
-<link rel="stylesheet" href="style.css">
-
-<link rel="stylesheet"
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-<style>
-
-body{
-font-family: Arial, Helvetica, sans-serif;
-text-align:center;
-margin:0;
-padding:20px;
-background:#f4f6f8;
-}
-
-#logo{
-width:120px;
-margin-bottom:10px;
-}
-
-section{
-margin:20px 0;
-}
-
-input, select, button{
-padding:10px;
-margin:5px;
-font-size:16px;
-}
-
-#map{
-height:320px;
-width:100%;
-border-radius:10px;
-}
-
-#statusBox{
-background:#222;
-color:white;
-padding:10px;
-border-radius:8px;
-margin-top:10px;
-font-size:18px;
-}
-
-.avatar-option{
-width:70px;
-margin:10px;
-border-radius:10px;
-cursor:pointer;
-border:2px solid transparent;
-}
-
-.avatar-option.selected{
-border:2px solid #2a7cff;
-}
-
-</style>
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Step x Step</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
-
 <body>
+  <header>
+    <img src="logo.png" id="logo" alt="Step x Step logo" onerror="this.style.display='none'">
+    <h1>Step x Step</h1>
+    <p>Choose your distance. Find your way.</p>
+  </header>
 
-<header>
+  <main>
+    <section class="controls" aria-labelledby="route-heading">
+      <h2 id="route-heading">Plan your walk</h2>
+      <label for="distance-input">Distance</label>
+      <input type="number" id="distance-input" min="0.19" step="0.01" placeholder="Distance" value="1">
+      <select id="distance-unit" aria-label="Distance unit">
+        <option value="miles">Miles</option>
+        <option value="km">Kilometers</option>
+      </select>
+      <select id="route-type" aria-label="Route type">
+        <option value="outback">Out-and-back</option>
+        <option value="loop">Loop</option>
+        <option value="free">Free run</option>
+      </select>
+      <div class="button-row">
+        <button id="generate-routes-button" type="button">Find Routes</button>
+        <button id="start-button" type="button" disabled>Start Walk</button>
+        <button id="stop-button" type="button" disabled>Stop</button>
+      </div>
+      <div id="statusBox" role="status" aria-live="polite">Allow location access to plan a route.</div>
+    </section>
 
-<img src="logo.png" id="logo">
+    <section class="stats" aria-label="Walk progress">
+      <div><span class="stat-label">Distance</span><strong id="distance">0.00 mi</strong></div>
+      <div><span class="stat-label">Steps</span><strong id="steps">0</strong></div>
+      <div><span class="stat-label">Progress</span><strong id="progress-text">0%</strong></div>
+    </section>
+    <div id="progressContainer"><div id="progressBar"></div></div>
 
-<h1>Step x Step</h1>
+    <section class="map-section">
+      <div class="section-heading">
+        <h2>Your route</h2>
+        <span id="route-summary">No route selected</span>
+      </div>
+      <div id="map" aria-label="Map showing your route"></div>
+    </section>
 
-</header>
+    <section id="routes-panel" class="routes-panel" hidden>
+      <h2>Suggested routes</h2>
+      <div id="route-list"></div>
+    </section>
+  </main>
 
-<main>
-
-<section>
-
-<h2>Enter Distance</h2>
-
-<input
-type="number"
-id="distance-input"
-step="0.01"
-placeholder="Distance"
->
-
-<br>
-
-<select id="distance-unit">
-<option value="miles">Miles</option>
-<option value="km">Kilometers</option>
-</select>
-
-<select id="route-type">
-<option value="outback">Out-and-back</option>
-<option value="loop">Loop</option>
-<option value="free">Free run</option>
-</select>
-
-<br>
-
-<button id="start-button">
-Start Walk
-</button>
-
-</section>
-
-
-<section id="step-counter">
-
-<h2>Distance</h2>
-<p id="distance">0.00 miles</p>
-
-<h2>Steps</h2>
-<p id="steps">0</p>
-
-</section>
-
-
-<section>
-
-<h2>Status</h2>
-
-<div id="statusBox">
-Ready
-</div>
-
-<div id="progressContainer">
-
-<div id="progressBar"></div>
-
-</div>
-
-</section>
-
-
-<section>
-
-<h2>Your Route</h2>
-
-<div id="map"></div>
-
-</section>
-
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script src="script.js?v=2"></script>
-
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="script.js?v=3"></script>
 </body>
 </html>
-
