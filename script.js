@@ -14,6 +14,7 @@ let totalDistanceMiles = 0;
 let goalDistanceMiles = 0;
 let stepCount = 0;
 let sessionInitialized = false;
+let routeMatchIndex = 0;
 let currentUnit = "miles";
 
 const STEPS_PER_MILE = 2300;
@@ -80,22 +81,47 @@ function distanceToSegmentMeters(point, start, end) {
   return Math.hypot(a[0] + t * dx, a[1] + t * dy);
 }
 
+function resetRouteMatch() {
+  routeMatchIndex = 0;
+}
+
 function updateRouteAdherence(latitude, longitude, accuracy) {
   const display = $("route-follow-status");
   if (!display) return;
   if (!selectedRoute || !Array.isArray(selectedRoute.coordinates) || selectedRoute.coordinates.length < 2) {
     display.textContent = $("route-type").value === "free" ? "Free run" : "—";
+    resetRouteMatch();
     return;
   }
-  let nearest = Infinity;
+
   const path = coordinatesToLatLngs(selectedRoute.coordinates);
-  for (let i = 1; i < path.length; i++) {
-    nearest = Math.min(nearest, distanceToSegmentMeters([latitude, longitude], path[i - 1], path[i]));
+  const point = [latitude, longitude];
+  const lastSegment = path.length - 2;
+  // Match near the user's prior position in the route sequence. This avoids
+  // jumping to a nearby parallel leg, loop closure, or crossing elsewhere.
+  const from = Math.max(0, routeMatchIndex - 3);
+  const to = Math.min(lastSegment, routeMatchIndex + 80);
+  let nearest = Infinity;
+  let bestIndex = routeMatchIndex;
+  for (let i = from; i <= to; i++) {
+    const distance = distanceToSegmentMeters(point, path[i], path[i + 1]);
+    if (distance < nearest) {
+      nearest = distance;
+      bestIndex = i;
+    }
   }
+
   const uncertainty = Number.isFinite(accuracy) ? accuracy : 35;
-  if (nearest <= Math.max(35, uncertainty * 1.5)) display.textContent = "On route";
-  else if (nearest <= Math.max(75, uncertainty * 2.5)) display.textContent = "Near route";
-  else display.textContent = "Away from route";
+  const onThreshold = Math.max(35, uncertainty * 1.5);
+  const nearThreshold = Math.max(75, uncertainty * 2.5);
+  if (nearest <= nearThreshold) {
+    // Permit only a little backward movement for GPS wobble; route progress
+    // otherwise advances in sequence, including on the return leg.
+    routeMatchIndex = Math.max(routeMatchIndex - 2, bestIndex);
+    display.textContent = nearest <= onThreshold ? "On route" : "Near route";
+  } else {
+    display.textContent = "Away from route";
+  }
 }
 
 function clearRouteLayers() {
@@ -124,6 +150,7 @@ function drawAllRouteOptions() {
 function drawSelectedRoute(route) {
   if (selectedRoute && selectedRoute.id !== route.id) resetWalk(false);
   selectedRoute = route;
+  resetRouteMatch();
   drawAllRouteOptions();
   if (turnaroundMarker) map.removeLayer(turnaroundMarker);
   if (destinationMarker) map.removeLayer(destinationMarker);
@@ -293,8 +320,6 @@ function startWalk() {
     const point = [latitude, longitude];
     if (userMarker) userMarker.setLatLng(point);
     else userMarker = L.marker(point).addTo(map);
-    updateRouteAdherence(latitude, longitude, currentAccuracy);
-
     const timestamp = Number(position.timestamp) || Date.now();
     let acceptedPoint = false;
     if (!previousPosition) {
@@ -324,6 +349,7 @@ function startWalk() {
     // Only trusted fixes become the next baseline. Totals survive rejected fixes
     // and temporary signal loss without accumulating a large recovery jump.
     previousPosition = { latitude, longitude, accuracy: currentAccuracy, timestamp };
+    if (acceptedPoint) updateRouteAdherence(latitude, longitude, currentAccuracy);
     updateProgress();
 
     if (goalDistanceMiles > 0 && totalDistanceMiles >= goalDistanceMiles) {
@@ -365,6 +391,7 @@ function resetWalk(updateStatus = true) {
   totalDistanceMiles = 0;
   stepCount = 0;
   sessionInitialized = false;
+  resetRouteMatch();
   actualRouteLine.setLatLngs([]);
   updateProgress();
   startButton.disabled = !selectedRoute && $("route-type").value !== "free";
