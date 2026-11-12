@@ -119,8 +119,17 @@ exports.handler = async (event) => {
       }));
       candidates.push(...candidateResults.filter(Boolean));
       candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
-      if (!candidates.length) return json(422, { error: "No walkable one-way destinations could be found. Try another distance or starting point." });
-      return json(200, { routes: candidates.slice(0, 3), targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
+      const distinct = [];
+      const signatures = [];
+      for (const candidate of candidates) {
+        const signature = routeSignature(candidate.coordinates);
+        if (signatures.includes(signature)) continue;
+        signatures.push(signature);
+        distinct.push(candidate);
+        if (distinct.length === 3) break;
+      }
+      if (!distinct.length) return json(422, { error: "No walkable one-way destinations could be found. Try another distance or starting point." });
+      return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
     }
 
     // Tune three loop orientations against the routed pedestrian-network
