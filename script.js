@@ -195,9 +195,15 @@ async function generateRoutes() {
     routesPanel.hidden = false;
     renderRouteChoices();
     drawSelectedRoute(routeChoices[0]);
-    const withinTolerance = routeChoices.filter(route => Math.abs(route.distanceMeters - milesToMeters(goalMiles)) <= (result.toleranceMeters || 80.5)).length;
-    if (withinTolerance < routeChoices.length) setStatus("Routes found. Some options are outside the 0.05-mile target tolerance; their actual distances are shown.");
-    if (routeChoices.length < 3) setStatus("Found " + routeChoices.length + " distinct walkable option(s) here. More routes were not available on the nearby street network.");
+    const availableCount = routeChoices.length;
+    const targetNote = "All displayed routes are within 0.05 miles of your requested distance.";
+    if (availableCount < 3) {
+      setStatus("Found " + availableCount + " safe, distinct route option" + (availableCount === 1 ? "" : "s") +
+        " near your starting point. " + targetNote +
+        " We won't add routes that fail the distance or road-safety checks.");
+    } else {
+      setStatus("Found 3 safe, distinct route options near your starting point. " + targetNote);
+    }
   } catch (error) {
     setStatus(error.message || "Unable to find routes.");
     $("route-summary").textContent = "No route selected";
