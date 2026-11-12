@@ -17,7 +17,11 @@ async function getRoute(coordinates, apiKey) {
   const response = await fetch(ORS_URL, {
     method: "POST",
     headers: { "Authorization": apiKey, "Content-Type": "application/json", "Accept": "application/geo+json" },
-    body: JSON.stringify({ coordinates, instructions: false, preference: "recommended", units: "m" })
+    body: JSON.stringify({
+      coordinates, instructions: false, preference: "recommended", units: "m",
+      extra_info: ["waycategory", "waytype", "noise"],
+      options: { avoid_features: ["ferries", "fords", "steps"], profile_params: { weightings: { quiet: { factor: 1.0 } } } }
+    })
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -26,7 +30,28 @@ async function getRoute(coordinates, apiKey) {
   }
   const feature = payload.features?.[0], coords = feature?.geometry?.coordinates, meters = feature?.properties?.summary?.distance;
   if (!Array.isArray(coords) || coords.length < 2 || !Number.isFinite(meters)) throw new Error("The routing service returned an incomplete route.");
-  return { coordinates: coords, meters };
+  const extras = feature.properties?.extras || {};
+  const summaries = {
+    waycategory: extras.waycategory || extras.waycategories,
+    waytype: extras.waytype || extras.waytypes,
+    noise: extras.noise
+  };
+  const totalFor = (extra, predicate) => (extra?.summary || [])
+    .filter(item => predicate(item.value))
+    .reduce((sum, item) => sum + (Number(item.distance) || 0), 0);
+  const highwayMeters = totalFor(summaries.waycategory, value => (Number(value) & 1) === 1);
+  const stateRoadMeters = totalFor(summaries.waytype, value => Number(value) === 1);
+  const secondaryRoadMeters = totalFor(summaries.waytype, value => Number(value) === 2);
+  const noisyMeters = totalFor(summaries.noise, value => Number(value) >= 7);
+  // Motorways/highways and primary/state roads are unsuitable for neighborhood
+  // walking routes. Reject them rather than merely ranking them lower.
+  const unsafeMajorRoad = highwayMeters > 10 || stateRoadMeters > 10;
+  const safetyPenalty = (highwayMeters * 100) + (stateRoadMeters * 80) +
+    (secondaryRoadMeters * 0.15) + (noisyMeters * 2);
+  return { coordinates: coords, meters, safety: {
+    highwayMeters, stateRoadMeters, secondaryRoadMeters, noisyMeters,
+    unsafeMajorRoad, safetyPenalty
+  } };
 }
 
 function routeSignature(coords) {
@@ -74,7 +99,7 @@ exports.handler = async (event) => {
             endpointDistance *= 0.75;
           }
         }
-        if (!best) return null;
+        if (!best || best.safety.unsafeMajorRoad) return null;
         const returnCoordinates = [...best.coordinates].reverse().slice(1);
         const fullCoordinates = [...best.coordinates, ...returnCoordinates];
         const totalMeters = best.meters * 2;
@@ -83,11 +108,12 @@ exports.handler = async (event) => {
           outboundDistanceMeters: best.meters, coordinates: fullCoordinates,
           turnaround: best.coordinates[best.coordinates.length - 1],
           label: "Out-and-back", differenceMeters: Math.abs(totalMeters - distance),
-          differencePercent: Math.round(Math.abs(totalMeters - distance) / distance * 100)
+          differencePercent: Math.round(Math.abs(totalMeters - distance) / distance * 100),
+          safety: best.safety
         };
       }));
       candidates.push(...candidateResults.filter(Boolean));
-      candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
+      candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
       const distinct = [];
       const signatures = [];
       for (const candidate of candidates) {
@@ -118,11 +144,11 @@ exports.handler = async (event) => {
             endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
           } catch (error) { providerFailure = error.message || "The routing service could not create this route."; endpointDistance *= .75; }
         }
-        if (!best) return null;
-        return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100) };
+        if (!best || best.safety.unsafeMajorRoad) return null;
+        return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
       }));
       candidates.push(...candidateResults.filter(Boolean));
-      candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
+      candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
       const distinct = [];
       const signatures = [];
       for (const candidate of candidates) {
@@ -157,11 +183,11 @@ exports.handler = async (event) => {
           radius *= Math.max(0.65, Math.min(1.45, ratio));
         } catch (error) { providerFailure = error.message || "The routing service could not create this route."; radius *= 0.8; }
       }
-      if (!best) return null;
-      return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100) };
+      if (!best || best.safety.unsafeMajorRoad) return null;
+      return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
     }));
     candidates.push(...candidateResults.filter(Boolean));
-    candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
+    candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
     const distinctLoops = [];
     const loopSignatures = [];
     for (const candidate of candidates) {
