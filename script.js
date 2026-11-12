@@ -156,7 +156,9 @@ async function generateRoutes() {
   plannedRouteLine.setLatLngs([]);
   clearRouteLayers();
   if (turnaroundMarker) map.removeLayer(turnaroundMarker);
+  if (destinationMarker) map.removeLayer(destinationMarker);
   turnaroundMarker = null;
+  destinationMarker = null;
   $("route-summary").textContent = "Finding routes…";
 
   try {
@@ -352,7 +354,9 @@ $("route-type").addEventListener("change", () => {
   plannedRouteLine.setLatLngs([]);
   clearRouteLayers();
   if (turnaroundMarker) map.removeLayer(turnaroundMarker);
+  if (destinationMarker) map.removeLayer(destinationMarker);
   turnaroundMarker = null;
+  destinationMarker = null;
   $("route-summary").textContent = "No route selected";
   startButton.disabled = true;
 });
