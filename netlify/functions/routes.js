@@ -558,7 +558,11 @@ exports.handler = async (event) => {
         for (let attempt = 0; attempt < 6; attempt++) {
           try {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
-            const outbound = await getRoute([start, endpoint], apiKey);
+            // Force each candidate through a different intermediate pedestrian
+            // network waypoint; different endpoints alone often snap to one corridor.
+            const sideOffset = (bearing / 45) % 2 === 0 ? 55 : -55;
+            const waypoint = destinationPoint(lat, lon, endpointDistance * 0.42, bearing + sideOffset);
+            const outbound = await getRoute([start, waypoint, endpoint], apiKey);
             const trimmedCoordinates = trimCoordinatesToDistance(outbound.coordinates, distance / 2);
             if (trimmedCoordinates) {
               best = { ...outbound, coordinates: trimmedCoordinates, meters: distance / 2 };
