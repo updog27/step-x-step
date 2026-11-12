@@ -1,7 +1,9 @@
 let map;
 let userMarker;
 let plannedRouteLine;
+let routeLayers = [];
 let actualRouteLine;
+const ROUTE_COLORS = ["#1769d2", "#159b72", "#d97706"];
 let selectedRoute = null;
 let routeChoices = [];
 let watchId = null;
@@ -32,7 +34,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
 
-plannedRouteLine = L.polyline([], { color: "#1769d2", weight: 5 }).addTo(map);
+plannedRouteLine = L.polyline([], { color: ROUTE_COLORS[0], weight: 6, opacity: 0.95 }).addTo(map);
 actualRouteLine = L.polyline([], { color: "#f28c28", weight: 4 }).addTo(map);
 
 function setStatus(message) { statusBox.textContent = message; }
@@ -62,14 +64,30 @@ function coordinatesToLatLngs(coords) {
   return coords.map(([lon, lat]) => [lat, lon]);
 }
 
+function clearRouteLayers() {
+  routeLayers.forEach(layer => map.removeLayer(layer));
+  routeLayers = [];
+}
+
+function drawAllRouteOptions() {
+  clearRouteLayers();
+  routeChoices.forEach((route, index) => {
+    const layer = L.polyline(coordinatesToLatLngs(route.coordinates), {
+      color: ROUTE_COLORS[index % ROUTE_COLORS.length],
+      weight: selectedRoute?.id === route.id ? 7 : 5,
+      opacity: selectedRoute?.id === route.id ? 0.98 : 0.48
+    }).addTo(map);
+    layer.on("click", () => drawSelectedRoute(route));
+    routeLayers.push(layer);
+  });
+  const bounds = L.featureGroup(routeLayers).getBounds();
+  if (bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28] });
+}
+
 function drawSelectedRoute(route) {
   if (selectedRoute && selectedRoute.id !== route.id) resetWalk(false);
   selectedRoute = route;
-  const latLngs = coordinatesToLatLngs(route.coordinates);
-  plannedRouteLine.setLatLngs(latLngs);
-  if (latLngs.length) {
-    map.fitBounds(plannedRouteLine.getBounds(), { padding: [30, 30] });
-  }
+  drawAllRouteOptions();
   const miles = route.distanceMeters / 1609.344;
   $("route-summary").textContent = formatDistance(miles) + " planned";
   startButton.disabled = false;
@@ -80,22 +98,25 @@ function drawSelectedRoute(route) {
 function renderRouteChoices() {
   routeList.innerHTML = "";
   routeChoices.forEach((route, index) => {
-    const card = document.createElement("div");
+    const card = document.createElement("button");
+    card.type = "button";
     card.className = "route-card" + (selectedRoute?.id === route.id ? " selected" : "");
-    const info = document.createElement("div");
+    card.style.setProperty("--route-color", ROUTE_COLORS[index % ROUTE_COLORS.length]);
+    const info = document.createElement("span");
+    info.className = "route-card-info";
     const title = document.createElement("strong");
-    title.textContent = route.label || ("Route " + (index + 1));
-    const detail = document.createElement("p");
+    title.textContent = (index === 0 ? "Recommended · " : "Alternative · ") + (route.label || ("Route " + (index + 1)));
+    const detail = document.createElement("small");
     const miles = route.distanceMeters / 1609.344;
     const difference = Math.abs(miles - goalDistanceMiles);
-    detail.textContent = formatDistance(miles) + " · " + difference.toFixed(2) + " mi from target";
+    const differenceLabel = currentUnit === "km" ? (difference / 0.621371).toFixed(2) + " km" : difference.toFixed(2) + " mi";
+    detail.textContent = formatDistance(miles) + " total · " + differenceLabel + " from target";
     info.append(title, detail);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "secondary";
-    button.textContent = selectedRoute?.id === route.id ? "Selected" : "Select";
-    button.addEventListener("click", () => drawSelectedRoute(route));
-    card.append(info, button);
+    const marker = document.createElement("span");
+    marker.className = "route-swatch";
+    marker.setAttribute("aria-hidden", "true");
+    card.append(info, marker);
+    card.addEventListener("click", () => drawSelectedRoute(route));
     routeList.appendChild(card);
   });
 }
@@ -115,6 +136,7 @@ async function generateRoutes() {
   generateButton.disabled = true;
   routesPanel.hidden = true;
   plannedRouteLine.setLatLngs([]);
+  clearRouteLayers();
   $("route-summary").textContent = "Finding routes…";
 
   try {
@@ -148,7 +170,11 @@ async function generateRoutes() {
 
     routeChoices = result.routes;
     routesPanel.hidden = false;
+    renderRouteChoices();
     drawSelectedRoute(routeChoices[0]);
+    const withinTolerance = routeChoices.filter(route => Math.abs(route.distanceMeters - milesToMeters(goalMiles)) <= (result.toleranceMeters || 80.5)).length;
+    if (type === "outback" && withinTolerance < routeChoices.length) setStatus("Routes found. Some options are slightly outside the 0.05-mile target tolerance; their exact distances are shown.");
+    if (routeChoices.length < 3) setStatus("Found " + routeChoices.length + " distinct walkable option(s) here. More routes were not available on the nearby street network.");
   } catch (error) {
     setStatus(error.message || "Unable to find routes.");
     $("route-summary").textContent = "No route selected";
@@ -274,6 +300,7 @@ $("route-type").addEventListener("change", () => {
   routeList.innerHTML = "";
   routesPanel.hidden = true;
   plannedRouteLine.setLatLngs([]);
+  clearRouteLayers();
   $("route-summary").textContent = "No route selected";
   startButton.disabled = true;
 });
