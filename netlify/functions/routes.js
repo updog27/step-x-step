@@ -98,20 +98,43 @@ exports.handler = async (event) => {
   try {
     const start = [lon, lat];
     if (type === "outback") {
-      const oneWayMeters = distance / 2;
-      const endpoint = destinationPoint(lat, lon, oneWayMeters, Number(input.bearing) || 45);
-      const outbound = await getRoute([start, endpoint], apiKey);
-      const returnCoordinates = [...outbound.coordinates].reverse().slice(1);
-      const fullCoordinates = [...outbound.coordinates, ...returnCoordinates];
-      return json(200, {
-        routes: [{
-          id: "outback-1",
-          type: "outback",
-          distanceMeters: outbound.meters * 2,
-          coordinates: fullCoordinates,
-          label: "Out-and-back"
-        }]
-      });
+      // Generate three genuinely different outbound directions. Adjust each
+      // endpoint once using the actual routed distance to improve target accuracy.
+      const bearings = [35, 155, 275];
+      const candidates = [];
+
+      for (let index = 0; index < bearings.length; index++) {
+        let endpointDistance = distance / 2;
+        let outbound = null;
+        try {
+          for (let attempt = 0; attempt < 2; attempt++) {
+            const endpoint = destinationPoint(lat, lon, endpointDistance, bearings[index]);
+            outbound = await getRoute([start, endpoint], apiKey);
+            if (attempt === 0 && outbound.meters > 0) {
+              const correction = (distance / 2) / outbound.meters;
+              endpointDistance *= Math.max(0.45, Math.min(1.8, correction));
+            }
+          }
+          const returnCoordinates = [...outbound.coordinates].reverse().slice(1);
+          const fullCoordinates = [...outbound.coordinates, ...returnCoordinates];
+          candidates.push({
+            id: "outback-" + (index + 1),
+            type: "outback",
+            distanceMeters: outbound.meters * 2,
+            coordinates: fullCoordinates,
+            label: "Out-and-back " + (index + 1),
+            differencePercent: Math.round(Math.abs(outbound.meters * 2 - distance) / distance * 100)
+          });
+        } catch (error) {
+          // Keep trying other bearings if one direction has no walkable route.
+        }
+      }
+
+      if (!candidates.length) {
+        return json(422, { error: "No walkable out-and-back routes could be found. Try another distance or starting point." });
+      }
+      candidates.sort((a, b) => Math.abs(a.distanceMeters - distance) - Math.abs(b.distanceMeters - distance));
+      return json(200, { routes: candidates });
     }
 
     // Try several loop orientations and radii; keep the closest matches.
