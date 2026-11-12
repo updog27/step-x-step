@@ -579,7 +579,8 @@ exports.handler = async (event) => {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             // Force each candidate through a different intermediate pedestrian
             // network waypoint; different endpoints alone often snap to one corridor.
-            const sideOffsetDegrees = (bearing / 45) % 2 === 0 ? 18 : -18;
+            const isCardinalDirection = bearing % 90 === 0;
+            const sideOffsetDegrees = isCardinalDirection ? 0 : (bearing / 45) % 2 === 0 ? 18 : -18;
             const waypoint = destinationPoint(lat, lon, endpointDistance * 0.58, bearing + sideOffsetDegrees);
             const outbound = await getRoute([start, waypoint, endpoint], apiKey);
             const trimmedCoordinates = trimCoordinatesToDistance(outbound.coordinates, distance / 2);
