@@ -1,5 +1,5 @@
 const ORS_URL = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson";
-const MAX_OUTBACK_ERROR_METERS = 80.5; // 0.05 miles
+const MAX_ROUTE_DISTANCE_ERROR_METERS = 80.5; // 0.05 miles
 
 function json(statusCode, body) {
   return { statusCode, headers: { "Content-Type": "application/json", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "POST, OPTIONS" }, body: JSON.stringify(body) };
@@ -248,7 +248,7 @@ exports.handler = async (event) => {
             const total = outbound.meters * 2;
             if (!best || Math.abs(total - distance) < Math.abs(best.meters * 2 - distance)) best = outbound;
             const ratio = (distance / 2) / outbound.meters;
-            if (Math.abs(total - distance) <= MAX_OUTBACK_ERROR_METERS) break;
+            if (Math.abs(total - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
             endpointDistance *= Math.max(0.65, Math.min(1.5, ratio));
           } catch (error) {
             providerFailure = error.message || "The routing service could not create this route.";
@@ -272,7 +272,7 @@ exports.handler = async (event) => {
       candidates.push(...candidateResults.filter(Boolean));
       const screenedCandidates = (await screenMajorRoadCrossings(candidates))
         .filter(route => withinNeighborhood(route, start, distance))
-        .filter(route => route.differenceMeters <= MAX_OUTBACK_ERROR_METERS);
+        .filter(route => route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
@@ -284,7 +284,7 @@ exports.handler = async (event) => {
       }
       if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
       if (!distinct.length) return json(422, { error: "No safe out-and-back route within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
-      return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
+      return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_ROUTE_DISTANCE_ERROR_METERS });
     }
 
     if (type === "oneway") {
@@ -299,7 +299,7 @@ exports.handler = async (event) => {
             const route = await getRoute([start, endpoint], apiKey);
             if (!best || Math.abs(route.meters - distance) < Math.abs(best.meters - distance)) best = route;
             const ratio = distance / route.meters;
-            if (Math.abs(route.meters - distance) <= MAX_OUTBACK_ERROR_METERS) break;
+            if (Math.abs(route.meters - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
             endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
           } catch (error) { providerFailure = error.message || "The routing service could not create this route."; endpointDistance *= .75; }
         }
@@ -309,7 +309,7 @@ exports.handler = async (event) => {
       candidates.push(...candidateResults.filter(Boolean));
       const screenedCandidates = (await screenMajorRoadCrossings(candidates))
         .filter(route => withinNeighborhood(route, start, distance))
-        .filter(route => route.differenceMeters <= MAX_OUTBACK_ERROR_METERS);
+        .filter(route => route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
@@ -321,7 +321,7 @@ exports.handler = async (event) => {
       }
       if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
       if (!distinct.length) return json(422, { error: "No safe one-way route within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
-      return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
+      return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_ROUTE_DISTANCE_ERROR_METERS });
     }
 
     // Tune three loop orientations against the routed pedestrian-network
@@ -340,7 +340,7 @@ exports.handler = async (event) => {
           const route = await getRoute(points, apiKey);
           if (!best || Math.abs(route.meters - distance) < Math.abs(best.meters - distance)) best = route;
           const ratio = distance / route.meters;
-          if (Math.abs(route.meters - distance) <= MAX_OUTBACK_ERROR_METERS) break;
+          if (Math.abs(route.meters - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
           radius *= Math.max(0.65, Math.min(1.45, ratio));
         } catch (error) { providerFailure = error.message || "The routing service could not create this route."; radius *= 0.8; }
       }
@@ -361,7 +361,7 @@ exports.handler = async (event) => {
     }
     if (!distinctLoops.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
     if (!distinctLoops.length) return json(422, { error: "No safe loop within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
-    return json(200, { routes: distinctLoops, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
+    return json(200, { routes: distinctLoops, targetDistanceMeters: distance, toleranceMeters: MAX_ROUTE_DISTANCE_ERROR_METERS });
   } catch (error) {
     return json(502, { error: error.message || "The routing service is temporarily unavailable." });
   }
