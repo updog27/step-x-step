@@ -229,6 +229,103 @@ async function screenMajorRoadCrossings(candidates) {
   }).filter(route => route.safety.majorRoadCrossings === 0 && route.safety.secondaryRoadCrossings === 0);
 }
 
+
+function pointSegmentDistanceMeters(point, a, b) {
+  const latScale = 111320;
+  const lonScale = 111320 * Math.cos(point[1] * Math.PI / 180);
+  const px = point[0] * lonScale, py = point[1] * latScale;
+  const ax = a[0] * lonScale, ay = a[1] * latScale;
+  const bx = b[0] * lonScale, by = b[1] * latScale;
+  const dx = bx - ax, dy = by - ay;
+  const denominator = dx * dx + dy * dy;
+  const t = denominator ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / denominator)) : 0;
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+async function scorePedestrianInfrastructure(candidates) {
+  if (!candidates.length) return candidates;
+  let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;
+  for (const route of candidates) for (const point of route.coordinates || []) {
+    if (!Array.isArray(point) || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) continue;
+    west = Math.min(west, point[0]); east = Math.max(east, point[0]);
+    south = Math.min(south, point[1]); north = Math.max(north, point[1]);
+  }
+  if (![south, west, north, east].every(Number.isFinite)) {
+    throw new Error("Could not verify pedestrian infrastructure because route geometry was incomplete.");
+  }
+  const pad = 0.001;
+  south -= pad; west -= pad; north += pad; east += pad;
+  // Collect separately mapped sidewalks/footpaths and carriageways carrying
+  // an explicit sidewalk tag. Missing tags remain unknown, not "no sidewalk".
+  const query = `[out:json][timeout:10];
+(
+ way["highway"~"^(footway|path|pedestrian|steps)$"](${south},${west},${north},${east});
+ way["highway"]["sidewalk"~"^(yes|both|left|right|separate)$"](${south},${west},${north},${east});
+ way["highway"]["sidewalk:both"~"^(yes|separate)$"](${south},${west},${north},${east});
+ way["highway"]["sidewalk:left"~"^(yes|separate)$"](${south},${west},${north},${east});
+ way["highway"]["sidewalk:right"~"^(yes|separate)$"](${south},${west},${north},${east});
+);
+out tags geom;`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 11000);
+  let data;
+  try {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "data=" + encodeURIComponent(query), signal: controller.signal
+    });
+    if (!response.ok) throw new Error("Pedestrian infrastructure map data is temporarily unavailable.");
+    data = await response.json();
+  } catch (error) {
+    throw new Error("Could not verify pedestrian infrastructure. Please try again. " +
+      (error.name === "AbortError" ? "The map service timed out." : error.message));
+  } finally { clearTimeout(timeout); }
+  if (typeof data?.remark === "string" && data.remark.trim()) {
+    throw new Error("The pedestrian infrastructure map returned an incomplete result. Please try again.");
+  }
+  if (!Array.isArray(data?.elements)) throw new Error("Pedestrian infrastructure map data was incomplete. Please try again.");
+
+  const features = data.elements.filter(el => el.type === "way" && Array.isArray(el.geometry) && el.geometry.length > 1)
+    .map(el => {
+      const tags = el.tags || {};
+      const footway = ["footway", "path", "pedestrian", "steps"].includes(tags.highway);
+      const sidewalkTagged = ["yes", "both", "left", "right", "separate"].includes(tags.sidewalk) ||
+        ["yes", "separate"].includes(tags["sidewalk:both"]) ||
+        ["yes", "separate"].includes(tags["sidewalk:left"]) ||
+        ["yes", "separate"].includes(tags["sidewalk:right"]);
+      const segments = el.geometry.slice(1).map((p, i) => ({
+        a: [el.geometry[i].lon, el.geometry[i].lat], b: [p.lon, p.lat]
+      }));
+      return { footway, sidewalkTagged, segments };
+    });
+  const infrastructureSegments = features.flatMap(feature =>
+    feature.footway || feature.sidewalkTagged ? feature.segments : []);
+  return candidates.map(route => {
+    const samples = sampleRoute(route.coordinates, Math.max(12, Math.min(80, Math.ceil(route.distanceMeters / 40))));
+    let supported = 0;
+    for (const point of samples) {
+      let nearest = Infinity;
+      for (const segment of infrastructureSegments) {
+        if (Math.abs(segment.a[1] - point[1]) > 0.00025 && Math.abs(segment.b[1] - point[1]) > 0.00025) continue;
+        nearest = Math.min(nearest, pointSegmentDistanceMeters(point, segment.a, segment.b));
+        if (nearest <= 18) break;
+      }
+      if (nearest <= 18) supported++;
+    }
+    const coverage = samples.length ? supported / samples.length : 0;
+    const hasMappedInfrastructure = infrastructureSegments.length > 0;
+    const unknown = !hasMappedInfrastructure;
+    const unsupportedRatio = hasMappedInfrastructure ? 1 - coverage : 0;
+    const infrastructurePenalty = unknown ? route.distanceMeters * 0.2 : unsupportedRatio * route.distanceMeters * 1.2;
+    return { ...route, safety: { ...route.safety,
+      pedestrianInfrastructure: unknown ? "unknown" : coverage >= 0.75 ? "strong-mapped-support" : coverage >= 0.4 ? "partial-mapped-support" : "limited-mapped-support",
+      pedestrianInfrastructureCoverage: hasMappedInfrastructure ? Math.round(coverage * 100) : null,
+      pedestrianInfrastructurePenalty: infrastructurePenalty,
+      safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty
+    }};
+  });
+}
+
 function haversineMeters(a, b) {
   const R = 6371000, rad = value => value * Math.PI / 180;
   const dLat = rad(b[1] - a[1]), dLon = rad(b[0] - a[0]);
@@ -351,7 +448,8 @@ exports.handler = async (event) => {
         };
       }));
       candidates.push(...candidateResults.filter(Boolean));
-      const screenedCandidates = (await screenMajorRoadCrossings(candidates))
+      const crossingScreened = await screenMajorRoadCrossings(candidates);
+      const screenedCandidates = (await scorePedestrianInfrastructure(crossingScreened))
         .filter(route => withinNeighborhood(route, start, distance))
         .filter(route => route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
       candidates.length = 0;
@@ -388,7 +486,8 @@ exports.handler = async (event) => {
         return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
       }));
       candidates.push(...candidateResults.filter(Boolean));
-      const screenedCandidates = (await screenMajorRoadCrossings(candidates))
+      const crossingScreened = await screenMajorRoadCrossings(candidates);
+      const screenedCandidates = (await scorePedestrianInfrastructure(crossingScreened))
         .filter(route => withinNeighborhood(route, start, distance))
         .filter(route => route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
       candidates.length = 0;
@@ -429,7 +528,8 @@ exports.handler = async (event) => {
       return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
     }));
     candidates.push(...candidateResults.filter(Boolean));
-    const screenedCandidates = (await screenMajorRoadCrossings(candidates))
+    const crossingScreened = await screenMajorRoadCrossings(candidates);
+      const screenedCandidates = (await scorePedestrianInfrastructure(crossingScreened))
         .filter(route => withinNeighborhood(route, start, distance))
         .filter(route => route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
       candidates.length = 0;
