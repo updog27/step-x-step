@@ -44,3 +44,18 @@ button.secondary { background: #fff; color: #1769d2; }
 @media (max-width: 600px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
 }
+
+.route-quality { display: flex; flex-direction: column; gap: 5px; margin-top: 2px; }
+.route-quality-summary { color: #465767; font-size: 12px; }
+.evidence-bar { display: flex; width: 100%; height: 8px; overflow: hidden; border-radius: 8px; background: #e5eaf0; }
+.evidence-segment { display: block; height: 100%; }
+.evidence-segment.path, .evidence-dot.path { background: #16845b; }
+.evidence-segment.sidewalk, .evidence-dot.sidewalk { background: #2878c7; }
+.evidence-segment.no-sidewalk, .evidence-dot.no-sidewalk { background: #c74646; }
+.evidence-segment.unknown, .evidence-dot.unknown { background: #aab4bf; }
+.route-quality-details { color: #465767; font-size: 12px; }
+.route-quality-details summary { cursor: pointer; width: fit-content; color: #1769d2; font-weight: 700; }
+.evidence-legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 10px; padding: 7px 0; }
+.evidence-legend > span { display: flex; align-items: center; gap: 6px; }
+.evidence-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
+.route-quality-note { display: block; line-height: 1.4; color: #65717d; }
