@@ -256,23 +256,43 @@ function startWalk() {
 
   watchId = navigator.geolocation.watchPosition(position => {
     const { latitude, longitude, accuracy } = position.coords;
-    if (accuracy && accuracy > 60) {
-      setStatus("GPS signal is weak. Move to an open area for better accuracy.");
+    if (accuracy && accuracy > 35) {
+      setStatus("GPS accuracy is low. Distance updates are paused until the signal improves.");
     }
     const point = [latitude, longitude];
     if (userMarker) userMarker.setLatLng(point);
     else userMarker = L.marker(point).addTo(map);
-    if (previousPosition) {
-      const segment = calculateDistance(previousPosition[0], previousPosition[1], latitude, longitude);
-      // Ignore tiny GPS jitter and implausible jumps.
-      if (segment >= 0.003 && segment <= 0.15 && (!accuracy || accuracy <= 60)) {
-        totalDistanceMiles += segment;
-      }
+
+    const timestamp = Number(position.timestamp) || Date.now();
+    const currentAccuracy = Number.isFinite(accuracy) && accuracy > 0 ? accuracy : 25;
+    let acceptedPoint = false;
+    if (!previousPosition) {
+      acceptedPoint = currentAccuracy <= 35;
+    } else {
+      const elapsedSeconds = Math.max(0.1, (timestamp - previousPosition.timestamp) / 1000);
+      const segmentMiles = calculateDistance(
+        previousPosition.latitude, previousPosition.longitude, latitude, longitude
+      );
+      const segmentMeters = segmentMiles * 1609.344;
+      const previousAccuracy = previousPosition.accuracy || 25;
+      // Filter GPS jitter relative to the reported uncertainty, then reject
+      // movement faster than a conservative running pace can explain.
+      const jitterFloorMeters = Math.max(2, (previousAccuracy + currentAccuracy) * 0.18);
+      const speedMetersPerSecond = segmentMeters / elapsedSeconds;
+      acceptedPoint = currentAccuracy <= 35 &&
+        segmentMeters >= jitterFloorMeters &&
+        speedMetersPerSecond <= 5.5;
+      if (acceptedPoint) totalDistanceMiles += segmentMiles;
     }
-    const points = actualRouteLine.getLatLngs();
-    points.push(point);
-    actualRouteLine.setLatLngs(points);
-    previousPosition = point;
+
+    if (acceptedPoint) {
+      const points = actualRouteLine.getLatLngs();
+      points.push(point);
+      actualRouteLine.setLatLngs(points);
+    }
+    // Re-anchor after every GPS fix, including rejected jumps, so one bad fix
+    // cannot poison all subsequent distance calculations.
+    previousPosition = { latitude, longitude, accuracy: currentAccuracy, timestamp };
     updateProgress();
 
     if (goalDistanceMiles > 0 && totalDistanceMiles >= goalDistanceMiles) {
