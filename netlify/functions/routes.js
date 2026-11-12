@@ -320,6 +320,9 @@ async function scorePedestrianInfrastructure(candidates) {
  way["service"="parking_aisle"](${south},${west},${north},${east});
  way["amenity"="parking"](${south},${west},${north},${east});
  way["landuse"~"^(commercial|retail|industrial)$"](${south},${west},${north},${east});
+ way["tourism"~"^(hotel|motel)$"](${south},${west},${north},${east});
+ way["office"](${south},${west},${north},${east});
+ way["shop"](${south},${west},${north},${east});
 );
 out tags geom;`;
   const data = await fetchOverpass(query, "Pedestrian infrastructure", 12000);
@@ -335,7 +338,8 @@ out tags geom;`;
       const sidewalkExplicitlyAbsent = tags.sidewalk === "no" || tags["sidewalk:both"] === "no";
       const parkingAisle = tags.service === "parking_aisle";
       const parkingArea = tags.amenity === "parking";
-      const commercialArea = ["commercial", "retail", "industrial"].includes(tags.landuse);
+      const commercialArea = ["commercial", "retail", "industrial"].includes(tags.landuse) ||
+        ["hotel", "motel"].includes(tags.tourism) || Boolean(tags.office) || Boolean(tags.shop);
       const ring = parkingArea || commercialArea ? el.geometry.map(p => [p.lon, p.lat]) : [];
       const segments = el.geometry.slice(1).map((p, i) => ({
         a: [el.geometry[i].lon, el.geometry[i].lat], b: [p.lon, p.lat]
