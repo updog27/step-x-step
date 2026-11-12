@@ -153,12 +153,10 @@ async function fetchOverpass(query, purpose, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch("https://api.overpass.ch/v1/interpreter", {
+    const endpoint = "https://api.overpass.ch/v1/" + encodeURIComponent(apiKey) + "/interpreter";
+    const response = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "X-API-Key": apiKey
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: "data=" + encodeURIComponent(query),
       signal: controller.signal
     });
