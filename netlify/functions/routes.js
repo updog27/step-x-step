@@ -301,25 +301,53 @@ out tags geom;`;
   const infrastructureSegments = features.flatMap(feature =>
     feature.footway || feature.sidewalkTagged ? feature.segments : []);
   return candidates.map(route => {
-    const samples = sampleRoute(route.coordinates, Math.max(12, Math.min(80, Math.ceil(route.distanceMeters / 40))));
-    let supported = 0;
-    for (const point of samples) {
+    const sampleCount = Math.max(12, Math.min(120, Math.ceil(route.distanceMeters / 20)));
+    const samples = sampleRoute(route.coordinates, sampleCount);
+    const cumulative = [0];
+    for (let i = 1; i < route.coordinates.length; i++) {
+      cumulative.push(cumulative[i - 1] + haversineMeters(route.coordinates[i - 1], route.coordinates[i]));
+    }
+    const totalLength = cumulative[cumulative.length - 1] || route.distanceMeters;
+    let supported = 0, currentGap = 0, longestUnsupportedGap = 0;
+    let unsupportedLength = 0, previousSampleDistance = 0;
+    for (let i = 0; i < samples.length; i++) {
+      const point = samples[i];
+      const sampleDistance = totalLength * i / Math.max(1, samples.length - 1);
+      const stepLength = i === 0 ? 0 : sampleDistance - previousSampleDistance;
+      previousSampleDistance = sampleDistance;
       let nearest = Infinity;
       for (const segment of infrastructureSegments) {
         if (Math.abs(segment.a[1] - point[1]) > 0.00025 && Math.abs(segment.b[1] - point[1]) > 0.00025) continue;
         nearest = Math.min(nearest, pointSegmentDistanceMeters(point, segment.a, segment.b));
         if (nearest <= 18) break;
       }
-      if (nearest <= 18) supported++;
+      if (nearest <= 18) {
+        supported++;
+        currentGap = 0;
+      } else {
+        currentGap += stepLength;
+        unsupportedLength += stepLength;
+        longestUnsupportedGap = Math.max(longestUnsupportedGap, currentGap);
+      }
     }
     const coverage = samples.length ? supported / samples.length : 0;
     const hasMappedInfrastructure = infrastructureSegments.length > 0;
     const unknown = !hasMappedInfrastructure;
     const unsupportedRatio = hasMappedInfrastructure ? 1 - coverage : 0;
-    const infrastructurePenalty = unknown ? route.distanceMeters * 0.2 : unsupportedRatio * route.distanceMeters * 1.2;
+    // Penalize both overall unsupported distance and long continuous gaps.
+    // This is a ranking signal only: OSM gaps can mean unmapped sidewalks,
+    // not necessarily that a pedestrian must walk in the roadway.
+    const gapPenalty = hasMappedInfrastructure
+      ? Math.min(route.distanceMeters * 1.5, longestUnsupportedGap * 2.5)
+      : 0;
+    const infrastructurePenalty = unknown
+      ? route.distanceMeters * 0.2
+      : unsupportedRatio * route.distanceMeters * 1.2 + gapPenalty;
     return { ...route, safety: { ...route.safety,
-      pedestrianInfrastructure: unknown ? "unknown" : coverage >= 0.75 ? "strong-mapped-support" : coverage >= 0.4 ? "partial-mapped-support" : "limited-mapped-support",
+      pedestrianInfrastructure: unknown ? "unknown" : coverage >= 0.75 && longestUnsupportedGap < 60 ? "strong-mapped-support" : coverage >= 0.4 && longestUnsupportedGap < 120 ? "partial-mapped-support" : "limited-mapped-support",
       pedestrianInfrastructureCoverage: hasMappedInfrastructure ? Math.round(coverage * 100) : null,
+      longestMappedInfrastructureGapMeters: hasMappedInfrastructure ? Math.round(longestUnsupportedGap) : null,
+      estimatedUnsupportedInfrastructureMeters: hasMappedInfrastructure ? Math.round(unsupportedLength) : null,
       pedestrianInfrastructurePenalty: infrastructurePenalty,
       safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty
     }};
