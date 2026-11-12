@@ -58,12 +58,25 @@ async function getRoute(coordinates, apiKey) {
   const noisyMeters = totalFor(summaries.noise, value => Number(value) >= 7);
   const lowGreenMeters = totalFor(summaries.green, value => Number(value) <= 3);
   const lowSuitabilityMeters = totalFor(summaries.suitability, value => Number(value) <= 3);
+  // The hosted foot-walking service may not provide every optional extra-info
+  // layer (notably access restrictions). Missing data is unknown, not evidence
+  // that a route is unrestricted or especially suitable.
+  const qualityDataAvailable = {
+    waytype: Array.isArray(summaries.waytype?.summary),
+    suitability: Array.isArray(summaries.suitability?.summary),
+    green: Array.isArray(summaries.green?.summary),
+    noise: Array.isArray(summaries.noise?.summary),
+    accessRestrictions: Array.isArray(summaries.access?.summary)
+  };
   // ORS encodes access restrictions as bit flags: no=1, customers=2,
   // destination=4, delivery=8, private=16, permissive=32, permit=64.
   const restrictedMeters = totalFor(summaries.access, value => {
     const flags = Number(value);
     return (flags & (1 | 2 | 4 | 8 | 16 | 64)) !== 0;
   });
+  const missingQualityLayers = ["waytype", "suitability", "green", "noise"]
+    .filter(key => !qualityDataAvailable[key]).length;
+  const missingQualityPenalty = missingQualityLayers * meters * 0.25;
   // Reject motorway/primary/state-road travel and inaccessible segments.
   // Among remaining candidates, prefer residential streets and pedestrian
   // infrastructure over secondary/tertiary roads, noisy segments and poor
@@ -82,7 +95,8 @@ async function getRoute(coordinates, apiKey) {
     constructionMeters * 8 +
     noisyMeters * 3 +
     lowGreenMeters * 0.2 +
-    lowSuitabilityMeters * 1.5;
+    lowSuitabilityMeters * 1.5 +
+    missingQualityPenalty;
   const safetyPenalty = (highwayMeters * 100) + (stateRoadMeters * 80) +
     (restrictedMeters * 150) + qualityPenalty;
   return { coordinates: coords, meters, safety: {
@@ -90,6 +104,7 @@ async function getRoute(coordinates, apiKey) {
     pathMeters, trackMeters, cyclewayMeters, pedestrianWayMeters, stepsMeters,
     ferryMeters, constructionMeters, noisyMeters, lowGreenMeters, lowSuitabilityMeters,
     restrictedMeters, unsafeMajorRoad, hasRestrictedAccess,
+    qualityDataAvailable, missingQualityLayers, missingQualityPenalty,
     qualityPenalty, safetyPenalty
   } };
 }
