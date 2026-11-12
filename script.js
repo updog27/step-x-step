@@ -186,7 +186,23 @@ function renderRouteChoices() {
     const differenceLabel = currentUnit === "km" ? (Math.abs(difference) / 0.621371).toFixed(2) + " km" : Math.abs(difference).toFixed(2) + " mi";
     const varianceLabel = Math.abs(difference) < 0.0005 ? "matches target" : difference > 0 ? differenceLabel + " over target" : differenceLabel + " under target";
     detail.textContent = formatDistance(miles) + " total · " + varianceLabel;
-    info.append(title, detail);
+    const safety = route.safety || {};
+    const quality = document.createElement("small");
+    const infrastructureLabel = safety.pedestrianInfrastructureCoverage == null
+      ? "Pedestrian infrastructure: unknown"
+      : "Mapped pedestrian support: " + safety.pedestrianInfrastructureCoverage + "%";
+    const gapLabel = safety.longestMappedInfrastructureGapMeters == null
+      ? "gap data unavailable"
+      : "longest mapped gap: " + safety.longestMappedInfrastructureGapMeters + " m";
+    const crossingCount = (Number(safety.majorRoadCrossings) || 0) +
+      (Number(safety.secondaryRoadCrossings) || 0) +
+      (Number(safety.tertiaryRoadCrossings) || 0);
+    const crossingLabel = safety.crossingCheck === "completed"
+      ? crossingCount + " mapped major-road crossing" + (crossingCount === 1 ? "" : "s")
+      : "road-crossing check unavailable";
+    quality.className = "route-quality";
+    quality.textContent = infrastructureLabel + " · " + gapLabel + " · " + crossingLabel;
+    info.append(title, detail, quality);
     const marker = document.createElement("span");
     marker.className = "route-swatch";
     marker.setAttribute("aria-hidden", "true");
