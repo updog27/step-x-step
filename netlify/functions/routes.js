@@ -55,7 +55,7 @@ exports.handler = async (event) => {
       // Route each candidate on the pedestrian network, then tune the outbound
       // endpoint against the actual routed distance. The return retraces that
       // same network path, making the turn-around the true route midpoint.
-      const bearings = [0, 120, 240];
+      const bearings = Array.from({ length: 8 }, (_, index) => index * 45);
       const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 2 / 1.25;
         let best = null;
@@ -70,7 +70,7 @@ exports.handler = async (event) => {
             endpointDistance *= Math.max(0.65, Math.min(1.5, ratio));
           } catch (error) {
             providerFailure = error.message || "The routing service could not create this route.";
-            if (attempt === 2 && !best) break;
+            if (attempt === 5 && !best) break;
             endpointDistance *= 0.75;
           }
         }
