@@ -51,6 +51,7 @@ exports.handler = async (event) => {
     const start = [lon, lat];
     if (type === "outback") {
       const candidates = [];
+      let providerFailure = null;
       // Route each candidate on the pedestrian network, then tune the outbound
       // endpoint against the actual routed distance. The return retraces that
       // same network path, making the turn-around the true route midpoint.
@@ -68,6 +69,7 @@ exports.handler = async (event) => {
             if (Math.abs(total - distance) <= MAX_OUTBACK_ERROR_METERS) break;
             endpointDistance *= Math.max(0.55, Math.min(1.65, ratio));
           } catch (error) {
+            providerFailure = error.message || "The routing service could not create this route.";
             if (attempt === 2 && !best) break;
             endpointDistance *= 0.75;
           }
@@ -95,12 +97,14 @@ exports.handler = async (event) => {
         distinct.push(candidate);
         if (distinct.length === 3) break;
       }
+      if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
       if (!distinct.length) return json(422, { error: "No walkable out-and-back routes could be found. Try another distance or starting point." });
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
     }
 
     if (type === "oneway") {
       const candidates = [];
+      let providerFailure = null;
       const bearings = [0, 120, 240];
       const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 1.25, best = null;
@@ -112,7 +116,7 @@ exports.handler = async (event) => {
             const ratio = distance / route.meters;
             if (Math.abs(route.meters - distance) <= MAX_OUTBACK_ERROR_METERS) break;
             endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
-          } catch (error) { endpointDistance *= .75; }
+          } catch (error) { providerFailure = error.message || "The routing service could not create this route."; endpointDistance *= .75; }
         }
         if (!best) return null;
         return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100) };
@@ -128,6 +132,7 @@ exports.handler = async (event) => {
         distinct.push(candidate);
         if (distinct.length === 3) break;
       }
+      if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
       if (!distinct.length) return json(422, { error: "No walkable one-way destinations could be found. Try another distance or starting point." });
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
     }
@@ -135,6 +140,7 @@ exports.handler = async (event) => {
     // Tune three loop orientations against the routed pedestrian-network
     // distance. The first route is not assumed to match the requested distance.
     const candidates = [];
+    let providerFailure = null;
     const bearings = [0, 120, 240];
     const candidateResults = await Promise.all(bearings.map(async bearing => {
       let radius = distance / 5.2;
@@ -149,7 +155,7 @@ exports.handler = async (event) => {
           const ratio = distance / route.meters;
           if (Math.abs(route.meters - distance) <= MAX_OUTBACK_ERROR_METERS) break;
           radius *= Math.max(0.65, Math.min(1.45, ratio));
-        } catch (error) { radius *= 0.8; }
+        } catch (error) { providerFailure = error.message || "The routing service could not create this route."; radius *= 0.8; }
       }
       if (!best) return null;
       return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100) };
@@ -165,6 +171,7 @@ exports.handler = async (event) => {
       distinctLoops.push(candidate);
       if (distinctLoops.length === 3) break;
     }
+    if (!distinctLoops.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
     if (!distinctLoops.length) return json(422, { error: "No walkable loop could be found near this location. Try a different distance or starting point." });
     return json(200, { routes: distinctLoops, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
   } catch (error) {
