@@ -560,8 +560,8 @@ exports.handler = async (event) => {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             // Force each candidate through a different intermediate pedestrian
             // network waypoint; different endpoints alone often snap to one corridor.
-            const sideOffset = (bearing / 45) % 2 === 0 ? 55 : -55;
-            const waypoint = destinationPoint(lat, lon, endpointDistance * 0.42, bearing + sideOffset);
+            const sideOffset = (bearing / 45) % 2 === 0 ? 150 : -150;
+            const waypoint = destinationPoint(lat, lon, endpointDistance * 0.58, bearing + sideOffset);
             const outbound = await getRoute([start, waypoint, endpoint], apiKey);
             const trimmedCoordinates = trimCoordinatesToDistance(outbound.coordinates, distance / 2);
             if (trimmedCoordinates) {
