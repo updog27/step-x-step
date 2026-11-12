@@ -261,6 +261,8 @@ async function scorePedestrianInfrastructure(candidates) {
 (
  way["highway"~"^(footway|path|pedestrian|steps)$"](${south},${west},${north},${east});
  way["highway"]["sidewalk"~"^(yes|both|left|right|separate)$"](${south},${west},${north},${east});
+ way["highway"~"^(residential|living_street|unclassified|tertiary|secondary|service)$"]["sidewalk"="no"](${south},${west},${north},${east});
+ way["highway"~"^(residential|living_street|unclassified|tertiary|secondary|service)$"]["sidewalk:both"="no"](${south},${west},${north},${east});
  way["highway"]["sidewalk:both"~"^(yes|separate)$"](${south},${west},${north},${east});
  way["highway"]["sidewalk:left"~"^(yes|separate)$"](${south},${west},${north},${east});
  way["highway"]["sidewalk:right"~"^(yes|separate)$"](${south},${west},${north},${east});
@@ -293,13 +295,16 @@ out tags geom;`;
         ["yes", "separate"].includes(tags["sidewalk:both"]) ||
         ["yes", "separate"].includes(tags["sidewalk:left"]) ||
         ["yes", "separate"].includes(tags["sidewalk:right"]);
+      const sidewalkExplicitlyAbsent = tags.sidewalk === "no" || tags["sidewalk:both"] === "no";
       const segments = el.geometry.slice(1).map((p, i) => ({
         a: [el.geometry[i].lon, el.geometry[i].lat], b: [p.lon, p.lat]
       }));
-      return { footway, sidewalkTagged, segments };
+      return { footway, sidewalkTagged, sidewalkExplicitlyAbsent, segments };
     });
   const infrastructureSegments = features.flatMap(feature =>
     feature.footway || feature.sidewalkTagged ? feature.segments : []);
+  const explicitNoSidewalkSegments = features.flatMap(feature =>
+    feature.sidewalkExplicitlyAbsent ? feature.segments : []);
   return candidates.map(route => {
     const sampleCount = Math.max(12, Math.min(120, Math.ceil(route.distanceMeters / 20)));
     const samples = sampleRoute(route.coordinates, sampleCount);
@@ -310,6 +315,7 @@ out tags geom;`;
     const totalLength = cumulative[cumulative.length - 1] || route.distanceMeters;
     let supported = 0, currentGap = 0, longestUnsupportedGap = 0;
     let unsupportedLength = 0, previousSampleDistance = 0;
+    let knownNoSidewalkSamples = 0, knownRoadSamples = 0, uncertainSamples = 0;
     for (let i = 0; i < samples.length; i++) {
       const point = samples[i];
       const sampleDistance = totalLength * i / Math.max(1, samples.length - 1);
@@ -321,6 +327,14 @@ out tags geom;`;
         nearest = Math.min(nearest, pointSegmentDistanceMeters(point, segment.a, segment.b));
         if (nearest <= 18) break;
       }
+      let explicitNoSidewalk = false;
+      let nearestRoadWithoutSidewalk = Infinity;
+      for (const segment of explicitNoSidewalkSegments) {
+        if (Math.abs(segment.a[1] - point[1]) > 0.00025 && Math.abs(segment.b[1] - point[1]) > 0.00025) continue;
+        nearestRoadWithoutSidewalk = Math.min(nearestRoadWithoutSidewalk, pointSegmentDistanceMeters(point, segment.a, segment.b));
+        if (nearestRoadWithoutSidewalk <= 12) break;
+      }
+      explicitNoSidewalk = nearestRoadWithoutSidewalk <= 12;
       if (nearest <= 18) {
         supported++;
         currentGap = 0;
@@ -328,26 +342,33 @@ out tags geom;`;
         currentGap += stepLength;
         unsupportedLength += stepLength;
         longestUnsupportedGap = Math.max(longestUnsupportedGap, currentGap);
+        if (explicitNoSidewalk) knownNoSidewalkSamples++;
+        else uncertainSamples++;
       }
+      if (explicitNoSidewalk) knownRoadSamples++;
     }
     const coverage = samples.length ? supported / samples.length : 0;
-    const hasMappedInfrastructure = infrastructureSegments.length > 0;
-    const unknown = !hasMappedInfrastructure;
+    const hasMappedInfrastructure = samples.length > 0 && (supported + knownNoSidewalkSamples + uncertainSamples) > 0;
+    const unknown = supported === 0 && knownNoSidewalkSamples === 0;
     const unsupportedRatio = hasMappedInfrastructure ? 1 - coverage : 0;
-    // Penalize both overall unsupported distance and long continuous gaps.
-    // This is a ranking signal only: OSM gaps can mean unmapped sidewalks,
-    // not necessarily that a pedestrian must walk in the roadway.
+    const knownNoSidewalkRatio = samples.length ? knownNoSidewalkSamples / samples.length : 0;
+    // Explicit sidewalk=no is stronger negative evidence than an untagged gap.
+    // Untagged locations remain uncertain and receive only a modest ranking
+    // penalty. This still cannot prove a pedestrian must walk in the roadway.
     const gapPenalty = hasMappedInfrastructure
       ? Math.min(route.distanceMeters * 1.5, longestUnsupportedGap * 2.5)
       : 0;
     const infrastructurePenalty = unknown
       ? route.distanceMeters * 0.2
-      : unsupportedRatio * route.distanceMeters * 1.2 + gapPenalty;
+      : unsupportedRatio * route.distanceMeters * 0.55 +
+        knownNoSidewalkRatio * route.distanceMeters * 1.4 + gapPenalty;
     return { ...route, safety: { ...route.safety,
       pedestrianInfrastructure: unknown ? "unknown" : coverage >= 0.75 && longestUnsupportedGap < 60 ? "strong-mapped-support" : coverage >= 0.4 && longestUnsupportedGap < 120 ? "partial-mapped-support" : "limited-mapped-support",
       pedestrianInfrastructureCoverage: hasMappedInfrastructure ? Math.round(coverage * 100) : null,
       longestMappedInfrastructureGapMeters: hasMappedInfrastructure ? Math.round(longestUnsupportedGap) : null,
       estimatedUnsupportedInfrastructureMeters: hasMappedInfrastructure ? Math.round(unsupportedLength) : null,
+      explicitNoSidewalkCoverage: samples.length ? Math.round(knownNoSidewalkRatio * 100) : null,
+      uncertainInfrastructureCoverage: samples.length ? Math.round(uncertainSamples / samples.length * 100) : null,
       pedestrianInfrastructurePenalty: infrastructurePenalty,
       safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty
     }};
