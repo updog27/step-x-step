@@ -507,8 +507,9 @@ exports.handler = async (event) => {
     if (type === "outback") {
       const candidates = [];
       let providerFailure = null;
-      // Route each candidate on the pedestrian network, then tune the outbound
-      // endpoint against the actual routed distance. The return retraces that
+      // Route each candidate on the pedestrian network, tune the outbound
+      // endpoint, and retain only candidates at or below the requested distance.
+      // The return retraces that
       // same network path, making the turn-around the true route midpoint.
       const bearings = [0, 90, 180, 270];
       const candidateResults = await Promise.all(bearings.map(async bearing => {
@@ -519,7 +520,7 @@ exports.handler = async (event) => {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             const outbound = await getRoute([start, endpoint], apiKey);
             const total = outbound.meters * 2;
-            if (!best || Math.abs(total - distance) < Math.abs(best.meters * 2 - distance)) best = outbound;
+            if (total <= distance && (!best || total > best.meters * 2)) best = outbound;
             const ratio = (distance / 2) / outbound.meters;
             if (Math.abs(total - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
             endpointDistance *= Math.max(0.65, Math.min(1.5, ratio));
@@ -571,7 +572,7 @@ exports.handler = async (event) => {
           try {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             const route = await getRoute([start, endpoint], apiKey);
-            if (!best || Math.abs(route.meters - distance) < Math.abs(best.meters - distance)) best = route;
+            if (route.meters <= distance && (!best || route.meters > best.meters)) best = route;
             const ratio = distance / route.meters;
             if (Math.abs(route.meters - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
             endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
