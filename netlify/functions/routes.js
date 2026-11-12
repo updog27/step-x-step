@@ -399,6 +399,11 @@ out tags geom;`;
     const usesDrivewayOrRestrictedService = samples.some(point => drivewaySegments.some(segment => pointSegmentDistanceMeters(point, segment.a, segment.b) <= 6));
     const commercialAreaSamples = samples.filter(point => commercialAreaRings.some(ring => pointInsideRing(point, ring))).length;
     const commercialAreaRatio = samples.length ? commercialAreaSamples / samples.length : 0;
+    // The turnaround is the most important endpoint in an out-and-back route.
+    // Never place it inside a mapped commercial/retail/industrial property,
+    // even when the overall percentage of route inside that polygon is small.
+    const turnaroundPoint = route.turnaround || route.coordinates[route.coordinates.length - 1];
+    const turnaroundInsideCommercialArea = commercialAreaRings.some(ring => pointInsideRing(turnaroundPoint, ring));
     const entersMappedParkingArea = samples.some(point =>
       parkingAreaRings.some(ring => pointInsideRing(point, ring)) &&
       Math.min(
@@ -483,6 +488,7 @@ out tags geom;`;
       usesMappedParkingAisle: usesParkingAisle,
       usesDrivewayOrRestrictedService,
       entersMappedParkingArea,
+      turnaroundInsideCommercialArea,
       mappedCommercialAreaCoverage: Math.round(commercialAreaRatio * 100),
       safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty + commercialAreaRatio * route.distanceMeters * 1.25
     }};
@@ -678,6 +684,7 @@ exports.handler = async (event) => {
         parkingAisle: route.safety.usesMappedParkingAisle,
         drivewayOrRestrictedService: route.safety.usesDrivewayOrRestrictedService,
         entersMappedParkingArea: route.safety.entersMappedParkingArea,
+        turnaroundInsideCommercialArea: route.safety.turnaroundInsideCommercialArea,
         commercialAreaCoveragePercent: route.safety.mappedCommercialAreaCoverage,
         pedestrianInfrastructure: route.safety.pedestrianInfrastructure,
         pedestrianInfrastructureCoveragePercent: route.safety.pedestrianInfrastructureCoverage,
@@ -691,6 +698,7 @@ exports.handler = async (event) => {
         !route.safety.usesMappedParkingAisle &&
         !route.safety.usesDrivewayOrRestrictedService &&
         !route.safety.entersMappedParkingArea &&
+        !route.safety.turnaroundInsideCommercialArea &&
         route.safety.mappedCommercialAreaCoverage <= 8
       );
       diagnostics.rejectedPedestrianOrCommercialScreen = infrastructureScored.length - infrastructureScreened.length;
