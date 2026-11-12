@@ -56,6 +56,7 @@ async function getRoute(coordinates, apiKey) {
   const ferryMeters = totalFor(summaries.waytype, value => Number(value) === 9);
   const constructionMeters = totalFor(summaries.waytype, value => Number(value) === 10);
   const noisyMeters = totalFor(summaries.noise, value => Number(value) >= 7);
+  const lowGreenMeters = totalFor(summaries.green, value => Number(value) <= 3);
   const lowSuitabilityMeters = totalFor(summaries.suitability, value => Number(value) <= 3);
   // ORS encodes access restrictions as bit flags: no=1, customers=2,
   // destination=4, delivery=8, private=16, permissive=32, permit=64.
@@ -80,13 +81,14 @@ async function getRoute(coordinates, apiKey) {
     ferryMeters * 5 +
     constructionMeters * 8 +
     noisyMeters * 3 +
+    lowGreenMeters * 0.2 +
     lowSuitabilityMeters * 1.5;
   const safetyPenalty = (highwayMeters * 100) + (stateRoadMeters * 80) +
     (restrictedMeters * 150) + qualityPenalty;
   return { coordinates: coords, meters, safety: {
     highwayMeters, stateRoadMeters, generalRoadMeters, residentialStreetMeters,
     pathMeters, trackMeters, cyclewayMeters, pedestrianWayMeters, stepsMeters,
-    ferryMeters, constructionMeters, noisyMeters, lowSuitabilityMeters,
+    ferryMeters, constructionMeters, noisyMeters, lowGreenMeters, lowSuitabilityMeters,
     restrictedMeters, unsafeMajorRoad, hasRestrictedAccess,
     qualityPenalty, safetyPenalty
   } };
