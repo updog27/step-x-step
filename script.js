@@ -256,32 +256,31 @@ function startWalk() {
 
   watchId = navigator.geolocation.watchPosition(position => {
     const { latitude, longitude, accuracy } = position.coords;
-    if (accuracy && accuracy > 35) {
+    const currentAccuracy = Number.isFinite(accuracy) && accuracy > 0 ? accuracy : Infinity;
+    if (currentAccuracy > 35) {
       setStatus("GPS accuracy is low. Distance updates are paused until the signal improves.");
+      return; // Do not let an untrusted fix move the distance baseline.
     }
     const point = [latitude, longitude];
     if (userMarker) userMarker.setLatLng(point);
     else userMarker = L.marker(point).addTo(map);
 
     const timestamp = Number(position.timestamp) || Date.now();
-    const currentAccuracy = Number.isFinite(accuracy) && accuracy > 0 ? accuracy : 25;
     let acceptedPoint = false;
     if (!previousPosition) {
-      acceptedPoint = currentAccuracy <= 35;
+      acceptedPoint = true;
     } else {
       const elapsedSeconds = Math.max(0.1, (timestamp - previousPosition.timestamp) / 1000);
       const segmentMiles = calculateDistance(
         previousPosition.latitude, previousPosition.longitude, latitude, longitude
       );
       const segmentMeters = segmentMiles * 1609.344;
-      const previousAccuracy = previousPosition.accuracy || 25;
-      // Filter GPS jitter relative to the reported uncertainty, then reject
+      const previousAccuracy = previousPosition.accuracy;
+      // Filter GPS jitter relative to reported uncertainty, then reject
       // movement faster than a conservative running pace can explain.
       const jitterFloorMeters = Math.max(2, (previousAccuracy + currentAccuracy) * 0.18);
       const speedMetersPerSecond = segmentMeters / elapsedSeconds;
-      acceptedPoint = currentAccuracy <= 35 &&
-        segmentMeters >= jitterFloorMeters &&
-        speedMetersPerSecond <= 5.5;
+      acceptedPoint = segmentMeters >= jitterFloorMeters && speedMetersPerSecond <= 5.5;
       if (acceptedPoint) totalDistanceMiles += segmentMiles;
     }
 
@@ -289,9 +288,11 @@ function startWalk() {
       const points = actualRouteLine.getLatLngs();
       points.push(point);
       actualRouteLine.setLatLngs(points);
+    } else {
+      setStatus("GPS movement was inconsistent. Filtering that reading; tracking continues.");
     }
-    // Re-anchor after every GPS fix, including rejected jumps, so one bad fix
-    // cannot poison all subsequent distance calculations.
+    // Only trusted fixes become the next baseline. Totals survive rejected fixes
+    // and temporary signal loss without accumulating a large recovery jump.
     previousPosition = { latitude, longitude, accuracy: currentAccuracy, timestamp };
     updateProgress();
 
@@ -299,13 +300,18 @@ function startWalk() {
       stopWalk("Distance goal reached!");
     }
   }, error => {
+    if (error.code === 1) {
+      setStatus("Location permission was denied. Enable it in your browser settings to continue.");
+      stopWalk();
+      return;
+    }
     const messages = {
-      1: "Location permission was denied. Enable it in your browser settings.",
-      2: "Your current location is unavailable.",
-      3: "GPS timed out. Move to an area with a clearer signal."
+      2: "GPS is temporarily unavailable. Your walk is still active; waiting for a reliable location fix.",
+      3: "GPS timed out. Your walk is still active; waiting for the next location update."
     };
-    setStatus(messages[error.code] || "GPS tracking error.");
-    stopWalk();
+    setStatus(messages[error.code] || "GPS signal interrupted. Tracking remains active while the device reconnects.");
+    // Keep the watch alive for recoverable errors. A later valid fix resumes
+    // distance accumulation; no distance is added during the interruption.
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 });
 }
 
