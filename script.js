@@ -197,6 +197,12 @@ function renderRouteChoices() {
     const sidewalkEvidence = safety.explicitNoSidewalkCoverage == null
       ? "explicit sidewalk gaps: unknown"
       : "mapped sidewalk=no: " + safety.explicitNoSidewalkCoverage + "%";
+    const pathEvidence = safety.dedicatedPathCoverage == null
+      ? "dedicated paths: unknown"
+      : "dedicated paths: " + safety.dedicatedPathCoverage + "%";
+    const sidewalkCoverage = safety.mappedSidewalkCoverage == null
+      ? "mapped sidewalks: unknown"
+      : "mapped sidewalks: " + safety.mappedSidewalkCoverage + "%";
     const crossingCount = (Number(safety.majorRoadCrossings) || 0) +
       (Number(safety.secondaryRoadCrossings) || 0) +
       (Number(safety.tertiaryRoadCrossings) || 0);
@@ -204,7 +210,7 @@ function renderRouteChoices() {
       ? crossingCount + " mapped major-road crossing" + (crossingCount === 1 ? "" : "s")
       : "road-crossing check unavailable";
     quality.className = "route-quality";
-    quality.textContent = infrastructureLabel + " · " + gapLabel + " · " + sidewalkEvidence + " · " + crossingLabel;
+    quality.textContent = infrastructureLabel + " · " + pathEvidence + " · " + sidewalkCoverage + " · " + gapLabel + " · " + sidewalkEvidence + " · " + crossingLabel;
     info.append(title, detail, quality);
     const marker = document.createElement("span");
     marker.className = "route-swatch";
