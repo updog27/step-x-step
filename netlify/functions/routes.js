@@ -1,6 +1,6 @@
 // Redeploy preview after configuring the Overpass deploy-preview environment variable.
 const ORS_URL = "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson";
-const MAX_ROUTE_DISTANCE_ERROR_METERS = 80.5; // 0.05 miles
+const MAX_ROUTE_DISTANCE_ERROR_METERS = 16.1; // 0.01 miles
 
 function json(statusCode, body) {
   return { statusCode, headers: { "Content-Type": "application/json", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "POST, OPTIONS" }, body: JSON.stringify(body) };
@@ -494,7 +494,7 @@ exports.handler = async (event) => {
       const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 2 / 1.25;
         let best = null;
-        for (let attempt = 0; attempt < 6; attempt++) {
+        for (let attempt = 0; attempt < 10; attempt++) {
           try {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             const outbound = await getRoute([start, endpoint], apiKey);
@@ -537,7 +537,7 @@ exports.handler = async (event) => {
         if (distinct.length === 3) break;
       }
       if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
-      if (!distinct.length) return json(422, { error: "No out-and-back route passed the available map checks within 0.05 miles of your requested distance. Try another distance or starting point." });
+      if (!distinct.length) return json(422, { error: "No out-and-back route passed the available map checks within 0.01 miles of your requested distance. Try another distance or starting point." });
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_ROUTE_DISTANCE_ERROR_METERS });
     }
 
