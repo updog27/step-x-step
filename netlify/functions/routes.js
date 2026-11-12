@@ -103,7 +103,7 @@ async function screenMajorRoadCrossings(candidates) {
   const pad = 0.0015;
   const south = Math.min(...lats) - pad, west = Math.min(...lons) - pad;
   const north = Math.max(...lats) + pad, east = Math.max(...lons) + pad;
-  const query = `[out:json][timeout:8];way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"]["bridge"!="yes"]["tunnel"!="yes"](${south},${west},${north},${east});out geom;`;
+  const query = `[out:json][timeout:8];way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"][!"bridge"][!"tunnel"](${south},${west},${north},${east});out geom;`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 9000);
   let data;
