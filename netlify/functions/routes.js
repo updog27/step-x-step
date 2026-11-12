@@ -45,7 +45,7 @@ exports.handler = async (event) => {
   const lat = Number(input.latitude), lon = Number(input.longitude), distance = Number(input.distanceMeters), type = input.routeType;
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lon) || lon < -180 || lon > 180) return json(400, { error: "A valid starting GPS location is required." });
   if (!Number.isFinite(distance) || distance < 300 || distance > 50000) return json(400, { error: "Choose a distance between 300 meters and 50 kilometers." });
-  if (type !== "loop" && type !== "outback" && type !== "oneway") return json(400, { error: "Choose Loop or Out-and-back to generate a route." });
+  if (type !== "loop" && type !== "outback" && type !== "oneway") return json(400, { error: "Choose Out-and-back, One-way, or Loop to generate a route." });
 
   try {
     const start = [lon, lat];
@@ -119,20 +119,48 @@ exports.handler = async (event) => {
       return json(200, { routes: candidates.slice(0, 3), targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
     }
 
-    const radiusBase = distance / 5.2, candidates = [];
-    const attempts = [{ bearing: 0, scale: .82 }, { bearing: 60, scale: .82 }, { bearing: 120, scale: .82 }, { bearing: 0, scale: 1.08 }, { bearing: 60, scale: 1.08 }, { bearing: 120, scale: 1.08 }];
-    for (const attempt of attempts) {
-      const radius = radiusBase * attempt.scale, points = [start];
-      for (let i = 0; i < 3; i++) points.push(destinationPoint(lat, lon, radius, attempt.bearing + i * 120));
-      points.push(start);
-      try {
-        const route = await getRoute(points, apiKey);
-        candidates.push({ id: "loop-" + (candidates.length + 1), type: "loop", distanceMeters: route.meters, coordinates: route.coordinates, label: "Loop", differenceMeters: Math.abs(route.meters - distance), differencePercent: Math.round(Math.abs(route.meters - distance) / distance * 100) });
-      } catch (error) { /* Try the next loop orientation. */ }
+    // Tune three loop orientations against the routed pedestrian-network
+    // distance. The first route is not assumed to match the requested distance.
+    const candidates = [];
+    const bearings = [0, 60, 120];
+    for (const bearing of bearings) {
+      let radius = distance / 5.2;
+      let best = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const points = [start];
+        for (let i = 0; i < 3; i++) {
+          points.push(destinationPoint(lat, lon, radius, bearing + i * 120));
+        }
+        points.push(start);
+        try {
+          const route = await getRoute(points, apiKey);
+          if (!best || Math.abs(route.meters - distance) < Math.abs(best.meters - distance)) best = route;
+          const ratio = distance / route.meters;
+          if (Math.abs(route.meters - distance) <= MAX_OUTBACK_ERROR_METERS) break;
+          radius *= Math.max(0.65, Math.min(1.45, ratio));
+        } catch (error) {
+          radius *= 0.8;
+        }
+      }
+      if (best) candidates.push({
+        id: "loop-" + bearing, type: "loop", distanceMeters: best.meters,
+        coordinates: best.coordinates, label: "Loop",
+        differenceMeters: Math.abs(best.meters - distance),
+        differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100)
+      });
     }
     candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
-    if (!candidates.length) return json(422, { error: "No walkable loop could be found near this location. Try a different distance or starting point." });
-    return json(200, { routes: candidates.slice(0, 3), targetDistanceMeters: distance });
+    const distinctLoops = [];
+    const loopSignatures = [];
+    for (const candidate of candidates) {
+      const signature = routeSignature(candidate.coordinates);
+      if (loopSignatures.includes(signature)) continue;
+      loopSignatures.push(signature);
+      distinctLoops.push(candidate);
+      if (distinctLoops.length === 3) break;
+    }
+    if (!distinctLoops.length) return json(422, { error: "No walkable loop could be found near this location. Try a different distance or starting point." });
+    return json(200, { routes: distinctLoops, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
   } catch (error) {
     return json(502, { error: error.message || "The routing service is temporarily unavailable." });
   }
