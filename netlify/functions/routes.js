@@ -78,7 +78,7 @@ async function screenMajorRoadCrossings(candidates) {
   const pad = 0.0015;
   const south = Math.min(...lats) - pad, west = Math.min(...lons) - pad;
   const north = Math.max(...lats) + pad, east = Math.max(...lons) + pad;
-  const query = `[out:json][timeout:8];way["highway"~"^(motorway|trunk|primary)$"]["bridge"!="yes"]["tunnel"!="yes"](${south},${west},${north},${east});out geom;`;
+  const query = `[out:json][timeout:8];way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"]["bridge"!="yes"]["tunnel"!="yes"](${south},${west},${north},${east});out geom;`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 9000);
   let data;
@@ -91,20 +91,47 @@ async function screenMajorRoadCrossings(candidates) {
     data = await response.json();
   } finally { clearTimeout(timeout); }
   const roads = (data.elements || []).filter(el => el.type === "way" && Array.isArray(el.geometry))
-    .map(el => el.geometry.map(p => [p.lon, p.lat]));
+    .map(el => ({ highway: el.tags?.highway, geometry: el.geometry.map(p => [p.lon, p.lat]) }));
   return candidates.map(route => {
-    let crossings = 0;
+    let majorCrossings = 0, secondaryCrossings = 0, tertiaryCrossings = 0;
     const path = route.coordinates || [];
     for (let i = 1; i < path.length; i++) {
       for (const road of roads) {
-        for (let j = 1; j < road.length; j++) {
-          if (segmentsIntersect(path[i - 1], path[i], road[j - 1], road[j])) crossings++;
+        let hit = false;
+        for (let j = 1; j < road.geometry.length; j++) {
+          if (segmentsIntersect(path[i - 1], path[i], road.geometry[j - 1], road.geometry[j])) { hit = true; break; }
+        }
+        if (hit) {
+          if (["motorway", "trunk", "primary"].includes(road.highway)) majorCrossings++;
+          else if (road.highway === "secondary") secondaryCrossings++;
+          else if (road.highway === "tertiary") tertiaryCrossings++;
         }
       }
     }
-    return { ...route, safety: { ...route.safety, majorRoadCrossings: crossings,
-      crossingCheck: "completed", safetyPenalty: route.safety.safetyPenalty + crossings * 100000 } };
-  }).filter(route => route.safety.majorRoadCrossings === 0);
+    return { ...route, safety: { ...route.safety,
+      majorRoadCrossings: majorCrossings, secondaryRoadCrossings: secondaryCrossings,
+      tertiaryRoadCrossings: tertiaryCrossings, crossingCheck: "completed",
+      safetyPenalty: route.safety.safetyPenalty + majorCrossings * 100000 +
+        secondaryCrossings * 50000 + tertiaryCrossings * 5000 } };
+  }).filter(route => route.safety.majorRoadCrossings === 0 && route.safety.secondaryRoadCrossings === 0);
+}
+
+function haversineMeters(a, b) {
+  const R = 6371000, rad = value => value * Math.PI / 180;
+  const dLat = rad(b[1] - a[1]), dLon = rad(b[0] - a[0]);
+  const lat1 = rad(a[1]), lat2 = rad(b[1]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function withinNeighborhood(route, start, targetMeters) {
+  // Keep return-to-start routes in a compact local area. One-way routes get
+  // a larger radius because their destination is intentionally away from start.
+  const limit = route.type === "oneway" ? targetMeters + 100 : targetMeters * 0.6 + 100;
+  const farthest = Math.max(...route.coordinates.map(point => haversineMeters(start, point)));
+  route.safety = { ...route.safety, neighborhoodRadiusMeters: farthest,
+    neighborhoodLimitMeters: limit };
+  return farthest <= limit;
 }
 
 function routeSignature(coords) {
@@ -166,7 +193,8 @@ exports.handler = async (event) => {
         };
       }));
       candidates.push(...candidateResults.filter(Boolean));
-      const screenedCandidates = await screenMajorRoadCrossings(candidates);
+      const screenedCandidates = (await screenMajorRoadCrossings(candidates))
+        .filter(route => withinNeighborhood(route, start, distance));
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
@@ -204,7 +232,8 @@ exports.handler = async (event) => {
         return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
       }));
       candidates.push(...candidateResults.filter(Boolean));
-      const screenedCandidates = await screenMajorRoadCrossings(candidates);
+      const screenedCandidates = (await screenMajorRoadCrossings(candidates))
+        .filter(route => withinNeighborhood(route, start, distance));
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
@@ -246,7 +275,8 @@ exports.handler = async (event) => {
       return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
     }));
     candidates.push(...candidateResults.filter(Boolean));
-    const screenedCandidates = await screenMajorRoadCrossings(candidates);
+    const screenedCandidates = (await screenMajorRoadCrossings(candidates))
+        .filter(route => withinNeighborhood(route, start, distance));
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
