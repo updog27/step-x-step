@@ -188,9 +188,32 @@ function withinNeighborhood(route, start, targetMeters) {
   return farthest <= limit;
 }
 
-function routeSignature(coords) {
-  return coords.filter((_, i) => i % Math.max(1, Math.floor(coords.length / 12)) === 0)
-    .map(([x, y]) => x.toFixed(4) + "," + y.toFixed(4)).join("|");
+function sampleRoute(coords, maxSamples = 24) {
+  if (!Array.isArray(coords) || coords.length < 2) return [];
+  const stride = Math.max(1, Math.floor((coords.length - 1) / (maxSamples - 1)));
+  const sampled = coords.filter((_, index) => index % stride === 0);
+  const last = coords[coords.length - 1];
+  if (sampled[sampled.length - 1] !== last) sampled.push(last);
+  return sampled;
+}
+
+function routesAreNearDuplicates(routeA, routeB) {
+  const a = sampleRoute(routeA.coordinates), b = sampleRoute(routeB.coordinates);
+  if (!a.length || !b.length) return false;
+  const withinThreshold = (points, other) => {
+    let close = 0;
+    for (const point of points) {
+      let nearest = Infinity;
+      for (const candidate of other) {
+        nearest = Math.min(nearest, haversineMeters(point, candidate));
+        if (nearest <= 30) break;
+      }
+      if (nearest <= 30) close++;
+    }
+    return close / points.length;
+  };
+  // Compare both directions so a route and its reverse are treated alike.
+  return withinThreshold(a, b) >= 0.75 && withinThreshold(b, a) >= 0.75;
 }
 
 exports.handler = async (event) => {
@@ -253,11 +276,8 @@ exports.handler = async (event) => {
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
       const distinct = [];
-      const signatures = [];
       for (const candidate of candidates) {
-        const signature = routeSignature(candidate.coordinates);
-        if (signatures.some(s => s === signature)) continue;
-        signatures.push(signature);
+        if (distinct.some(existing => routesAreNearDuplicates(existing, candidate))) continue;
         distinct.push(candidate);
         if (distinct.length === 3) break;
       }
@@ -292,11 +312,8 @@ exports.handler = async (event) => {
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
       const distinct = [];
-      const signatures = [];
       for (const candidate of candidates) {
-        const signature = routeSignature(candidate.coordinates);
-        if (signatures.includes(signature)) continue;
-        signatures.push(signature);
+        if (distinct.some(existing => routesAreNearDuplicates(existing, candidate))) continue;
         distinct.push(candidate);
         if (distinct.length === 3) break;
       }
@@ -335,11 +352,8 @@ exports.handler = async (event) => {
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
     const distinctLoops = [];
-    const loopSignatures = [];
     for (const candidate of candidates) {
-      const signature = routeSignature(candidate.coordinates);
-      if (loopSignatures.includes(signature)) continue;
-      loopSignatures.push(signature);
+      if (distinctLoops.some(existing => routesAreNearDuplicates(existing, candidate))) continue;
       distinctLoops.push(candidate);
       if (distinctLoops.length === 3) break;
     }
