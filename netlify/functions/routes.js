@@ -647,6 +647,21 @@ exports.handler = async (event) => {
         pedestrianInfrastructureUnknown: infrastructureScored.filter(route => route.safety.pedestrianInfrastructure === "unknown").length,
         limitedMappedInfrastructure: infrastructureScored.filter(route => route.safety.pedestrianInfrastructure === "limited-mapped-support").length
       };
+      diagnostics.candidateScreeningDetails = infrastructureScored.map(route => ({
+        id: route.id,
+        bearing: Number(String(route.id).replace("outback-", "")),
+        parkingAisle: route.safety.usesMappedParkingAisle,
+        drivewayOrRestrictedService: route.safety.usesDrivewayOrRestrictedService,
+        entersMappedParkingArea: route.safety.entersMappedParkingArea,
+        commercialAreaCoveragePercent: route.safety.mappedCommercialAreaCoverage,
+        pedestrianInfrastructure: route.safety.pedestrianInfrastructure,
+        pedestrianInfrastructureCoveragePercent: route.safety.pedestrianInfrastructureCoverage,
+        longestUnsupportedInfrastructureGapMeters: route.safety.longestMappedInfrastructureGapMeters,
+        explicitNoSidewalkCoveragePercent: route.safety.explicitNoSidewalkCoverage,
+        uncertainInfrastructureCoveragePercent: route.safety.uncertainInfrastructureCoverage,
+        dedicatedPathCoveragePercent: route.safety.dedicatedPathCoverage,
+        mappedSidewalkCoveragePercent: route.safety.mappedSidewalkCoverage
+      }));
       const infrastructureScreened = infrastructureScored.filter(route =>
         !route.safety.usesMappedParkingAisle &&
         !route.safety.usesDrivewayOrRestrictedService &&
