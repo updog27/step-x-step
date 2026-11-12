@@ -626,7 +626,7 @@ exports.handler = async (event) => {
     const crossingScreened = await screenMajorRoadCrossings(candidates);
       const screenedCandidates = (await scorePedestrianInfrastructure(crossingScreened))
         .filter(route => withinNeighborhood(route, start, distance))
-        .filter(route => route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
+        .filter(route => route.distanceMeters <= distance && route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
