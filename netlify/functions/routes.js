@@ -144,7 +144,7 @@ function routeCrossesRoadVertex(path, roadSegments) {
   return false;
 }
 // Use the dedicated overpass.ch service for predictable, per-account
-// capacity. The API key is read only on the server and is never returned.
+// capacity. OVERPASS_CH_API_KEY is read only on the server and never returned.
 async function fetchOverpass(query, purpose, timeoutMs) {
   const apiKey = process.env.OVERPASS_CH_API_KEY;
   if (!apiKey) {
