@@ -319,6 +319,7 @@ async function scorePedestrianInfrastructure(candidates) {
  way["highway"]["sidewalk:right"~"^(yes|separate)$"](${south},${west},${north},${east});
  way["service"="parking_aisle"](${south},${west},${north},${east});
  way["amenity"="parking"](${south},${west},${north},${east});
+ way["landuse"~"^(commercial|retail|industrial)$"](${south},${west},${north},${east});
 );
 out tags geom;`;
   const data = await fetchOverpass(query, "Pedestrian infrastructure", 12000);
@@ -334,11 +335,12 @@ out tags geom;`;
       const sidewalkExplicitlyAbsent = tags.sidewalk === "no" || tags["sidewalk:both"] === "no";
       const parkingAisle = tags.service === "parking_aisle";
       const parkingArea = tags.amenity === "parking";
-      const ring = parkingArea ? el.geometry.map(p => [p.lon, p.lat]) : [];
+      const commercialArea = ["commercial", "retail", "industrial"].includes(tags.landuse);
+      const ring = parkingArea || commercialArea ? el.geometry.map(p => [p.lon, p.lat]) : [];
       const segments = el.geometry.slice(1).map((p, i) => ({
         a: [el.geometry[i].lon, el.geometry[i].lat], b: [p.lon, p.lat]
       }));
-      return { footway, sidewalkTagged, sidewalkExplicitlyAbsent, parkingAisle, parkingArea, ring, segments };
+      return { footway, sidewalkTagged, sidewalkExplicitlyAbsent, parkingAisle, parkingArea, commercialArea, ring, segments };
     });
   const dedicatedPathSegments = features.flatMap(feature => feature.footway ? feature.segments : []);
   const mappedSidewalkSegments = features.flatMap(feature => feature.sidewalkTagged ? feature.segments : []);
@@ -347,6 +349,7 @@ out tags geom;`;
     feature.sidewalkExplicitlyAbsent ? feature.segments : []);
   const parkingAisleSegments = features.flatMap(feature => feature.parkingAisle ? feature.segments : []);
   const parkingAreaRings = features.filter(feature => feature.parkingArea && feature.ring.length >= 4).map(feature => feature.ring);
+  const commercialAreaRings = features.filter(feature => feature.commercialArea && feature.ring.length >= 4).map(feature => feature.ring);
   const pointInsideRing = (point, ring) => {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -360,6 +363,8 @@ out tags geom;`;
     const sampleCount = Math.max(12, Math.min(120, Math.ceil(route.distanceMeters / 20)));
     const samples = sampleRoute(route.coordinates, sampleCount);
     const usesParkingAisle = samples.some(point => parkingAisleSegments.some(segment => pointSegmentDistanceMeters(point, segment.a, segment.b) <= 7));
+    const commercialAreaSamples = samples.filter(point => commercialAreaRings.some(ring => pointInsideRing(point, ring))).length;
+    const commercialAreaRatio = samples.length ? commercialAreaSamples / samples.length : 0;
     const entersMappedParkingArea = samples.some(point =>
       parkingAreaRings.some(ring => pointInsideRing(point, ring)) &&
       Math.min(
@@ -443,7 +448,8 @@ out tags geom;`;
       pedestrianInfrastructurePenalty: infrastructurePenalty,
       usesMappedParkingAisle: usesParkingAisle,
       entersMappedParkingArea,
-      safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty
+      mappedCommercialAreaCoverage: Math.round(commercialAreaRatio * 100),
+      safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty + commercialAreaRatio * route.distanceMeters * 1.25
     }};
   }).filter(route => !route.safety.usesMappedParkingAisle && !route.safety.entersMappedParkingArea);
 }
