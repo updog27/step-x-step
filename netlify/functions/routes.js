@@ -59,7 +59,7 @@ exports.handler = async (event) => {
       const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 2 / 1.25;
         let best = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
+        for (let attempt = 0; attempt < 6; attempt++) {
           try {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             const outbound = await getRoute([start, endpoint], apiKey);
@@ -67,7 +67,7 @@ exports.handler = async (event) => {
             if (!best || Math.abs(total - distance) < Math.abs(best.meters * 2 - distance)) best = outbound;
             const ratio = (distance / 2) / outbound.meters;
             if (Math.abs(total - distance) <= MAX_OUTBACK_ERROR_METERS) break;
-            endpointDistance *= Math.max(0.55, Math.min(1.65, ratio));
+            endpointDistance *= Math.max(0.65, Math.min(1.5, ratio));
           } catch (error) {
             providerFailure = error.message || "The routing service could not create this route.";
             if (attempt === 2 && !best) break;
