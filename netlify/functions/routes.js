@@ -538,7 +538,7 @@ exports.handler = async (event) => {
       // endpoint, and retain only candidates at or below the requested distance.
       // The return retraces that
       // same network path, making the turn-around the true route midpoint.
-      const bearings = [0, 90, 180, 270];
+      const bearings = [0, 45, 90, 135, 180, 225, 270, 315];
       const candidateResults = await Promise.all(bearings.map(async bearing => {
         // Route slightly beyond the desired midpoint, then trim the returned
         // pedestrian-network geometry at exactly half the requested distance.
