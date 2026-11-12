@@ -45,7 +45,7 @@ exports.handler = async (event) => {
   const lat = Number(input.latitude), lon = Number(input.longitude), distance = Number(input.distanceMeters), type = input.routeType;
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lon) || lon < -180 || lon > 180) return json(400, { error: "A valid starting GPS location is required." });
   if (!Number.isFinite(distance) || distance < 300 || distance > 50000) return json(400, { error: "Choose a distance between 300 meters and 50 kilometers." });
-  if (type !== "loop" && type !== "outback") return json(400, { error: "Choose Loop or Out-and-back to generate a route." });
+  if (type !== "loop" && type !== "outback" && type !== "oneway") return json(400, { error: "Choose Loop or Out-and-back to generate a route." });
 
   try {
     const start = [lon, lat];
@@ -96,6 +96,27 @@ exports.handler = async (event) => {
       }
       if (!distinct.length) return json(422, { error: "No walkable out-and-back routes could be found. Try another distance or starting point." });
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
+    }
+
+    if (type === "oneway") {
+      const bearings = [0, 60, 120, 180, 240, 300], candidates = [];
+      for (const bearing of bearings) {
+        let endpointDistance = distance / 1.25, best = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
+            const route = await getRoute([start, endpoint], apiKey);
+            if (!best || Math.abs(route.meters - distance) < Math.abs(best.meters - distance)) best = route;
+            const ratio = distance / route.meters;
+            if (Math.abs(route.meters - distance) <= MAX_OUTBACK_ERROR_METERS) break;
+            endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
+          } catch (error) { endpointDistance *= .75; }
+        }
+        if (best) candidates.push({ id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100) });
+      }
+      candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
+      if (!candidates.length) return json(422, { error: "No walkable one-way destinations could be found. Try another distance or starting point." });
+      return json(200, { routes: candidates.slice(0, 3), targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
     }
 
     const radiusBase = distance / 5.2, candidates = [];
