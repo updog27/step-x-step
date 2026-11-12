@@ -98,11 +98,23 @@ function routeCrossesRoadVertex(path, roadSegments) {
 }
 async function screenMajorRoadCrossings(candidates) {
   if (!candidates.length) return candidates;
-  const points = candidates.flatMap(route => route.coordinates || []);
-  const lats = points.map(p => p[1]), lons = points.map(p => p[0]);
+  // Accumulate bounds without spreading large coordinate arrays into Math.min/max.
+  // Long routes can contain enough vertices to exceed a JavaScript argument limit.
+  let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;
+  for (const route of candidates) {
+    for (const point of route.coordinates || []) {
+      if (!Array.isArray(point) || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) continue;
+      west = Math.min(west, point[0]);
+      east = Math.max(east, point[0]);
+      south = Math.min(south, point[1]);
+      north = Math.max(north, point[1]);
+    }
+  }
+  if (![south, west, north, east].every(Number.isFinite)) {
+    throw new Error("Could not verify nearby road crossings because route geometry was incomplete.");
+  }
   const pad = 0.0015;
-  const south = Math.min(...lats) - pad, west = Math.min(...lons) - pad;
-  const north = Math.max(...lats) + pad, east = Math.max(...lons) + pad;
+  south -= pad; west -= pad; north += pad; east += pad;
   const query = `[out:json][timeout:8];way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"][!"bridge"][!"tunnel"](${south},${west},${north},${east});out geom;`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 9000);
@@ -182,7 +194,10 @@ function withinNeighborhood(route, start, targetMeters) {
   // Keep return-to-start routes in a compact local area. One-way routes get
   // a larger radius because their destination is intentionally away from start.
   const limit = route.type === "oneway" ? targetMeters + 100 : targetMeters * 0.6 + 100;
-  const farthest = Math.max(...route.coordinates.map(point => haversineMeters(start, point)));
+  let farthest = 0;
+  for (const point of route.coordinates) {
+    farthest = Math.max(farthest, haversineMeters(start, point));
+  }
   route.safety = { ...route.safety, neighborhoodRadiusMeters: farthest,
     neighborhoodLimitMeters: limit };
   return farthest <= limit;
