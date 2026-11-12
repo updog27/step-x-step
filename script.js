@@ -80,6 +80,7 @@ function drawAllRouteOptions() {
     }).addTo(map);
     layer.on("click", () => drawSelectedRoute(route));
     routeLayers.push(layer);
+    if (selectedRoute?.id === route.id) layer.bringToFront();
   });
   const bounds = L.featureGroup(routeLayers).getBounds();
   if (bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28] });
@@ -227,6 +228,9 @@ function startWalk() {
   previousPosition = null;
   startButton.disabled = true;
   generateButton.disabled = true;
+  $("distance-input").disabled = true;
+  $("distance-unit").disabled = true;
+  $("route-type").disabled = true;
   stopButton.disabled = false;
   setStatus(totalDistanceMiles > 0 ? "Walk resumed. GPS tracking is active." : "Walk started. GPS tracking is active.");
 
@@ -271,6 +275,9 @@ function stopWalk(message) {
   previousPosition = null;
   startButton.disabled = !selectedRoute && $("route-type").value !== "free";
   generateButton.disabled = false;
+  $("distance-input").disabled = false;
+  $("distance-unit").disabled = false;
+  $("route-type").disabled = false;
   stopButton.disabled = true;
   setStatus(message || "Walk paused. Total distance: " + formatDistance(totalDistanceMiles));
 }
@@ -287,6 +294,9 @@ function resetWalk(updateStatus = true) {
   startButton.disabled = !selectedRoute && $("route-type").value !== "free";
   stopButton.disabled = true;
   generateButton.disabled = false;
+  $("distance-input").disabled = false;
+  $("distance-unit").disabled = false;
+  $("route-type").disabled = false;
   if (updateStatus) setStatus("Walk reset. Your totals have been cleared.");
 }
 
@@ -296,9 +306,30 @@ stopButton.addEventListener("click", () => stopWalk());
 resetButton.addEventListener("click", () => resetWalk());
 
 $("distance-unit").addEventListener("change", () => {
-  currentUnit = $("distance-unit").value;
+  const nextUnit = $("distance-unit").value;
+  const input = $("distance-input");
+  const value = Number(input.value);
+  if (Number.isFinite(value) && value > 0 && nextUnit !== currentUnit) {
+    input.value = (nextUnit === "km" ? value * 1.609344 : value / 1.609344).toFixed(2);
+  }
+  currentUnit = nextUnit;
   updateProgress();
   if (selectedRoute) $("route-summary").textContent = formatDistance(selectedRoute.distanceMeters / 1609.344) + " planned";
+});
+
+$("distance-input").addEventListener("change", () => {
+  if (watchId !== null || !selectedRoute) return;
+  selectedRoute = null;
+  routeChoices = [];
+  clearRouteLayers();
+  if (turnaroundMarker) map.removeLayer(turnaroundMarker);
+  turnaroundMarker = null;
+  plannedRouteLine.setLatLngs([]);
+  routeList.innerHTML = "";
+  routesPanel.hidden = true;
+  startButton.disabled = true;
+  $("route-summary").textContent = "Distance changed - find a new route";
+  setStatus("Your distance changed. Find a new route before starting.");
 });
 
 $("route-type").addEventListener("change", () => {
