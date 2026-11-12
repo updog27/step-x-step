@@ -65,11 +65,19 @@ async function getRoute(coordinates, apiKey) {
 function orientation(a, b, c) {
   return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
 }
+function pointOnSegment(p, a, b) {
+  const eps = 1e-10;
+  return Math.abs(orientation(a, b, p)) <= eps &&
+    p[0] >= Math.min(a[0], b[0]) - eps && p[0] <= Math.max(a[0], b[0]) + eps &&
+    p[1] >= Math.min(a[1], b[1]) - eps && p[1] <= Math.max(a[1], b[1]) + eps;
+}
 function segmentsIntersect(a, b, c, d) {
   const o1 = orientation(a, b, c), o2 = orientation(a, b, d);
   const o3 = orientation(c, d, a), o4 = orientation(c, d, b);
-  return ((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) &&
-         ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0));
+  if (((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) &&
+      ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0))) return true;
+  return pointOnSegment(c, a, b) || pointOnSegment(d, a, b) ||
+    pointOnSegment(a, c, d) || pointOnSegment(b, c, d);
 }
 async function screenMajorRoadCrossings(candidates) {
   if (!candidates.length) return candidates;
