@@ -81,17 +81,13 @@ function segmentsProperlyIntersect(a, b, c, d) {
 // A route vertex on a road is a crossing only when the route enters and
 // leaves on opposite sides. Merely starting, ending, or turning alongside
 // a mapped road does not count as a crossing.
-function routeCrossesRoad(path, roadSegments) {
-  for (let i = 1; i < path.length; i++) {
-    const a = path[i - 1], b = path[i];
-    for (const segment of roadSegments) {
-      if (segmentsProperlyIntersect(a, b, segment.a, segment.b)) return true;
-    }
-  }
+function routeCrossesRoadVertex(path, roadSegments) {
   for (let i = 1; i < path.length - 1; i++) {
     const previous = path[i - 1], vertex = path[i], next = path[i + 1];
     for (const segment of roadSegments) {
-      if (!pointOnSegment(vertex, segment.a, segment.b)) continue;
+      if (vertex[0] < segment.minX - 1e-10 || vertex[0] > segment.maxX + 1e-10 ||
+          vertex[1] < segment.minY - 1e-10 || vertex[1] > segment.maxY + 1e-10 ||
+          !pointOnSegment(vertex, segment.a, segment.b)) continue;
       const before = orientation(segment.a, segment.b, previous);
       const after = orientation(segment.a, segment.b, next);
       if ((before > 1e-10 && after < -1e-10) ||
@@ -158,7 +154,7 @@ async function screenMajorRoadCrossings(candidates) {
     }
     for (const road of roads) {
       if (hitRoads.has(road.id)) continue;
-      if (routeCrossesRoad(path, road.segments)) hitRoads.add(road.id);
+      if (routeCrossesRoadVertex(path, road.segments)) hitRoads.add(road.id);
     }
     for (const roadId of hitRoads) {
       const highway = roads[roadId].highway;
