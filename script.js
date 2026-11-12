@@ -345,6 +345,18 @@ async function generateRoutes() {
           "; infrastructure unknown: " + p.pedestrianInfrastructureUnknown +
           "; limited mapped infrastructure: " + p.limitedMappedInfrastructure);
       }
+      if (Array.isArray(details.candidateScreeningDetails)) {
+        details.candidateScreeningDetails.forEach(route => {
+          lines.push("Candidate " + route.bearing + "° — parking aisle: " + route.parkingAisle +
+            "; driveway/restricted: " + route.drivewayOrRestrictedService +
+            "; parking area: " + route.entersMappedParkingArea +
+            "; commercial coverage: " + route.commercialAreaCoveragePercent + "%" +
+            "; pedestrian support: " + route.pedestrianInfrastructure +
+            " (" + (route.pedestrianInfrastructureCoveragePercent ?? "unknown") + "%)" +
+            "; longest unsupported gap: " + (route.longestUnsupportedInfrastructureGapMeters ?? "unknown") + "m" +
+            "; sidewalk=no: " + (route.explicitNoSidewalkCoveragePercent ?? "unknown") + "%");
+        });
+      }
       if (details.providerError) lines.push("Routing provider: " + details.providerError);
       setStatus(lines.join(" | "));
     } else {
