@@ -356,7 +356,7 @@ exports.handler = async (event) => {
     if (type === "oneway") {
       const candidates = [];
       let providerFailure = null;
-      const bearings = [0, 120, 240];
+      const bearings = [0, 60, 120, 180, 240, 300];
       const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 1.25, best = null;
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -394,7 +394,7 @@ exports.handler = async (event) => {
     // distance. The first route is not assumed to match the requested distance.
     const candidates = [];
     let providerFailure = null;
-    const bearings = [0, 120, 240];
+    const bearings = [0, 60, 120, 180, 240, 300];
     const candidateResults = await Promise.all(bearings.map(async bearing => {
       let radius = distance / 5.2;
       let best = null;
