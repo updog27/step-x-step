@@ -71,13 +71,34 @@ function pointOnSegment(p, a, b) {
     p[0] >= Math.min(a[0], b[0]) - eps && p[0] <= Math.max(a[0], b[0]) + eps &&
     p[1] >= Math.min(a[1], b[1]) - eps && p[1] <= Math.max(a[1], b[1]) + eps;
 }
-function segmentsIntersect(a, b, c, d) {
+function segmentsProperlyIntersect(a, b, c, d) {
   const o1 = orientation(a, b, c), o2 = orientation(a, b, d);
   const o3 = orientation(c, d, a), o4 = orientation(c, d, b);
-  if (((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) &&
-      ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0))) return true;
-  return pointOnSegment(c, a, b) || pointOnSegment(d, a, b) ||
-    pointOnSegment(a, c, d) || pointOnSegment(b, c, d);
+  return ((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) &&
+    ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0));
+}
+
+// A route vertex on a road is a crossing only when the route enters and
+// leaves on opposite sides. Merely starting, ending, or turning alongside
+// a mapped road does not count as a crossing.
+function routeCrossesRoad(path, roadSegments) {
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    for (const segment of roadSegments) {
+      if (segmentsProperlyIntersect(a, b, segment.a, segment.b)) return true;
+    }
+  }
+  for (let i = 1; i < path.length - 1; i++) {
+    const previous = path[i - 1], vertex = path[i], next = path[i + 1];
+    for (const segment of roadSegments) {
+      if (!pointOnSegment(vertex, segment.a, segment.b)) continue;
+      const before = orientation(segment.a, segment.b, previous);
+      const after = orientation(segment.a, segment.b, next);
+      if ((before > 1e-10 && after < -1e-10) ||
+          (before < -1e-10 && after > 1e-10)) return true;
+    }
+  }
+  return false;
 }
 async function screenMajorRoadCrossings(candidates) {
   if (!candidates.length) return candidates;
@@ -127,12 +148,17 @@ async function screenMajorRoadCrossings(candidates) {
       const minY = Math.min(a[1], b[1]), maxY = Math.max(a[1], b[1]);
       for (const road of roads) {
         if (hitRoads.has(road.id)) continue;
-        const hit = road.segments.some(segment =>
+        const nearbySegments = road.segments.filter(segment =>
           segment.maxX >= minX && segment.minX <= maxX &&
-          segment.maxY >= minY && segment.minY <= maxY &&
-          segmentsIntersect(a, b, segment.a, segment.b));
+          segment.maxY >= minY && segment.minY <= maxY);
+        const hit = nearbySegments.some(segment =>
+          segmentsProperlyIntersect(a, b, segment.a, segment.b));
         if (hit) hitRoads.add(road.id);
       }
+    }
+    for (const road of roads) {
+      if (hitRoads.has(road.id)) continue;
+      if (routeCrossesRoad(path, road.segments)) hitRoads.add(road.id);
     }
     for (const roadId of hitRoads) {
       const highway = roads[roadId].highway;
