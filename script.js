@@ -126,9 +126,10 @@ function renderRouteChoices() {
     title.textContent = (index === 0 ? "Recommended · " : "Alternative · ") + (route.label || ("Route " + (index + 1)));
     const detail = document.createElement("small");
     const miles = route.distanceMeters / 1609.344;
-    const difference = Math.abs(miles - goalDistanceMiles);
-    const differenceLabel = currentUnit === "km" ? (difference / 0.621371).toFixed(2) + " km" : difference.toFixed(2) + " mi";
-    detail.textContent = formatDistance(miles) + " total · " + differenceLabel + " from target";
+    const difference = miles - goalDistanceMiles;
+    const differenceLabel = currentUnit === "km" ? (Math.abs(difference) / 0.621371).toFixed(2) + " km" : Math.abs(difference).toFixed(2) + " mi";
+    const varianceLabel = Math.abs(difference) < 0.0005 ? "matches target" : difference > 0 ? differenceLabel + " over target" : differenceLabel + " under target";
+    detail.textContent = formatDistance(miles) + " total · " + varianceLabel;
     info.append(title, detail);
     const marker = document.createElement("span");
     marker.className = "route-swatch";
@@ -336,7 +337,9 @@ $("distance-input").addEventListener("change", () => {
   routeChoices = [];
   clearRouteLayers();
   if (turnaroundMarker) map.removeLayer(turnaroundMarker);
+  if (destinationMarker) map.removeLayer(destinationMarker);
   turnaroundMarker = null;
+  destinationMarker = null;
   plannedRouteLine.setLatLngs([]);
   routeList.innerHTML = "";
   routesPanel.hidden = true;
