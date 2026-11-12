@@ -271,7 +271,8 @@ exports.handler = async (event) => {
       }));
       candidates.push(...candidateResults.filter(Boolean));
       const screenedCandidates = (await screenMajorRoadCrossings(candidates))
-        .filter(route => withinNeighborhood(route, start, distance));
+        .filter(route => withinNeighborhood(route, start, distance))
+        .filter(route => route.differenceMeters <= MAX_OUTBACK_ERROR_METERS);
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
@@ -282,7 +283,7 @@ exports.handler = async (event) => {
         if (distinct.length === 3) break;
       }
       if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
-      if (!distinct.length) return json(422, { error: "No walkable out-and-back routes could be found. Try another distance or starting point." });
+      if (!distinct.length) return json(422, { error: "No safe out-and-back route within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
     }
 
@@ -307,7 +308,8 @@ exports.handler = async (event) => {
       }));
       candidates.push(...candidateResults.filter(Boolean));
       const screenedCandidates = (await screenMajorRoadCrossings(candidates))
-        .filter(route => withinNeighborhood(route, start, distance));
+        .filter(route => withinNeighborhood(route, start, distance))
+        .filter(route => route.differenceMeters <= MAX_OUTBACK_ERROR_METERS);
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
@@ -318,7 +320,7 @@ exports.handler = async (event) => {
         if (distinct.length === 3) break;
       }
       if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
-      if (!distinct.length) return json(422, { error: "No walkable one-way destinations could be found. Try another distance or starting point." });
+      if (!distinct.length) return json(422, { error: "No safe one-way route within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
     }
 
@@ -358,7 +360,7 @@ exports.handler = async (event) => {
       if (distinctLoops.length === 3) break;
     }
     if (!distinctLoops.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
-    if (!distinctLoops.length) return json(422, { error: "No walkable loop could be found near this location. Try a different distance or starting point." });
+    if (!distinctLoops.length) return json(422, { error: "No safe loop within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
     return json(200, { routes: distinctLoops, targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
   } catch (error) {
     return json(502, { error: error.message || "The routing service is temporarily unavailable." });
