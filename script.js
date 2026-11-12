@@ -2,6 +2,7 @@ let map;
 let userMarker;
 let plannedRouteLine;
 let routeLayers = [];
+let turnaroundMarker = null;
 let actualRouteLine;
 const ROUTE_COLORS = ["#1769d2", "#159b72", "#d97706"];
 let selectedRoute = null;
@@ -88,6 +89,11 @@ function drawSelectedRoute(route) {
   if (selectedRoute && selectedRoute.id !== route.id) resetWalk(false);
   selectedRoute = route;
   drawAllRouteOptions();
+  if (turnaroundMarker) map.removeLayer(turnaroundMarker);
+  turnaroundMarker = null;
+  if (route.type === "outback" && Array.isArray(route.turnaround)) {
+    turnaroundMarker = L.circleMarker([route.turnaround[1], route.turnaround[0]], { radius: 8, color: "#ffffff", weight: 3, fillColor: "#f28c28", fillOpacity: 1 }).addTo(map).bindPopup("Turnaround point - halfway along the route");
+  }
   const miles = route.distanceMeters / 1609.344;
   $("route-summary").textContent = formatDistance(miles) + " planned";
   startButton.disabled = false;
@@ -137,6 +143,8 @@ async function generateRoutes() {
   routesPanel.hidden = true;
   plannedRouteLine.setLatLngs([]);
   clearRouteLayers();
+  if (turnaroundMarker) map.removeLayer(turnaroundMarker);
+  turnaroundMarker = null;
   $("route-summary").textContent = "Finding routes…";
 
   try {
@@ -301,6 +309,8 @@ $("route-type").addEventListener("change", () => {
   routesPanel.hidden = true;
   plannedRouteLine.setLatLngs([]);
   clearRouteLayers();
+  if (turnaroundMarker) map.removeLayer(turnaroundMarker);
+  turnaroundMarker = null;
   $("route-summary").textContent = "No route selected";
   startButton.disabled = true;
 });
