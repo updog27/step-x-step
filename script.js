@@ -75,6 +75,7 @@ function clearRouteLayers() {
 
 function drawAllRouteOptions() {
   clearRouteLayers();
+  let selectedLayer = null;
   routeChoices.forEach((route, index) => {
     const layer = L.polyline(coordinatesToLatLngs(route.coordinates), {
       color: ROUTE_COLORS[index % ROUTE_COLORS.length],
@@ -83,8 +84,9 @@ function drawAllRouteOptions() {
     }).addTo(map);
     layer.on("click", () => drawSelectedRoute(route));
     routeLayers.push(layer);
-    if (selectedRoute?.id === route.id) layer.bringToFront();
+    if (selectedRoute?.id === route.id) selectedLayer = layer;
   });
+  if (selectedLayer) selectedLayer.bringToFront();
   const bounds = L.featureGroup(routeLayers).getBounds();
   if (bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28] });
 }
