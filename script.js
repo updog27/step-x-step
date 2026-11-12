@@ -187,30 +187,64 @@ function renderRouteChoices() {
     const varianceLabel = Math.abs(difference) < 0.0005 ? "matches target" : difference > 0 ? differenceLabel + " over target" : differenceLabel + " under target";
     detail.textContent = formatDistance(miles) + " total · " + varianceLabel;
     const safety = route.safety || {};
-    const quality = document.createElement("small");
-    const infrastructureLabel = safety.pedestrianInfrastructureCoverage == null
-      ? "Pedestrian infrastructure: unknown"
-      : "Mapped pedestrian support: " + safety.pedestrianInfrastructureCoverage + "%";
-    const gapLabel = safety.longestMappedInfrastructureGapMeters == null
-      ? "gap data unavailable"
-      : "longest mapped gap: " + safety.longestMappedInfrastructureGapMeters + " m";
-    const sidewalkEvidence = safety.explicitNoSidewalkCoverage == null
-      ? "explicit sidewalk gaps: unknown"
-      : "mapped sidewalk=no: " + safety.explicitNoSidewalkCoverage + "%";
-    const pathEvidence = safety.dedicatedPathCoverage == null
-      ? "dedicated paths: unknown"
-      : "dedicated paths: " + safety.dedicatedPathCoverage + "%";
-    const sidewalkCoverage = safety.mappedSidewalkCoverage == null
-      ? "mapped sidewalks: unknown"
-      : "mapped sidewalks: " + safety.mappedSidewalkCoverage + "%";
-    const crossingCount = (Number(safety.majorRoadCrossings) || 0) +
+    const quality = document.createElement("div");
+    quality.className = "route-quality";
+    const coverage = Number.isFinite(Number(safety.pedestrianInfrastructureCoverage))
+      ? Math.max(0, Math.min(100, Number(safety.pedestrianInfrastructureCoverage))) : null;
+    const pathPct = Math.max(0, Math.min(100, Number(safety.dedicatedPathCoverage) || 0));
+    const sidewalkPct = Math.max(0, Math.min(100, Number(safety.mappedSidewalkCoverage) || 0));
+    const noSidewalkPct = Math.max(0, Math.min(100, Number(safety.explicitNoSidewalkCoverage) || 0));
+    const uncertainPct = Math.max(0, 100 - pathPct - sidewalkPct - noSidewalkPct);
+    const summary = document.createElement("small");
+    summary.className = "route-quality-summary";
+    summary.textContent = coverage == null
+      ? "Mapped pedestrian support: unknown"
+      : "Mapped pedestrian support: " + coverage + "%";
+    const bar = document.createElement("span");
+    bar.className = "evidence-bar";
+    bar.setAttribute("role", "img");
+    bar.setAttribute("aria-label", "Mapped evidence: " + pathPct + "% dedicated paths, " +
+      sidewalkPct + "% mapped sidewalks, " + noSidewalkPct + "% explicit sidewalk gaps, " +
+      uncertainPct + "% uncertain.");
+    [["path", pathPct], ["sidewalk", sidewalkPct], ["no-sidewalk", noSidewalkPct], ["unknown", uncertainPct]]
+      .forEach(([kind, percent]) => {
+        if (percent <= 0) return;
+        const segment = document.createElement("span");
+        segment.className = "evidence-segment " + kind;
+        segment.style.width = percent + "%";
+        bar.appendChild(segment);
+      });
+    const details = document.createElement("details");
+    details.className = "route-quality-details";
+    const summaryToggle = document.createElement("summary");
+    summaryToggle.textContent = "View map evidence";
+    const legend = document.createElement("div");
+    legend.className = "evidence-legend";
+    [
+      ["path", "Dedicated paths", pathPct],
+      ["sidewalk", "Mapped sidewalks", sidewalkPct],
+      ["no-sidewalk", "Explicit sidewalk=no", noSidewalkPct],
+      ["unknown", "Unknown / unmapped", uncertainPct]
+    ].forEach(([kind, label, percent]) => {
+      const item = document.createElement("span");
+      const dot = document.createElement("i");
+      dot.className = "evidence-dot " + kind;
+      const textNode = document.createElement("span");
+      textNode.textContent = label + " " + Math.round(percent) + "%";
+      item.append(dot, textNode);
+      legend.appendChild(item);
+    });
+    const gap = safety.longestMappedInfrastructureGapMeters;
+    const crossings = (Number(safety.majorRoadCrossings) || 0) +
       (Number(safety.secondaryRoadCrossings) || 0) +
       (Number(safety.tertiaryRoadCrossings) || 0);
-    const crossingLabel = safety.crossingCheck === "completed"
-      ? crossingCount + " mapped major-road crossing" + (crossingCount === 1 ? "" : "s")
-      : "road-crossing check unavailable";
-    quality.className = "route-quality";
-    quality.textContent = infrastructureLabel + " · " + pathEvidence + " · " + sidewalkCoverage + " · " + gapLabel + " · " + sidewalkEvidence + " · " + crossingLabel;
+    const note = document.createElement("small");
+    note.className = "route-quality-note";
+    note.textContent = (gap == null ? "Longest mapped gap: unavailable" : "Longest mapped gap: " + gap + " m") +
+      " · " + (safety.crossingCheck === "completed" ? crossings + " mapped major-road crossings" : "Road-crossing check unavailable") +
+      ". Map evidence is incomplete and does not guarantee sidewalk conditions.";
+    details.append(summaryToggle, legend, note);
+    quality.append(summary, bar, details);
     info.append(title, detail, quality);
     const marker = document.createElement("span");
     marker.className = "route-swatch";
