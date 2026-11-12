@@ -100,27 +100,45 @@ async function screenMajorRoadCrossings(candidates) {
   } catch (error) {
     throw new Error("Could not verify nearby road crossings. Please try again. " + (error.name === "AbortError" ? "The map service timed out." : error.message));
   } finally { clearTimeout(timeout); }
+  if (typeof data?.remark === "string" && data.remark.trim()) {
+    throw new Error("The road map service returned an incomplete result. Please try again.");
+  }
   if (!Array.isArray(data?.elements) || data.elements.length === 0) {
     throw new Error("Could not verify nearby road crossings because map data was incomplete. Please try again.");
   }
   const roads = data.elements.filter(el => el.type === "way" && Array.isArray(el.geometry))
-    .map(el => ({ highway: el.tags?.highway, geometry: el.geometry.map(p => [p.lon, p.lat]) }));
+    .map((el, roadId) => ({
+      id: roadId, highway: el.tags?.highway,
+      segments: el.geometry.slice(1).map((p, index) => {
+        const a = [el.geometry[index].lon, el.geometry[index].lat];
+        const b = [p.lon, p.lat];
+        return { a, b, minX: Math.min(a[0], b[0]), maxX: Math.max(a[0], b[0]),
+          minY: Math.min(a[1], b[1]), maxY: Math.max(a[1], b[1]) };
+      })
+    }));
   if (!roads.length) throw new Error("Could not verify nearby road crossings because no road geometry was returned.");
   return candidates.map(route => {
     let majorCrossings = 0, secondaryCrossings = 0, tertiaryCrossings = 0;
     const path = route.coordinates || [];
+    const hitRoads = new Set();
     for (let i = 1; i < path.length; i++) {
+      const a = path[i - 1], b = path[i];
+      const minX = Math.min(a[0], b[0]), maxX = Math.max(a[0], b[0]);
+      const minY = Math.min(a[1], b[1]), maxY = Math.max(a[1], b[1]);
       for (const road of roads) {
-        let hit = false;
-        for (let j = 1; j < road.geometry.length; j++) {
-          if (segmentsIntersect(path[i - 1], path[i], road.geometry[j - 1], road.geometry[j])) { hit = true; break; }
-        }
-        if (hit) {
-          if (["motorway", "trunk", "primary"].includes(road.highway)) majorCrossings++;
-          else if (road.highway === "secondary") secondaryCrossings++;
-          else if (road.highway === "tertiary") tertiaryCrossings++;
-        }
+        if (hitRoads.has(road.id)) continue;
+        const hit = road.segments.some(segment =>
+          segment.maxX >= minX && segment.minX <= maxX &&
+          segment.maxY >= minY && segment.minY <= maxY &&
+          segmentsIntersect(a, b, segment.a, segment.b));
+        if (hit) hitRoads.add(road.id);
       }
+    }
+    for (const roadId of hitRoads) {
+      const highway = roads[roadId].highway;
+      if (["motorway", "trunk", "primary"].includes(highway)) majorCrossings++;
+      else if (highway === "secondary") secondaryCrossings++;
+      else if (highway === "tertiary") tertiaryCrossings++;
     }
     return { ...route, safety: { ...route.safety,
       majorRoadCrossings: majorCrossings, secondaryRoadCrossings: secondaryCrossings,
