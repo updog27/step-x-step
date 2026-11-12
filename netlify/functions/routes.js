@@ -340,7 +340,14 @@ out tags geom;`;
     const sampleCount = Math.max(12, Math.min(120, Math.ceil(route.distanceMeters / 20)));
     const samples = sampleRoute(route.coordinates, sampleCount);
     const usesParkingAisle = samples.some(point => parkingAisleSegments.some(segment => pointSegmentDistanceMeters(point, segment.a, segment.b) <= 7));
-    const entersMappedParkingArea = samples.some(point => parkingAreaRings.some(ring => pointInsideRing(point, ring)));
+    const entersMappedParkingArea = samples.some(point =>
+      parkingAreaRings.some(ring => pointInsideRing(point, ring)) &&
+      Math.min(
+        ...dedicatedPathSegments.map(segment => pointSegmentDistanceMeters(point, segment.a, segment.b)),
+        ...mappedSidewalkSegments.map(segment => pointSegmentDistanceMeters(point, segment.a, segment.b)),
+        Infinity
+      ) > 18
+    );
     const cumulative = [0];
     for (let i = 1; i < route.coordinates.length; i++) {
       cumulative.push(cumulative[i - 1] + haversineMeters(route.coordinates[i - 1], route.coordinates[i]));
@@ -515,7 +522,7 @@ exports.handler = async (event) => {
       const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 2 / 1.25;
         let best = null;
-        for (let attempt = 0; attempt < 4; attempt++) {
+        for (let attempt = 0; attempt < 6; attempt++) {
           try {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             const outbound = await getRoute([start, endpoint], apiKey);
@@ -526,7 +533,7 @@ exports.handler = async (event) => {
             endpointDistance *= Math.max(0.65, Math.min(1.5, ratio));
           } catch (error) {
             providerFailure = error.message || "The routing service could not create this route.";
-            if (attempt === 3 && !best) break;
+            if (attempt === 5 && !best) break;
             endpointDistance *= 0.75;
           }
         }
