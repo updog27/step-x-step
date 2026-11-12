@@ -522,7 +522,7 @@ exports.handler = async (event) => {
             const total = outbound.meters * 2;
             if (total <= distance && (!best || total > best.meters * 2)) best = outbound;
             const ratio = (distance / 2) / outbound.meters;
-            if (Math.abs(total - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
+            if (total <= distance && distance - total <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
             endpointDistance *= Math.max(0.65, Math.min(1.5, ratio));
           } catch (error) {
             providerFailure = error.message || "The routing service could not create this route.";
@@ -574,7 +574,7 @@ exports.handler = async (event) => {
             const route = await getRoute([start, endpoint], apiKey);
             if (route.meters <= distance && (!best || route.meters > best.meters)) best = route;
             const ratio = distance / route.meters;
-            if (Math.abs(route.meters - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
+            if (route.meters <= distance && distance - route.meters <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
             endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
           } catch (error) { providerFailure = error.message || "The routing service could not create this route."; endpointDistance *= .75; }
         }
@@ -614,7 +614,7 @@ exports.handler = async (event) => {
         points.push(start);
         try {
           const route = await getRoute(points, apiKey);
-          if (!best || Math.abs(route.meters - distance) < Math.abs(best.meters - distance)) best = route;
+          if (route.meters <= distance && (!best || route.meters > best.meters)) best = route;
           const ratio = distance / route.meters;
           if (Math.abs(route.meters - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
           radius *= Math.max(0.65, Math.min(1.45, ratio));
