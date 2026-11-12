@@ -336,6 +336,15 @@ async function generateRoutes() {
           "; pedestrian/commercial screening: " + details.rejectedPedestrianOrCommercialScreen +
           "; neighborhood: " + details.rejectedNeighborhood
       ];
+      if (details.pedestrianCommercialRejections) {
+        const p = details.pedestrianCommercialRejections;
+        lines.push("Pedestrian/commercial detail — parking aisles: " + p.parkingAisle +
+          "; driveways/restricted service: " + p.drivewayOrRestrictedService +
+          "; parking areas: " + p.mappedParkingArea +
+          "; commercial area >8%: " + p.commercialAreaOver8Percent +
+          "; infrastructure unknown: " + p.pedestrianInfrastructureUnknown +
+          "; limited mapped infrastructure: " + p.limitedMappedInfrastructure);
+      }
       if (details.providerError) lines.push("Routing provider: " + details.providerError);
       setStatus(lines.join(" | "));
     } else {
