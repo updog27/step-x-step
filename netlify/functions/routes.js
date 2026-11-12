@@ -19,7 +19,7 @@ async function getRoute(coordinates, apiKey) {
     headers: { "Authorization": apiKey, "Content-Type": "application/json", "Accept": "application/geo+json" },
     body: JSON.stringify({
       coordinates, instructions: false, preference: "recommended", units: "m",
-      extra_info: ["waycategory", "waytype", "noise", "roadaccessrestrictions"]
+      extra_info: ["waycategory", "waytype", "noise", "green", "suitability", "roadaccessrestrictions"]
     })
   });
   const payload = await response.json().catch(() => ({}));
@@ -34,31 +34,61 @@ async function getRoute(coordinates, apiKey) {
     waycategory: extras.waycategory || extras.waycategories,
     waytype: extras.waytype || extras.waytypes,
     noise: extras.noise,
+    green: extras.green,
+    suitability: extras.suitability,
     access: extras.roadaccessrestrictions
   };
   const totalFor = (extra, predicate) => (extra?.summary || [])
     .filter(item => predicate(item.value))
     .reduce((sum, item) => sum + (Number(item.distance) || 0), 0);
+  // ORS waytype IDs: 1 state road; 2 secondary/tertiary/unclassified road;
+  // 3 residential/service/living street; 4 path; 5 track; 6 cycleway;
+  // 7 footway/pedestrian/crossing; 8 steps; 9 ferry; 10 construction.
   const highwayMeters = totalFor(summaries.waycategory, value => (Number(value) & 1) === 1);
   const stateRoadMeters = totalFor(summaries.waytype, value => Number(value) === 1);
-  const secondaryRoadMeters = totalFor(summaries.waytype, value => Number(value) === 2);
+  const generalRoadMeters = totalFor(summaries.waytype, value => Number(value) === 2);
+  const residentialStreetMeters = totalFor(summaries.waytype, value => Number(value) === 3);
+  const pathMeters = totalFor(summaries.waytype, value => Number(value) === 4);
+  const trackMeters = totalFor(summaries.waytype, value => Number(value) === 5);
+  const cyclewayMeters = totalFor(summaries.waytype, value => Number(value) === 6);
+  const pedestrianWayMeters = totalFor(summaries.waytype, value => Number(value) === 7);
+  const stepsMeters = totalFor(summaries.waytype, value => Number(value) === 8);
+  const ferryMeters = totalFor(summaries.waytype, value => Number(value) === 9);
+  const constructionMeters = totalFor(summaries.waytype, value => Number(value) === 10);
   const noisyMeters = totalFor(summaries.noise, value => Number(value) >= 7);
+  const lowSuitabilityMeters = totalFor(summaries.suitability, value => Number(value) <= 3);
   // ORS encodes access restrictions as bit flags: no=1, customers=2,
   // destination=4, delivery=8, private=16, permissive=32, permit=64.
   const restrictedMeters = totalFor(summaries.access, value => {
     const flags = Number(value);
     return (flags & (1 | 2 | 4 | 8 | 16 | 64)) !== 0;
   });
-  // Reject motorway links and primary/state-road segments; downgrade secondary
-  // roads and noisy segments. This is a conservative map-data screen, not a
-  // guarantee that every street crossing or access restriction is mapped.
+  // Reject motorway/primary/state-road travel and inaccessible segments.
+  // Among remaining candidates, prefer residential streets and pedestrian
+  // infrastructure over secondary/tertiary roads, noisy segments and poor
+  // walking-suitability sections. These are map-derived estimates, not guarantees.
   const unsafeMajorRoad = highwayMeters > 10 || stateRoadMeters > 10;
   const hasRestrictedAccess = restrictedMeters > 5;
+  const qualityPenalty =
+    generalRoadMeters * 1.5 +
+    residentialStreetMeters * 0.05 +
+    pathMeters * 0.02 +
+    trackMeters * 0.12 +
+    cyclewayMeters * 0.18 +
+    pedestrianWayMeters * 0.01 +
+    stepsMeters * 0.3 +
+    ferryMeters * 5 +
+    constructionMeters * 8 +
+    noisyMeters * 3 +
+    lowSuitabilityMeters * 1.5;
   const safetyPenalty = (highwayMeters * 100) + (stateRoadMeters * 80) +
-    (restrictedMeters * 150) + (secondaryRoadMeters * 0.15) + (noisyMeters * 2);
+    (restrictedMeters * 150) + qualityPenalty;
   return { coordinates: coords, meters, safety: {
-    highwayMeters, stateRoadMeters, secondaryRoadMeters, noisyMeters,
-    restrictedMeters, unsafeMajorRoad, hasRestrictedAccess, safetyPenalty
+    highwayMeters, stateRoadMeters, generalRoadMeters, residentialStreetMeters,
+    pathMeters, trackMeters, cyclewayMeters, pedestrianWayMeters, stepsMeters,
+    ferryMeters, constructionMeters, noisyMeters, lowSuitabilityMeters,
+    restrictedMeters, unsafeMajorRoad, hasRestrictedAccess,
+    qualityPenalty, safetyPenalty
   } };
 }
 
