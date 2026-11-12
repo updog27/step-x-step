@@ -588,12 +588,12 @@ exports.handler = async (event) => {
         for (let attempt = 0; attempt < 6; attempt++) {
           try {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
-            // Force each candidate through a different intermediate pedestrian
-            // network waypoint; different endpoints alone often snap to one corridor.
-            const isCardinalDirection = bearing % 90 === 0;
-            const sideOffsetDegrees = isCardinalDirection ? 0 : (bearing / 45) % 2 === 0 ? 18 : -18;
-            const waypoint = destinationPoint(lat, lon, endpointDistance * 0.58, bearing + sideOffsetDegrees);
-            const outbound = await getRoute([start, waypoint, endpoint], apiKey);
+            // Route directly to the candidate endpoint. An artificial
+            // intermediate waypoint can force an unnecessary dogleg (for
+            // example, east, then west, then south) even when a simpler
+            // pedestrian route exists. Distinct endpoint bearings provide
+            // alternatives; near-duplicate candidates are removed later.
+            const outbound = await getRoute([start, endpoint], apiKey);
             const trimmedCoordinates = trimCoordinatesToDistance(outbound.coordinates, distance / 2);
             if (trimmedCoordinates) {
               best = { ...outbound, coordinates: trimmedCoordinates, meters: distance / 2 };
@@ -619,7 +619,7 @@ exports.handler = async (event) => {
         // Reject outbound paths that repeatedly travel against their intended
         // compass direction; this filters avoidable east-west reversals.
         if (directionMetrics.forwardMeters < distance * 0.12 ||
-            directionMetrics.backtrackRatio > 0.48) {
+            directionMetrics.backtrackRatio > 0.25) {
           diagnostics.rejectedDirection++;
           return null;
         }
