@@ -317,7 +317,8 @@ async function scorePedestrianInfrastructure(candidates) {
  way["highway"]["sidewalk:both"~"^(yes|separate)$"](${south},${west},${north},${east});
  way["highway"]["sidewalk:left"~"^(yes|separate)$"](${south},${west},${north},${east});
  way["highway"]["sidewalk:right"~"^(yes|separate)$"](${south},${west},${north},${east});
- way["service"="parking_aisle"](${south},${west},${north},${east});
+ way["service"~"^(parking_aisle|driveway)$"](${south},${west},${north},${east});
+ way["highway"="service"]["access"~"^(private|customers|destination|no)$"](${south},${west},${north},${east});
  way["amenity"="parking"](${south},${west},${north},${east});
  way["landuse"~"^(commercial|retail|industrial)$"](${south},${west},${north},${east});
  way["tourism"~"^(hotel|motel)$"](${south},${west},${north},${east});
@@ -337,6 +338,8 @@ out tags geom;`;
         ["yes", "separate"].includes(tags["sidewalk:right"]);
       const sidewalkExplicitlyAbsent = tags.sidewalk === "no" || tags["sidewalk:both"] === "no";
       const parkingAisle = tags.service === "parking_aisle";
+      const driveway = tags.service === "driveway";
+      const restrictedServiceRoad = tags.highway === "service" && ["private", "customers", "destination", "no"].includes(tags.access);
       const parkingArea = tags.amenity === "parking";
       const commercialArea = ["commercial", "retail", "industrial"].includes(tags.landuse) ||
         ["hotel", "motel"].includes(tags.tourism) || Boolean(tags.office) || Boolean(tags.shop);
@@ -344,7 +347,7 @@ out tags geom;`;
       const segments = el.geometry.slice(1).map((p, i) => ({
         a: [el.geometry[i].lon, el.geometry[i].lat], b: [p.lon, p.lat]
       }));
-      return { footway, sidewalkTagged, sidewalkExplicitlyAbsent, parkingAisle, parkingArea, commercialArea, ring, segments };
+      return { footway, sidewalkTagged, sidewalkExplicitlyAbsent, parkingAisle, driveway, restrictedServiceRoad, parkingArea, commercialArea, ring, segments };
     });
   const dedicatedPathSegments = features.flatMap(feature => feature.footway ? feature.segments : []);
   const mappedSidewalkSegments = features.flatMap(feature => feature.sidewalkTagged ? feature.segments : []);
@@ -352,6 +355,7 @@ out tags geom;`;
   const explicitNoSidewalkSegments = features.flatMap(feature =>
     feature.sidewalkExplicitlyAbsent ? feature.segments : []);
   const parkingAisleSegments = features.flatMap(feature => feature.parkingAisle ? feature.segments : []);
+  const drivewaySegments = features.flatMap(feature => feature.driveway || feature.restrictedServiceRoad ? feature.segments : []);
   const parkingAreaRings = features.filter(feature => feature.parkingArea && feature.ring.length >= 4).map(feature => feature.ring);
   const commercialAreaRings = features.filter(feature => feature.commercialArea && feature.ring.length >= 4).map(feature => feature.ring);
   const pointInsideRing = (point, ring) => {
@@ -367,6 +371,7 @@ out tags geom;`;
     const sampleCount = Math.max(12, Math.min(120, Math.ceil(route.distanceMeters / 20)));
     const samples = sampleRoute(route.coordinates, sampleCount);
     const usesParkingAisle = samples.some(point => parkingAisleSegments.some(segment => pointSegmentDistanceMeters(point, segment.a, segment.b) <= 7));
+    const usesDrivewayOrRestrictedService = samples.some(point => drivewaySegments.some(segment => pointSegmentDistanceMeters(point, segment.a, segment.b) <= 6));
     const commercialAreaSamples = samples.filter(point => commercialAreaRings.some(ring => pointInsideRing(point, ring))).length;
     const commercialAreaRatio = samples.length ? commercialAreaSamples / samples.length : 0;
     const entersMappedParkingArea = samples.some(point =>
@@ -451,11 +456,12 @@ out tags geom;`;
       mappedSidewalkCoverage: samples.length ? Math.round(mappedSidewalkSamples / samples.length * 100) : null,
       pedestrianInfrastructurePenalty: infrastructurePenalty,
       usesMappedParkingAisle: usesParkingAisle,
+      usesDrivewayOrRestrictedService,
       entersMappedParkingArea,
       mappedCommercialAreaCoverage: Math.round(commercialAreaRatio * 100),
       safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty + commercialAreaRatio * route.distanceMeters * 1.25
     }};
-  }).filter(route => !route.safety.usesMappedParkingAisle && !route.safety.entersMappedParkingArea);
+  }).filter(route => !route.safety.usesMappedParkingAisle && !route.safety.usesDrivewayOrRestrictedService && !route.safety.entersMappedParkingArea && route.safety.mappedCommercialAreaCoverage <= 8);
 }
 
 function haversineMeters(a, b) {
