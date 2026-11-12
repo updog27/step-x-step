@@ -69,6 +69,35 @@ function coordinatesToLatLngs(coords) {
   return coords.map(([lon, lat]) => [lat, lon]);
 }
 
+function distanceToSegmentMeters(point, start, end) {
+  const latitudeScale = 111320;
+  const longitudeScale = latitudeScale * Math.cos(point[0] * Math.PI / 180);
+  const toLocal = ([lat, lon]) => [(lon - point[1]) * longitudeScale, (lat - point[0]) * latitudeScale];
+  const p = [0, 0], a = toLocal(start), b = toLocal(end);
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared ? Math.max(0, Math.min(1, -(a[0] * dx + a[1] * dy) / lengthSquared)) : 0;
+  return Math.hypot(a[0] + t * dx, a[1] + t * dy);
+}
+
+function updateRouteAdherence(latitude, longitude, accuracy) {
+  const display = $("route-follow-status");
+  if (!display) return;
+  if (!selectedRoute || !Array.isArray(selectedRoute.coordinates) || selectedRoute.coordinates.length < 2) {
+    display.textContent = $("route-type").value === "free" ? "Free run" : "—";
+    return;
+  }
+  let nearest = Infinity;
+  const path = coordinatesToLatLngs(selectedRoute.coordinates);
+  for (let i = 1; i < path.length; i++) {
+    nearest = Math.min(nearest, distanceToSegmentMeters([latitude, longitude], path[i - 1], path[i]));
+  }
+  const uncertainty = Number.isFinite(accuracy) ? accuracy : 35;
+  if (nearest <= Math.max(35, uncertainty * 1.5)) display.textContent = "On route";
+  else if (nearest <= Math.max(75, uncertainty * 2.5)) display.textContent = "Near route";
+  else display.textContent = "Away from route";
+}
+
 function clearRouteLayers() {
   routeLayers.forEach(layer => map.removeLayer(layer));
   routeLayers = [];
@@ -264,6 +293,7 @@ function startWalk() {
     const point = [latitude, longitude];
     if (userMarker) userMarker.setLatLng(point);
     else userMarker = L.marker(point).addTo(map);
+    updateRouteAdherence(latitude, longitude, currentAccuracy);
 
     const timestamp = Number(position.timestamp) || Date.now();
     let acceptedPoint = false;
@@ -343,6 +373,7 @@ function resetWalk(updateStatus = true) {
   $("distance-input").disabled = false;
   $("distance-unit").disabled = false;
   $("route-type").disabled = false;
+  updateRouteAdherence(userMarker ? userMarker.getLatLng().lat : 0, userMarker ? userMarker.getLatLng().lng : 0, 35);
   if (updateStatus) setStatus("Walk reset. Your totals have been cleared.");
 }
 
