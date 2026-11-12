@@ -9,6 +9,7 @@ let previousPosition = null;
 let totalDistanceMiles = 0;
 let goalDistanceMiles = 0;
 let stepCount = 0;
+let sessionInitialized = false;
 let currentUnit = "miles";
 
 const STEPS_PER_MILE = 2300;
@@ -16,6 +17,7 @@ const $ = (id) => document.getElementById(id);
 const statusBox = $("statusBox");
 const startButton = $("start-button");
 const stopButton = $("stop-button");
+const resetButton = $("reset-button");
 const generateButton = $("generate-routes-button");
 const distanceDisplay = $("distance");
 const stepDisplay = $("steps");
@@ -61,6 +63,7 @@ function coordinatesToLatLngs(coords) {
 }
 
 function drawSelectedRoute(route) {
+  if (selectedRoute && selectedRoute.id !== route.id) resetWalk(false);
   selectedRoute = route;
   const latLngs = coordinatesToLatLngs(route.coordinates);
   plannedRouteLine.setLatLngs(latLngs);
@@ -107,6 +110,7 @@ async function generateRoutes() {
   goalDistanceMiles = goalMiles;
   selectedRoute = null;
   routeChoices = [];
+  resetWalk(false);
   startButton.disabled = true;
   generateButton.disabled = true;
   routesPanel.hidden = true;
@@ -179,15 +183,18 @@ function startWalk() {
   if ($("route-type").value !== "free" && !selectedRoute) {
     return setStatus("Find and select a route before starting.");
   }
-  totalDistanceMiles = 0;
-  stepCount = 0;
+  if (!sessionInitialized) {
+    totalDistanceMiles = 0;
+    stepCount = 0;
+    actualRouteLine.setLatLngs([]);
+    sessionInitialized = true;
+    updateProgress();
+  }
   previousPosition = null;
-  actualRouteLine.setLatLngs([]);
-  updateProgress();
   startButton.disabled = true;
   generateButton.disabled = true;
   stopButton.disabled = false;
-  setStatus("Walk started. GPS tracking is active.");
+  setStatus(totalDistanceMiles > 0 ? "Walk resumed. GPS tracking is active." : "Walk started. GPS tracking is active.");
 
   watchId = navigator.geolocation.watchPosition(position => {
     const { latitude, longitude, accuracy } = position.coords;
@@ -231,12 +238,28 @@ function stopWalk(message) {
   startButton.disabled = !selectedRoute && $("route-type").value !== "free";
   generateButton.disabled = false;
   stopButton.disabled = true;
-  setStatus(message || "Walk stopped. Total distance: " + formatDistance(totalDistanceMiles));
+  setStatus(message || "Walk paused. Total distance: " + formatDistance(totalDistanceMiles));
+}
+
+function resetWalk(updateStatus = true) {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  previousPosition = null;
+  totalDistanceMiles = 0;
+  stepCount = 0;
+  sessionInitialized = false;
+  actualRouteLine.setLatLngs([]);
+  updateProgress();
+  startButton.disabled = !selectedRoute && $("route-type").value !== "free";
+  stopButton.disabled = true;
+  generateButton.disabled = false;
+  if (updateStatus) setStatus("Walk reset. Your totals have been cleared.");
 }
 
 generateButton.addEventListener("click", generateRoutes);
 startButton.addEventListener("click", startWalk);
 stopButton.addEventListener("click", () => stopWalk());
+resetButton.addEventListener("click", () => resetWalk());
 
 $("distance-unit").addEventListener("change", () => {
   currentUnit = $("distance-unit").value;
@@ -247,6 +270,7 @@ $("distance-unit").addEventListener("change", () => {
 $("route-type").addEventListener("change", () => {
   selectedRoute = null;
   routeChoices = [];
+  resetWalk(false);
   routeList.innerHTML = "";
   routesPanel.hidden = true;
   plannedRouteLine.setLatLngs([]);
