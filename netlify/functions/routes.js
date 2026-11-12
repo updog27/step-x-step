@@ -602,14 +602,21 @@ exports.handler = async (event) => {
           try {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             const route = await getRoute([start, endpoint], apiKey);
-            if (route.meters <= distance && (!best || route.meters > best.meters)) best = route;
-            const ratio = distance / route.meters;
-            if (route.meters <= distance && distance - route.meters <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
-            endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
-          } catch (error) { providerFailure = error.message || "The routing service could not create this route."; endpointDistance *= .75; }
+            const exactCoordinates = route.meters >= distance
+              ? trimCoordinatesToDistance(route.coordinates, distance)
+              : null;
+            if (exactCoordinates) {
+              best = { ...route, coordinates: exactCoordinates, meters: distance };
+              break;
+            }
+            endpointDistance *= Math.max(1.15, Math.min(2, (distance / route.meters) * 1.15));
+          } catch (error) {
+            providerFailure = error.message || "The routing service could not create this route.";
+            endpointDistance *= 1.5;
+          }
         }
         if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
-        return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
+        return { id: "oneway-" + bearing, type: "oneway", distanceMeters: distance, coordinates: best.coordinates, label: "One-way destination", differenceMeters: 0, differencePercent: 0, safety: best.safety };
       }));
       candidates.push(...candidateResults.filter(Boolean));
       const crossingScreened = await screenMajorRoadCrossings(candidates);
