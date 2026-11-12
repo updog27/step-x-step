@@ -303,7 +303,11 @@ async function generateRoutes() {
       })
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Route generation failed. Please try again.");
+    if (!response.ok) {
+      const routeError = new Error(result.error || "Route generation failed. Please try again.");
+      routeError.routeDiagnostics = result.diagnostics || null;
+      throw routeError;
+    }
     if (!Array.isArray(result.routes) || !result.routes.length) throw new Error("No routes were returned. Try another distance.");
 
     routeChoices = result.routes;
@@ -320,7 +324,23 @@ async function generateRoutes() {
       setStatus("Found 3 distinct route options that passed the available map checks near your starting point. " + targetNote);
     }
   } catch (error) {
-    setStatus(error.message || "Unable to find routes.");
+    const details = error.routeDiagnostics;
+    if (details) {
+      const lines = [
+        error.message || "No route passed all checks.",
+        "Route diagnostics — routed: " + details.routedCandidates +
+          "; exact-distance failures: " + details.rejectedNoExactHalf +
+          "; road/access: " + details.rejectedMajorRoadOrAccess +
+          "; direction: " + details.rejectedDirection +
+          "; major/secondary crossings: " + details.rejectedMajorOrSecondaryCrossing +
+          "; pedestrian/commercial screening: " + details.rejectedPedestrianOrCommercialScreen +
+          "; neighborhood: " + details.rejectedNeighborhood
+      ];
+      if (details.providerError) lines.push("Routing provider: " + details.providerError);
+      setStatus(lines.join(" | "));
+    } else {
+      setStatus(error.message || "Unable to find routes.");
+    }
     $("route-summary").textContent = "No route selected";
   } finally {
     generateButton.disabled = false;
