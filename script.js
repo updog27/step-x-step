@@ -313,11 +313,11 @@ async function generateRoutes() {
     const availableCount = routeChoices.length;
     const targetNote = "All displayed routes are within 0.05 miles of your requested distance.";
     if (availableCount < 3) {
-      setStatus("Found " + availableCount + " safe, distinct route option" + (availableCount === 1 ? "" : "s") +
+      setStatus("Found " + availableCount + " distinct route option that passed the available map checks" + (availableCount === 1 ? "" : "s") +
         " near your starting point. " + targetNote +
-        " We won't add routes that fail the distance or road-safety checks.");
+        " We won't add routes that fail the distance or map-screening checks.");
     } else {
-      setStatus("Found 3 safe, distinct route options near your starting point. " + targetNote);
+      setStatus("Found 3 distinct route option that passed the available map checkss near your starting point. " + targetNote);
     }
   } catch (error) {
     setStatus(error.message || "Unable to find routes.");
