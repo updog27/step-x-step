@@ -568,7 +568,12 @@ exports.handler = async (event) => {
     const start = [lon, lat];
     if (type === "outback") {
       const candidates = [];
-      let providerFailure = null;
+      const diagnostics = {
+        attemptedBearings: 8, providerErrors: [], routedCandidates: 0,
+        rejectedNoExactHalf: 0, rejectedMajorRoadOrAccess: 0,
+        rejectedDirection: 0, rejectedMajorOrSecondaryCrossing: 0,
+        rejectedPedestrianOrCommercialScreen: 0, rejectedNeighborhood: 0
+      };
       // Route each candidate on the pedestrian network, tune the outbound
       // endpoint, and retain only candidates at or below the requested distance.
       // The return retraces that
@@ -597,16 +602,28 @@ exports.handler = async (event) => {
             const ratio = (distance / 2) / outbound.meters;
             endpointDistance *= Math.max(1.15, Math.min(2, ratio * 1.15));
           } catch (error) {
+            diagnostics.providerErrors.push({ bearing, attempt: attempt + 1, message: error.message || "Unknown routing error" });
             if (attempt === 5) return null;
             endpointDistance *= 1.5;
           }
         }
-        if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
+        if (!best) {
+          diagnostics.rejectedNoExactHalf++;
+          return null;
+        }
+        if (best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) {
+          diagnostics.rejectedMajorRoadOrAccess++;
+          return null;
+        }
         const directionMetrics = directionalDetourMetrics(best.coordinates, start, bearing);
         // Reject outbound paths that repeatedly travel against their intended
         // compass direction; this filters avoidable east-west reversals.
         if (directionMetrics.forwardMeters < distance * 0.12 ||
-            directionMetrics.backtrackRatio > 0.48) return null;
+            directionMetrics.backtrackRatio > 0.48) {
+          diagnostics.rejectedDirection++;
+          return null;
+        }
+        diagnostics.routedCandidates++;
         const returnCoordinates = [...best.coordinates].reverse().slice(1);
         const fullCoordinates = [...best.coordinates, ...returnCoordinates];
         const totalMeters = distance;
@@ -620,8 +637,12 @@ exports.handler = async (event) => {
       }));
       candidates.push(...candidateResults.filter(Boolean));
       const crossingScreened = await screenMajorRoadCrossings(candidates);
-      const screenedCandidates = (await scorePedestrianInfrastructure(crossingScreened))
-        .filter(route => withinNeighborhood(route, start, distance))
+      diagnostics.rejectedMajorOrSecondaryCrossing = candidates.length - crossingScreened.length;
+      const infrastructureScreened = await scorePedestrianInfrastructure(crossingScreened);
+      diagnostics.rejectedPedestrianOrCommercialScreen = crossingScreened.length - infrastructureScreened.length;
+      const neighborhoodScreened = infrastructureScreened.filter(route => withinNeighborhood(route, start, distance));
+      diagnostics.rejectedNeighborhood = infrastructureScreened.length - neighborhoodScreened.length;
+      const screenedCandidates = neighborhoodScreened
         .filter(route => route.distanceMeters <= distance && route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
       candidates.length = 0;
       candidates.push(...screenedCandidates);
@@ -632,8 +653,18 @@ exports.handler = async (event) => {
         distinct.push(candidate);
         if (distinct.length === 3) break;
       }
-      if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
-      if (!distinct.length) return json(422, { error: "No out-and-back route was found at or below your requested distance within 0.05 miles. Try another distance or starting point." });
+      if (!distinct.length) {
+        const providerError = diagnostics.providerErrors[0]?.message;
+        return json(422, {
+          error: "No out-and-back route passed all checks at or below your requested distance.",
+          diagnostics: {
+            ...diagnostics,
+            providerError: providerError || null,
+            providerErrorCount: diagnostics.providerErrors.length,
+            providerErrors: diagnostics.providerErrors.slice(0, 8)
+          }
+        });
+      }
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_ROUTE_DISTANCE_ERROR_METERS });
     }
 
