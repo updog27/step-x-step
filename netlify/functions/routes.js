@@ -19,8 +19,7 @@ async function getRoute(coordinates, apiKey) {
     headers: { "Authorization": apiKey, "Content-Type": "application/json", "Accept": "application/geo+json" },
     body: JSON.stringify({
       coordinates, instructions: false, preference: "recommended", units: "m",
-      extra_info: ["waycategory", "waytype", "noise"],
-      options: { avoid_features: ["ferries", "fords", "steps"], profile_params: { weightings: { quiet: { factor: 1.0 } } } }
+      extra_info: ["waycategory", "waytype", "noise", "roadaccessrestrictions"]
     })
   });
   const payload = await response.json().catch(() => ({}));
@@ -34,7 +33,8 @@ async function getRoute(coordinates, apiKey) {
   const summaries = {
     waycategory: extras.waycategory || extras.waycategories,
     waytype: extras.waytype || extras.waytypes,
-    noise: extras.noise
+    noise: extras.noise,
+    access: extras.roadaccessrestrictions
   };
   const totalFor = (extra, predicate) => (extra?.summary || [])
     .filter(item => predicate(item.value))
@@ -43,14 +43,22 @@ async function getRoute(coordinates, apiKey) {
   const stateRoadMeters = totalFor(summaries.waytype, value => Number(value) === 1);
   const secondaryRoadMeters = totalFor(summaries.waytype, value => Number(value) === 2);
   const noisyMeters = totalFor(summaries.noise, value => Number(value) >= 7);
-  // Motorways/highways and primary/state roads are unsuitable for neighborhood
-  // walking routes. Reject them rather than merely ranking them lower.
+  // ORS encodes access restrictions as bit flags: no=1, customers=2,
+  // destination=4, delivery=8, private=16, permissive=32, permit=64.
+  const restrictedMeters = totalFor(summaries.access, value => {
+    const flags = Number(value);
+    return (flags & (1 | 2 | 4 | 8 | 16 | 64)) !== 0;
+  });
+  // Reject motorway links and primary/state-road segments; downgrade secondary
+  // roads and noisy segments. This is a conservative map-data screen, not a
+  // guarantee that every street crossing or access restriction is mapped.
   const unsafeMajorRoad = highwayMeters > 10 || stateRoadMeters > 10;
+  const hasRestrictedAccess = restrictedMeters > 5;
   const safetyPenalty = (highwayMeters * 100) + (stateRoadMeters * 80) +
-    (secondaryRoadMeters * 0.15) + (noisyMeters * 2);
+    (restrictedMeters * 150) + (secondaryRoadMeters * 0.15) + (noisyMeters * 2);
   return { coordinates: coords, meters, safety: {
     highwayMeters, stateRoadMeters, secondaryRoadMeters, noisyMeters,
-    unsafeMajorRoad, safetyPenalty
+    restrictedMeters, unsafeMajorRoad, hasRestrictedAccess, safetyPenalty
   } };
 }
 
@@ -99,7 +107,7 @@ exports.handler = async (event) => {
             endpointDistance *= 0.75;
           }
         }
-        if (!best || best.safety.unsafeMajorRoad) return null;
+        if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
         const returnCoordinates = [...best.coordinates].reverse().slice(1);
         const fullCoordinates = [...best.coordinates, ...returnCoordinates];
         const totalMeters = best.meters * 2;
@@ -144,7 +152,7 @@ exports.handler = async (event) => {
             endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
           } catch (error) { providerFailure = error.message || "The routing service could not create this route."; endpointDistance *= .75; }
         }
-        if (!best || best.safety.unsafeMajorRoad) return null;
+        if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
         return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
       }));
       candidates.push(...candidateResults.filter(Boolean));
@@ -183,7 +191,7 @@ exports.handler = async (event) => {
           radius *= Math.max(0.65, Math.min(1.45, ratio));
         } catch (error) { providerFailure = error.message || "The routing service could not create this route."; radius *= 0.8; }
       }
-      if (!best || best.safety.unsafeMajorRoad) return null;
+      if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
       return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
     }));
     candidates.push(...candidateResults.filter(Boolean));
