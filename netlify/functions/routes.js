@@ -53,9 +53,8 @@ exports.handler = async (event) => {
       // Route each candidate on the pedestrian network, then tune the outbound
       // endpoint against the actual routed distance. The return retraces that
       // same network path, making the turn-around the true route midpoint.
-      const bearings = [0, 60, 120, 180, 240, 300];
-      const candidates = [];
-      for (const bearing of bearings) {
+      const bearings = [0, 120, 240];
+      const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 2 / 1.25;
         let best = null;
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -72,18 +71,19 @@ exports.handler = async (event) => {
             endpointDistance *= 0.75;
           }
         }
-        if (!best) continue;
+        if (!best) return null;
         const returnCoordinates = [...best.coordinates].reverse().slice(1);
         const fullCoordinates = [...best.coordinates, ...returnCoordinates];
         const totalMeters = best.meters * 2;
-        candidates.push({
+        return {
           id: "outback-" + bearing, type: "outback", distanceMeters: totalMeters,
           outboundDistanceMeters: best.meters, coordinates: fullCoordinates,
           turnaround: best.coordinates[best.coordinates.length - 1],
           label: "Out-and-back", differenceMeters: Math.abs(totalMeters - distance),
           differencePercent: Math.round(Math.abs(totalMeters - distance) / distance * 100)
-        });
-      }
+        };
+      }));
+      candidates.push(...candidateResults.filter(Boolean));
       candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
       const distinct = [];
       const signatures = [];
@@ -99,8 +99,8 @@ exports.handler = async (event) => {
     }
 
     if (type === "oneway") {
-      const bearings = [0, 60, 120, 180, 240, 300], candidates = [];
-      for (const bearing of bearings) {
+      const bearings = [0, 120, 240];
+      const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 1.25, best = null;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
@@ -112,8 +112,10 @@ exports.handler = async (event) => {
             endpointDistance *= Math.max(.55, Math.min(1.65, ratio));
           } catch (error) { endpointDistance *= .75; }
         }
-        if (best) candidates.push({ id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100) });
-      }
+        if (!best) return null;
+        return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100) };
+      }));
+      candidates.push(...candidateResults.filter(Boolean));
       candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
       if (!candidates.length) return json(422, { error: "No walkable one-way destinations could be found. Try another distance or starting point." });
       return json(200, { routes: candidates.slice(0, 3), targetDistanceMeters: distance, toleranceMeters: MAX_OUTBACK_ERROR_METERS });
@@ -122,15 +124,13 @@ exports.handler = async (event) => {
     // Tune three loop orientations against the routed pedestrian-network
     // distance. The first route is not assumed to match the requested distance.
     const candidates = [];
-    const bearings = [0, 60, 120];
-    for (const bearing of bearings) {
+    const bearings = [0, 120, 240];
+    const candidateResults = await Promise.all(bearings.map(async bearing => {
       let radius = distance / 5.2;
       let best = null;
       for (let attempt = 0; attempt < 3; attempt++) {
         const points = [start];
-        for (let i = 0; i < 3; i++) {
-          points.push(destinationPoint(lat, lon, radius, bearing + i * 120));
-        }
+        for (let i = 0; i < 3; i++) points.push(destinationPoint(lat, lon, radius, bearing + i * 120));
         points.push(start);
         try {
           const route = await getRoute(points, apiKey);
@@ -138,17 +138,12 @@ exports.handler = async (event) => {
           const ratio = distance / route.meters;
           if (Math.abs(route.meters - distance) <= MAX_OUTBACK_ERROR_METERS) break;
           radius *= Math.max(0.65, Math.min(1.45, ratio));
-        } catch (error) {
-          radius *= 0.8;
-        }
+        } catch (error) { radius *= 0.8; }
       }
-      if (best) candidates.push({
-        id: "loop-" + bearing, type: "loop", distanceMeters: best.meters,
-        coordinates: best.coordinates, label: "Loop",
-        differenceMeters: Math.abs(best.meters - distance),
-        differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100)
-      });
-    }
+      if (!best) return null;
+      return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100) };
+    }));
+    candidates.push(...candidateResults.filter(Boolean));
     candidates.sort((a, b) => a.differenceMeters - b.differenceMeters);
     const distinctLoops = [];
     const loopSignatures = [];
