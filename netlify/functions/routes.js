@@ -1,4 +1,4 @@
-const ORS_URL = "https://api.openrouteservice.org/v2/directions/foot-walking/geojson";
+const ORS_URL = "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson";
 const MAX_ROUTE_DISTANCE_ERROR_METERS = 80.5; // 0.05 miles
 
 function json(statusCode, body) {
