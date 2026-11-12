@@ -62,6 +62,51 @@ async function getRoute(coordinates, apiKey) {
   } };
 }
 
+function orientation(a, b, c) {
+  return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+}
+function segmentsIntersect(a, b, c, d) {
+  const o1 = orientation(a, b, c), o2 = orientation(a, b, d);
+  const o3 = orientation(c, d, a), o4 = orientation(c, d, b);
+  return ((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) &&
+         ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0));
+}
+async function screenMajorRoadCrossings(candidates) {
+  if (!candidates.length) return candidates;
+  const points = candidates.flatMap(route => route.coordinates || []);
+  const lats = points.map(p => p[1]), lons = points.map(p => p[0]);
+  const pad = 0.0015;
+  const south = Math.min(...lats) - pad, west = Math.min(...lons) - pad;
+  const north = Math.max(...lats) + pad, east = Math.max(...lons) + pad;
+  const query = `[out:json][timeout:8];way["highway"~"^(motorway|trunk|primary)$"]["bridge"!="yes"]["tunnel"!="yes"](${south},${west},${north},${east});out geom;`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 9000);
+  let data;
+  try {
+    const response = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "data=" + encodeURIComponent(query), signal: controller.signal
+    });
+    if (!response.ok) throw new Error("Major-road crossing data is temporarily unavailable.");
+    data = await response.json();
+  } finally { clearTimeout(timeout); }
+  const roads = (data.elements || []).filter(el => el.type === "way" && Array.isArray(el.geometry))
+    .map(el => el.geometry.map(p => [p.lon, p.lat]));
+  return candidates.map(route => {
+    let crossings = 0;
+    const path = route.coordinates || [];
+    for (let i = 1; i < path.length; i++) {
+      for (const road of roads) {
+        for (let j = 1; j < road.length; j++) {
+          if (segmentsIntersect(path[i - 1], path[i], road[j - 1], road[j])) crossings++;
+        }
+      }
+    }
+    return { ...route, safety: { ...route.safety, majorRoadCrossings: crossings,
+      crossingCheck: "completed", safetyPenalty: route.safety.safetyPenalty + crossings * 100000 } };
+  }).filter(route => route.safety.majorRoadCrossings === 0);
+}
+
 function routeSignature(coords) {
   return coords.filter((_, i) => i % Math.max(1, Math.floor(coords.length / 12)) === 0)
     .map(([x, y]) => x.toFixed(4) + "," + y.toFixed(4)).join("|");
@@ -121,6 +166,9 @@ exports.handler = async (event) => {
         };
       }));
       candidates.push(...candidateResults.filter(Boolean));
+      const screenedCandidates = await screenMajorRoadCrossings(candidates);
+      candidates.length = 0;
+      candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
       const distinct = [];
       const signatures = [];
@@ -156,6 +204,9 @@ exports.handler = async (event) => {
         return { id: "oneway-" + bearing, type: "oneway", distanceMeters: best.meters, coordinates: best.coordinates, label: "One-way destination", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
       }));
       candidates.push(...candidateResults.filter(Boolean));
+      const screenedCandidates = await screenMajorRoadCrossings(candidates);
+      candidates.length = 0;
+      candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
       const distinct = [];
       const signatures = [];
@@ -195,7 +246,10 @@ exports.handler = async (event) => {
       return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
     }));
     candidates.push(...candidateResults.filter(Boolean));
-    candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
+    const screenedCandidates = await screenMajorRoadCrossings(candidates);
+      candidates.length = 0;
+      candidates.push(...screenedCandidates);
+      candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
     const distinctLoops = [];
     const loopSignatures = [];
     for (const candidate of candidates) {
