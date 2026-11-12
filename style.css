@@ -35,3 +35,12 @@ button.secondary { background: #fff; color: #1769d2; }
 .route-card.selected { outline: 2px solid var(--route-color, #1769d2); background: #f4f8ff; box-shadow: 0 2px 9px rgba(20,40,60,.10); }
 
 @media (max-width: 600px) { body { padding: 10px; } .controls, .stats, .routes-panel, .map-section { padding: 13px; } input { width: 100%; } select { width: 100%; } .stats strong { font-size: 19px; } .route-card { align-items: flex-start; } }
+
+
+.route-card-info { min-width: 0; }
+.route-card .route-quality { color: #465767; line-height: 1.4; overflow-wrap: anywhere; }
+.stats { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 600px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+}
