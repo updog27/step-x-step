@@ -143,6 +143,51 @@ function routeCrossesRoadVertex(path, roadSegments) {
   }
   return false;
 }
+// Public Overpass instances are shared infrastructure and can be temporarily
+// overloaded. Try independent mirrors in sequence, but never skip the map check.
+async function fetchOverpass(query, purpose, timeoutMs) {
+  const endpoints = [
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass-api.de/api/interpreter"
+  ];
+  const failures = [];
+  for (const endpoint of endpoints) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "data=" + encodeURIComponent(query),
+        signal: controller.signal
+      });
+      if (!response.ok) {
+        failures.push(new Error("HTTP " + response.status + " from " + new URL(endpoint).hostname));
+        continue;
+      }
+      const data = await response.json();
+      if (typeof data?.remark === "string" && data.remark.trim()) {
+        failures.push(new Error("Incomplete map response from " + new URL(endpoint).hostname));
+        continue;
+      }
+      if (!Array.isArray(data?.elements)) {
+        failures.push(new Error("Invalid map response from " + new URL(endpoint).hostname));
+        continue;
+      }
+      return data;
+    } catch (error) {
+      failures.push(error.name === "AbortError"
+        ? new Error("Timeout from " + new URL(endpoint).hostname)
+        : new Error((error.message || "Request failed") + " (" + new URL(endpoint).hostname + ")"));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw new Error(purpose + " could not be verified. All map-data providers were unavailable: " +
+    failures.map(error => error.message).join("; "));
+}
+
 async function screenMajorRoadCrossings(candidates) {
   if (!candidates.length) return candidates;
   // Accumulate bounds without spreading large coordinate arrays into Math.min/max.
@@ -163,23 +208,8 @@ async function screenMajorRoadCrossings(candidates) {
   const pad = 0.0015;
   south -= pad; west -= pad; north += pad; east += pad;
   const query = `[out:json][timeout:8];way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"][!"bridge"][!"tunnel"](${south},${west},${north},${east});out geom;`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
-  let data;
-  try {
-    const response = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "data=" + encodeURIComponent(query), signal: controller.signal
-    });
-    if (!response.ok) throw new Error("Major-road crossing data is temporarily unavailable.");
-    data = await response.json();
-  } catch (error) {
-    throw new Error("Could not verify nearby road crossings. Please try again. " + (error.name === "AbortError" ? "The map service timed out." : error.message));
-  } finally { clearTimeout(timeout); }
-  if (typeof data?.remark === "string" && data.remark.trim()) {
-    throw new Error("The road map service returned an incomplete result. Please try again.");
-  }
-  if (!Array.isArray(data?.elements) || data.elements.length === 0) {
+  const data = await fetchOverpass(query, "Nearby road crossings", 10000);
+  if (data.elements.length === 0) {
     throw new Error("Could not verify nearby road crossings because map data was incomplete. Please try again.");
   }
   const roads = data.elements.filter(el => el.type === "way" && Array.isArray(el.geometry))
@@ -268,24 +298,7 @@ async function scorePedestrianInfrastructure(candidates) {
  way["highway"]["sidewalk:right"~"^(yes|separate)$"](${south},${west},${north},${east});
 );
 out tags geom;`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 11000);
-  let data;
-  try {
-    const response = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "data=" + encodeURIComponent(query), signal: controller.signal
-    });
-    if (!response.ok) throw new Error("Pedestrian infrastructure map data is temporarily unavailable.");
-    data = await response.json();
-  } catch (error) {
-    throw new Error("Could not verify pedestrian infrastructure. Please try again. " +
-      (error.name === "AbortError" ? "The map service timed out." : error.message));
-  } finally { clearTimeout(timeout); }
-  if (typeof data?.remark === "string" && data.remark.trim()) {
-    throw new Error("The pedestrian infrastructure map returned an incomplete result. Please try again.");
-  }
-  if (!Array.isArray(data?.elements)) throw new Error("Pedestrian infrastructure map data was incomplete. Please try again.");
+  const data = await fetchOverpass(query, "Pedestrian infrastructure", 12000);
 
   const features = data.elements.filter(el => el.type === "way" && Array.isArray(el.geometry) && el.geometry.length > 1)
     .map(el => {
