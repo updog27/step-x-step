@@ -662,16 +662,12 @@ exports.handler = async (event) => {
         dedicatedPathCoveragePercent: route.safety.dedicatedPathCoverage,
         mappedSidewalkCoveragePercent: route.safety.mappedSidewalkCoverage
       }));
-      const infrastructureScreened = infrastructureScored.filter(route => {
-        const hasStrongPedestrianEvidence =
-          route.safety.pedestrianInfrastructure === "strong-mapped-support" &&
-          Number(route.safety.pedestrianInfrastructureCoverage) >= 75 &&
-          Number(route.safety.longestMappedInfrastructureGapMeters) < 60;
-        return !route.safety.usesMappedParkingAisle &&
-          !route.safety.usesDrivewayOrRestrictedService &&
-          !route.safety.entersMappedParkingArea &&
-          (route.safety.mappedCommercialAreaCoverage <= 8 || hasStrongPedestrianEvidence);
-      });
+      const infrastructureScreened = infrastructureScored.filter(route =>
+        !route.safety.usesMappedParkingAisle &&
+        !route.safety.usesDrivewayOrRestrictedService &&
+        !route.safety.entersMappedParkingArea &&
+        route.safety.mappedCommercialAreaCoverage <= 8
+      );
       diagnostics.rejectedPedestrianOrCommercialScreen = infrastructureScored.length - infrastructureScreened.length;
       const neighborhoodScreened = infrastructureScreened.filter(route => withinNeighborhood(route, start, distance));
       diagnostics.rejectedNeighborhood = infrastructureScreened.length - neighborhoodScreened.length;
