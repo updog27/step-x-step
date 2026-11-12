@@ -466,6 +466,25 @@ function haversineMeters(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+
+function directionalDetourMetrics(coords, origin, bearingDegrees) {
+  const rad = value => value * Math.PI / 180;
+  const cosLat = Math.cos(rad(origin[1]));
+  const projected = coords.map(point => {
+    const north = (point[1] - origin[1]) * 111320;
+    const east = (point[0] - origin[0]) * 111320 * cosLat;
+    return east * Math.sin(rad(bearingDegrees)) + north * Math.cos(rad(bearingDegrees));
+  });
+  let forward = 0, backward = 0;
+  for (let i = 1; i < projected.length; i++) {
+    const delta = projected[i] - projected[i - 1];
+    if (delta > 0) forward += delta;
+    else backward += Math.abs(delta);
+  }
+  return { forwardMeters: forward, backwardMeters: backward,
+    backtrackRatio: forward > 0 ? backward / forward : 1 };
+}
+
 function withinNeighborhood(route, start, targetMeters) {
   // Keep return-to-start routes in a compact local area. One-way routes get
   // a larger radius because their destination is intentionally away from start.
@@ -576,6 +595,11 @@ exports.handler = async (event) => {
           }
         }
         if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
+        const directionMetrics = directionalDetourMetrics(best.coordinates, start, bearing);
+        // Reject outbound paths that repeatedly travel against their intended
+        // compass direction; this filters avoidable east-west reversals.
+        if (directionMetrics.forwardMeters < distance * 0.12 ||
+            directionMetrics.backtrackRatio > 0.48) return null;
         const returnCoordinates = [...best.coordinates].reverse().slice(1);
         const fullCoordinates = [...best.coordinates, ...returnCoordinates];
         const totalMeters = distance;
@@ -584,7 +608,7 @@ exports.handler = async (event) => {
           outboundDistanceMeters: best.meters, coordinates: fullCoordinates,
           turnaround: best.coordinates[best.coordinates.length - 1],
           label: "Out-and-back", differenceMeters: 0, differencePercent: 0,
-          safety: best.safety
+          safety: { ...best.safety, directionMetrics }
         };
       }));
       candidates.push(...candidateResults.filter(Boolean));
