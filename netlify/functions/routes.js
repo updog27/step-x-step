@@ -143,49 +143,51 @@ function routeCrossesRoadVertex(path, roadSegments) {
   }
   return false;
 }
-// Public Overpass instances are shared infrastructure and can be temporarily
-// overloaded. Try independent mirrors in sequence, but never skip the map check.
+// Use the dedicated overpass.ch service for predictable, per-account
+// capacity. The API key is read only on the server and is never returned.
 async function fetchOverpass(query, purpose, timeoutMs) {
-  const endpoints = [
-    "https://overpass.private.coffee/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass-api.de/api/interpreter"
-  ];
-  const failures = [];
-  for (const endpoint of endpoints) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "data=" + encodeURIComponent(query),
-        signal: controller.signal
-      });
-      if (!response.ok) {
-        failures.push(new Error("HTTP " + response.status + " from " + new URL(endpoint).hostname));
-        continue;
-      }
-      const data = await response.json();
-      if (typeof data?.remark === "string" && data.remark.trim()) {
-        failures.push(new Error("Incomplete map response from " + new URL(endpoint).hostname));
-        continue;
-      }
-      if (!Array.isArray(data?.elements)) {
-        failures.push(new Error("Invalid map response from " + new URL(endpoint).hostname));
-        continue;
-      }
-      return data;
-    } catch (error) {
-      failures.push(error.name === "AbortError"
-        ? new Error("Timeout from " + new URL(endpoint).hostname)
-        : new Error((error.message || "Request failed") + " (" + new URL(endpoint).hostname + ")"));
-    } finally {
-      clearTimeout(timeout);
-    }
+  const apiKey = process.env.OVERPASS_CH_API_KEY;
+  if (!apiKey) {
+    throw new Error("Map-data service is not configured. Add OVERPASS_CH_API_KEY to the Netlify environment for this deploy preview.");
   }
-  throw new Error(purpose + " could not be verified. All map-data providers were unavailable: " +
-    failures.map(error => error.message).join("; "));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch("https://api.overpass.ch/v1/interpreter", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-API-Key": apiKey
+      },
+      body: "data=" + encodeURIComponent(query),
+      signal: controller.signal
+    });
+    const responseText = await response.text();
+    let data;
+    try { data = JSON.parse(responseText); }
+    catch {
+      throw new Error("The dedicated map-data service returned an unreadable response (HTTP " + response.status + ").");
+    }
+    if (!response.ok) {
+      const detail = data.error || data.message || data.status || ("HTTP " + response.status);
+      throw new Error("The dedicated map-data service rejected the request: " +
+        (typeof detail === "string" ? detail : JSON.stringify(detail)));
+    }
+    if (typeof data?.remark === "string" && data.remark.trim()) {
+      throw new Error("The dedicated map-data service returned incomplete map data: " + data.remark);
+    }
+    if (!Array.isArray(data?.elements)) {
+      throw new Error("The dedicated map-data service returned an invalid map-data response.");
+    }
+    return data;
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(purpose + " could not be verified because the dedicated map-data service timed out.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function screenMajorRoadCrossings(candidates) {
