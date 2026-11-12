@@ -97,9 +97,15 @@ async function screenMajorRoadCrossings(candidates) {
     });
     if (!response.ok) throw new Error("Major-road crossing data is temporarily unavailable.");
     data = await response.json();
+  } catch (error) {
+    throw new Error("Could not verify nearby road crossings. Please try again. " + (error.name === "AbortError" ? "The map service timed out." : error.message));
   } finally { clearTimeout(timeout); }
-  const roads = (data.elements || []).filter(el => el.type === "way" && Array.isArray(el.geometry))
+  if (!Array.isArray(data?.elements) || data.elements.length === 0) {
+    throw new Error("Could not verify nearby road crossings because map data was incomplete. Please try again.");
+  }
+  const roads = data.elements.filter(el => el.type === "way" && Array.isArray(el.geometry))
     .map(el => ({ highway: el.tags?.highway, geometry: el.geometry.map(p => [p.lon, p.lat]) }));
+  if (!roads.length) throw new Error("Could not verify nearby road crossings because no road geometry was returned.");
   return candidates.map(route => {
     let majorCrossings = 0, secondaryCrossings = 0, tertiaryCrossings = 0;
     const path = route.coordinates || [];
