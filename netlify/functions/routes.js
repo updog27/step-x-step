@@ -332,11 +332,36 @@ out tags geom;`;
     .map(el => {
       const tags = el.tags || {};
       const footway = ["footway", "path", "pedestrian", "steps"].includes(tags.highway);
-      const sidewalkTagged = ["yes", "both", "left", "right", "separate"].includes(tags.sidewalk) ||
-        ["yes", "separate"].includes(tags["sidewalk:both"]) ||
-        ["yes", "separate"].includes(tags["sidewalk:left"]) ||
-        ["yes", "separate"].includes(tags["sidewalk:right"]);
-      const sidewalkExplicitlyAbsent = tags.sidewalk === "no" || tags["sidewalk:both"] === "no";
+      // A sidewalk tag belongs to a side of the carriageway, not to its
+      // centerline. Convert side-specific tags into approximate parallel
+      // sidewalk geometry so a route on the opposite side cannot claim support.
+      const sideOffsetSegments = [];
+      const wayGeometry = el.geometry.map(p => [p.lon, p.lat]);
+      const sidewalkBoth = tags["sidewalk:both"] === "yes" ||
+        tags.sidewalk === "yes" || tags.sidewalk === "both";
+      const sidewalkLeft = sidewalkBoth || tags.sidewalk === "left" || tags["sidewalk:left"] === "yes";
+      const sidewalkRight = sidewalkBoth || tags.sidewalk === "right" || tags["sidewalk:right"] === "yes";
+      const sidewalkExplicitlyAbsent = tags.sidewalk === "no" ||
+        tags["sidewalk:both"] === "no" ||
+        (tags["sidewalk:left"] === "no" && tags["sidewalk:right"] === "no");
+      const addOffset = (a, b, side) => {
+        const lat = (a[1] + b[1]) / 2;
+        const east = (b[0] - a[0]) * 111320 * Math.cos(lat * Math.PI / 180);
+        const north = (b[1] - a[1]) * 111320;
+        const length = Math.hypot(east, north);
+        if (!length) return;
+        const offset = 4.5 * side;
+        const dx = (-north / length) * offset;
+        const dy = (east / length) * offset;
+        const lonScale = 111320 * Math.cos(lat * Math.PI / 180);
+        const aOffset = [a[0] + dx / lonScale, a[1] + dy / 111320];
+        const bOffset = [b[0] + dx / lonScale, b[1] + dy / 111320];
+        sideOffsetSegments.push({ a: aOffset, b: bOffset });
+      };
+      for (let i = 1; i < wayGeometry.length; i++) {
+        if (sidewalkLeft) addOffset(wayGeometry[i - 1], wayGeometry[i], 1);
+        if (sidewalkRight) addOffset(wayGeometry[i - 1], wayGeometry[i], -1);
+      }
       const parkingAisle = tags.service === "parking_aisle";
       const driveway = tags.service === "driveway";
       const restrictedServiceRoad = tags.highway === "service" && ["private", "customers", "destination", "no"].includes(tags.access);
@@ -347,10 +372,10 @@ out tags geom;`;
       const segments = el.geometry.slice(1).map((p, i) => ({
         a: [el.geometry[i].lon, el.geometry[i].lat], b: [p.lon, p.lat]
       }));
-      return { footway, sidewalkTagged, sidewalkExplicitlyAbsent, parkingAisle, driveway, restrictedServiceRoad, parkingArea, commercialArea, ring, segments };
+      return { footway, sideOffsetSegments, sidewalkExplicitlyAbsent, parkingAisle, driveway, restrictedServiceRoad, parkingArea, commercialArea, ring, segments };
     });
   const dedicatedPathSegments = features.flatMap(feature => feature.footway ? feature.segments : []);
-  const mappedSidewalkSegments = features.flatMap(feature => feature.sidewalkTagged ? feature.segments : []);
+  const mappedSidewalkSegments = features.flatMap(feature => feature.sideOffsetSegments || []);
   const infrastructureSegments = [...dedicatedPathSegments, ...mappedSidewalkSegments];
   const explicitNoSidewalkSegments = features.flatMap(feature =>
     feature.sidewalkExplicitlyAbsent ? feature.segments : []);
@@ -380,7 +405,7 @@ out tags geom;`;
         ...dedicatedPathSegments.map(segment => pointSegmentDistanceMeters(point, segment.a, segment.b)),
         ...mappedSidewalkSegments.map(segment => pointSegmentDistanceMeters(point, segment.a, segment.b)),
         Infinity
-      ) > 18
+      ) > 6
     );
     const cumulative = [0];
     for (let i = 1; i < route.coordinates.length; i++) {
@@ -401,15 +426,15 @@ out tags geom;`;
         for (const segment of segments) {
           if (Math.abs(segment.a[1] - point[1]) > 0.00025 && Math.abs(segment.b[1] - point[1]) > 0.00025) continue;
           nearest = Math.min(nearest, pointSegmentDistanceMeters(point, segment.a, segment.b));
-          if (nearest <= 18) break;
+          if (nearest <= 6) break;
         }
         return nearest;
       };
       const nearestPath = nearestTo(dedicatedPathSegments);
       const nearestSidewalk = nearestTo(mappedSidewalkSegments);
       const nearest = Math.min(nearestPath, nearestSidewalk);
-      if (nearestPath <= 18) dedicatedPathSamples++;
-      else if (nearestSidewalk <= 18) mappedSidewalkSamples++;
+      if (nearestPath <= 6) dedicatedPathSamples++;
+      else if (nearestSidewalk <= 6) mappedSidewalkSamples++;
       let explicitNoSidewalk = false;
       let nearestRoadWithoutSidewalk = Infinity;
       for (const segment of explicitNoSidewalkSegments) {
@@ -418,7 +443,7 @@ out tags geom;`;
         if (nearestRoadWithoutSidewalk <= 12) break;
       }
       explicitNoSidewalk = nearestRoadWithoutSidewalk <= 12;
-      if (nearest <= 18) {
+      if (nearest <= 6) {
         supported++;
         currentGap = 0;
       } else {
