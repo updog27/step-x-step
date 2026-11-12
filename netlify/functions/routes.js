@@ -523,7 +523,7 @@ exports.handler = async (event) => {
         if (distinct.length === 3) break;
       }
       if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
-      if (!distinct.length) return json(422, { error: "No safe out-and-back route within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
+      if (!distinct.length) return json(422, { error: "No out-and-back route passed the available map checks within 0.05 miles of your requested distance. Try another distance or starting point." });
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_ROUTE_DISTANCE_ERROR_METERS });
     }
 
@@ -561,7 +561,7 @@ exports.handler = async (event) => {
         if (distinct.length === 3) break;
       }
       if (!distinct.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
-      if (!distinct.length) return json(422, { error: "No safe one-way route within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
+      if (!distinct.length) return json(422, { error: "No one-way route passed the available map checks within 0.05 miles of your requested distance. Try another distance or starting point." });
       return json(200, { routes: distinct, targetDistanceMeters: distance, toleranceMeters: MAX_ROUTE_DISTANCE_ERROR_METERS });
     }
 
@@ -603,7 +603,7 @@ exports.handler = async (event) => {
       if (distinctLoops.length === 3) break;
     }
     if (!distinctLoops.length && providerFailure) return json(502, { error: "The routing service could not generate routes: " + providerFailure });
-    if (!distinctLoops.length) return json(422, { error: "No safe loop within 0.05 miles of your requested distance could be found here. Try another distance or starting point." });
+    if (!distinctLoops.length) return json(422, { error: "No loop passed the available map checks within 0.05 miles of your requested distance. Try another distance or starting point." });
     return json(200, { routes: distinctLoops, targetDistanceMeters: distance, toleranceMeters: MAX_ROUTE_DISTANCE_ERROR_METERS });
   } catch (error) {
     return json(502, { error: error.message || "The routing service is temporarily unavailable." });
