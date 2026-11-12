@@ -461,7 +461,7 @@ out tags geom;`;
       mappedCommercialAreaCoverage: Math.round(commercialAreaRatio * 100),
       safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty + commercialAreaRatio * route.distanceMeters * 1.25
     }};
-  }).filter(route => !route.safety.usesMappedParkingAisle && !route.safety.usesDrivewayOrRestrictedService && !route.safety.entersMappedParkingArea && route.safety.mappedCommercialAreaCoverage <= 8);
+  });
 }
 
 function haversineMeters(a, b) {
@@ -638,8 +638,22 @@ exports.handler = async (event) => {
       candidates.push(...candidateResults.filter(Boolean));
       const crossingScreened = await screenMajorRoadCrossings(candidates);
       diagnostics.rejectedMajorOrSecondaryCrossing = candidates.length - crossingScreened.length;
-      const infrastructureScreened = await scorePedestrianInfrastructure(crossingScreened);
-      diagnostics.rejectedPedestrianOrCommercialScreen = crossingScreened.length - infrastructureScreened.length;
+      const infrastructureScored = await scorePedestrianInfrastructure(crossingScreened);
+      diagnostics.pedestrianCommercialRejections = {
+        parkingAisle: infrastructureScored.filter(route => route.safety.usesMappedParkingAisle).length,
+        drivewayOrRestrictedService: infrastructureScored.filter(route => route.safety.usesDrivewayOrRestrictedService).length,
+        mappedParkingArea: infrastructureScored.filter(route => route.safety.entersMappedParkingArea).length,
+        commercialAreaOver8Percent: infrastructureScored.filter(route => route.safety.mappedCommercialAreaCoverage > 8).length,
+        pedestrianInfrastructureUnknown: infrastructureScored.filter(route => route.safety.pedestrianInfrastructure === "unknown").length,
+        limitedMappedInfrastructure: infrastructureScored.filter(route => route.safety.pedestrianInfrastructure === "limited-mapped-support").length
+      };
+      const infrastructureScreened = infrastructureScored.filter(route =>
+        !route.safety.usesMappedParkingAisle &&
+        !route.safety.usesDrivewayOrRestrictedService &&
+        !route.safety.entersMappedParkingArea &&
+        route.safety.mappedCommercialAreaCoverage <= 8
+      );
+      diagnostics.rejectedPedestrianOrCommercialScreen = infrastructureScored.length - infrastructureScreened.length;
       const neighborhoodScreened = infrastructureScreened.filter(route => withinNeighborhood(route, start, distance));
       diagnostics.rejectedNeighborhood = infrastructureScreened.length - neighborhoodScreened.length;
       const screenedCandidates = neighborhoodScreened
