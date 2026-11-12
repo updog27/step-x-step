@@ -645,17 +645,22 @@ exports.handler = async (event) => {
     const candidateResults = await Promise.all(bearings.map(async bearing => {
       let radius = distance / 5.2;
       let best = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 5; attempt++) {
         const points = [start];
         for (let i = 0; i < 3; i++) points.push(destinationPoint(lat, lon, radius, bearing + i * 120));
         points.push(start);
         try {
           const route = await getRoute(points, apiKey);
+          // A loop must remain a closed, routable path. Do not geometrically
+          // truncate it, because that would leave the user away from the start.
           if (route.meters <= distance && (!best || route.meters > best.meters)) best = route;
           const ratio = distance / route.meters;
-          if (Math.abs(route.meters - distance) <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
-          radius *= Math.max(0.65, Math.min(1.45, ratio));
-        } catch (error) { providerFailure = error.message || "The routing service could not create this route."; radius *= 0.8; }
+          if (route.meters <= distance && distance - route.meters <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
+          radius *= Math.max(0.6, Math.min(1.5, ratio));
+        } catch (error) {
+          providerFailure = error.message || "The routing service could not create this route.";
+          radius *= 0.8;
+        }
       }
       if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
       return { id: "loop-" + bearing, type: "loop", distanceMeters: best.meters, coordinates: best.coordinates, label: "Loop", differenceMeters: Math.abs(best.meters - distance), differencePercent: Math.round(Math.abs(best.meters - distance) / distance * 100), safety: best.safety };
