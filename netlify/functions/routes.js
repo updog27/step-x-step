@@ -349,7 +349,8 @@ exports.handler = async (event) => {
     }));
     candidates.push(...candidateResults.filter(Boolean));
     const screenedCandidates = (await screenMajorRoadCrossings(candidates))
-        .filter(route => withinNeighborhood(route, start, distance));
+        .filter(route => withinNeighborhood(route, start, distance))
+        .filter(route => route.differenceMeters <= MAX_ROUTE_DISTANCE_ERROR_METERS);
       candidates.length = 0;
       candidates.push(...screenedCandidates);
       candidates.sort((a, b) => a.safety.safetyPenalty - b.safety.safetyPenalty || a.differenceMeters - b.differenceMeters);
