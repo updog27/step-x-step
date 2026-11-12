@@ -235,13 +235,32 @@ function withinNeighborhood(route, start, targetMeters) {
   return farthest <= limit;
 }
 
-function sampleRoute(coords, maxSamples = 24) {
+function sampleRoute(coords, maxSamples = 32) {
   if (!Array.isArray(coords) || coords.length < 2) return [];
-  const stride = Math.max(1, Math.floor((coords.length - 1) / (maxSamples - 1)));
-  const sampled = coords.filter((_, index) => index % stride === 0);
-  const last = coords[coords.length - 1];
-  if (sampled[sampled.length - 1] !== last) sampled.push(last);
-  return sampled;
+  // Sample by traveled distance rather than vertex index. Routing providers
+  // may emit dense geometry on curves and sparse geometry on straightaways;
+  // index sampling can otherwise bias the route-similarity comparison.
+  const cumulative = [0];
+  for (let i = 1; i < coords.length; i++) {
+    cumulative.push(cumulative[i - 1] + haversineMeters(coords[i - 1], coords[i]));
+  }
+  const total = cumulative[cumulative.length - 1];
+  if (!Number.isFinite(total) || total <= 0) return [coords[0], coords[coords.length - 1]];
+  const samples = [];
+  let segmentIndex = 1;
+  for (let sampleIndex = 0; sampleIndex < maxSamples; sampleIndex++) {
+    const target = total * sampleIndex / (maxSamples - 1);
+    while (segmentIndex < cumulative.length - 1 && cumulative[segmentIndex] < target) segmentIndex++;
+    const startDistance = cumulative[segmentIndex - 1];
+    const segmentLength = cumulative[segmentIndex] - startDistance;
+    const ratio = segmentLength > 0 ? (target - startDistance) / segmentLength : 0;
+    const a = coords[segmentIndex - 1], b = coords[segmentIndex];
+    samples.push([
+      a[0] + (b[0] - a[0]) * ratio,
+      a[1] + (b[1] - a[1]) * ratio
+    ]);
+  }
+  return samples;
 }
 
 function routesAreNearDuplicates(routeA, routeB) {
