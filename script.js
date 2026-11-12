@@ -3,6 +3,7 @@ let userMarker;
 let plannedRouteLine;
 let routeLayers = [];
 let turnaroundMarker = null;
+let destinationMarker = null;
 let actualRouteLine;
 const ROUTE_COLORS = ["#1769d2", "#159b72", "#d97706"];
 let selectedRoute = null;
@@ -96,9 +97,14 @@ function drawSelectedRoute(route) {
   selectedRoute = route;
   drawAllRouteOptions();
   if (turnaroundMarker) map.removeLayer(turnaroundMarker);
+  if (destinationMarker) map.removeLayer(destinationMarker);
   turnaroundMarker = null;
+  destinationMarker = null;
   if (route.type === "outback" && Array.isArray(route.turnaround)) {
     turnaroundMarker = L.circleMarker([route.turnaround[1], route.turnaround[0]], { radius: 8, color: "#ffffff", weight: 3, fillColor: "#f28c28", fillOpacity: 1 }).addTo(map).bindPopup("Turnaround point - halfway along the route");
+  } else if (route.type === "oneway" && Array.isArray(route.coordinates) && route.coordinates.length) {
+    const end = route.coordinates[route.coordinates.length - 1];
+    destinationMarker = L.marker([end[1], end[0]]).addTo(map).bindPopup("One-way destination");
   }
   const miles = route.distanceMeters / 1609.344;
   $("route-summary").textContent = formatDistance(miles) + " planned";
