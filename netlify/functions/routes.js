@@ -50,6 +50,7 @@ exports.handler = async (event) => {
   try {
     const start = [lon, lat];
     if (type === "outback") {
+      const candidates = [];
       // Route each candidate on the pedestrian network, then tune the outbound
       // endpoint against the actual routed distance. The return retraces that
       // same network path, making the turn-around the true route midpoint.
@@ -99,6 +100,7 @@ exports.handler = async (event) => {
     }
 
     if (type === "oneway") {
+      const candidates = [];
       const bearings = [0, 120, 240];
       const candidateResults = await Promise.all(bearings.map(async bearing => {
         let endpointDistance = distance / 1.25, best = null;
