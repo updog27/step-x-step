@@ -301,8 +301,9 @@ out tags geom;`;
       }));
       return { footway, sidewalkTagged, sidewalkExplicitlyAbsent, segments };
     });
-  const infrastructureSegments = features.flatMap(feature =>
-    feature.footway || feature.sidewalkTagged ? feature.segments : []);
+  const dedicatedPathSegments = features.flatMap(feature => feature.footway ? feature.segments : []);
+  const mappedSidewalkSegments = features.flatMap(feature => feature.sidewalkTagged ? feature.segments : []);
+  const infrastructureSegments = [...dedicatedPathSegments, ...mappedSidewalkSegments];
   const explicitNoSidewalkSegments = features.flatMap(feature =>
     feature.sidewalkExplicitlyAbsent ? feature.segments : []);
   return candidates.map(route => {
@@ -316,17 +317,26 @@ out tags geom;`;
     let supported = 0, currentGap = 0, longestUnsupportedGap = 0;
     let unsupportedLength = 0, previousSampleDistance = 0;
     let knownNoSidewalkSamples = 0, knownRoadSamples = 0, uncertainSamples = 0;
+    let dedicatedPathSamples = 0, mappedSidewalkSamples = 0;
     for (let i = 0; i < samples.length; i++) {
       const point = samples[i];
       const sampleDistance = totalLength * i / Math.max(1, samples.length - 1);
       const stepLength = i === 0 ? 0 : sampleDistance - previousSampleDistance;
       previousSampleDistance = sampleDistance;
-      let nearest = Infinity;
-      for (const segment of infrastructureSegments) {
-        if (Math.abs(segment.a[1] - point[1]) > 0.00025 && Math.abs(segment.b[1] - point[1]) > 0.00025) continue;
-        nearest = Math.min(nearest, pointSegmentDistanceMeters(point, segment.a, segment.b));
-        if (nearest <= 18) break;
-      }
+      const nearestTo = segments => {
+        let nearest = Infinity;
+        for (const segment of segments) {
+          if (Math.abs(segment.a[1] - point[1]) > 0.00025 && Math.abs(segment.b[1] - point[1]) > 0.00025) continue;
+          nearest = Math.min(nearest, pointSegmentDistanceMeters(point, segment.a, segment.b));
+          if (nearest <= 18) break;
+        }
+        return nearest;
+      };
+      const nearestPath = nearestTo(dedicatedPathSegments);
+      const nearestSidewalk = nearestTo(mappedSidewalkSegments);
+      const nearest = Math.min(nearestPath, nearestSidewalk);
+      if (nearestPath <= 18) dedicatedPathSamples++;
+      else if (nearestSidewalk <= 18) mappedSidewalkSamples++;
       let explicitNoSidewalk = false;
       let nearestRoadWithoutSidewalk = Infinity;
       for (const segment of explicitNoSidewalkSegments) {
@@ -369,6 +379,8 @@ out tags geom;`;
       estimatedUnsupportedInfrastructureMeters: hasMappedInfrastructure ? Math.round(unsupportedLength) : null,
       explicitNoSidewalkCoverage: samples.length ? Math.round(knownNoSidewalkRatio * 100) : null,
       uncertainInfrastructureCoverage: samples.length ? Math.round(uncertainSamples / samples.length * 100) : null,
+      dedicatedPathCoverage: samples.length ? Math.round(dedicatedPathSamples / samples.length * 100) : null,
+      mappedSidewalkCoverage: samples.length ? Math.round(mappedSidewalkSamples / samples.length * 100) : null,
       pedestrianInfrastructurePenalty: infrastructurePenalty,
       safetyPenalty: route.safety.safetyPenalty + infrastructurePenalty
     }};
