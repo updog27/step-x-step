@@ -43,7 +43,10 @@ function setStatus(message) { statusBox.textContent = message; }
 function getGoalMiles() {
   const value = Number($("distance-input").value);
   if (!Number.isFinite(value) || value <= 0) throw new Error("Enter a distance greater than zero.");
-  return $("distance-unit").value === "km" ? value * 0.621371 : value;
+  const miles = $("distance-unit").value === "km" ? value * 0.621371 : value;
+  const meters = miles * 1609.344;
+  if (meters < 300 || meters > 50000) throw new Error("Choose a distance between 300 meters and 50 kilometers (about 0.19 to 31.07 miles).");
+  return miles;
 }
 
 function getCurrentPosition() {
@@ -182,7 +185,7 @@ async function generateRoutes() {
     renderRouteChoices();
     drawSelectedRoute(routeChoices[0]);
     const withinTolerance = routeChoices.filter(route => Math.abs(route.distanceMeters - milesToMeters(goalMiles)) <= (result.toleranceMeters || 80.5)).length;
-    if (type === "outback" && withinTolerance < routeChoices.length) setStatus("Routes found. Some options are slightly outside the 0.05-mile target tolerance; their exact distances are shown.");
+    if (withinTolerance < routeChoices.length) setStatus("Routes found. Some options are outside the 0.05-mile target tolerance; their actual distances are shown.");
     if (routeChoices.length < 3) setStatus("Found " + routeChoices.length + " distinct walkable option(s) here. More routes were not available on the nearby street network.");
   } catch (error) {
     setStatus(error.message || "Unable to find routes.");
