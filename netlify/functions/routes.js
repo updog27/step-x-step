@@ -14,6 +14,26 @@ function destinationPoint(lat, lon, distanceMeters, bearingDegrees) {
   return [((lon2 * 180 / Math.PI + 540) % 360) - 180, lat2 * 180 / Math.PI];
 }
 
+
+function trimCoordinatesToDistance(coordinates, targetMeters) {
+  if (!Array.isArray(coordinates) || coordinates.length < 2 || targetMeters <= 0) return null;
+  const trimmed = [coordinates[0]];
+  let traveled = 0;
+  for (let i = 1; i < coordinates.length; i++) {
+    const a = coordinates[i - 1], b = coordinates[i];
+    const segmentMeters = haversineMeters(a, b);
+    if (traveled + segmentMeters >= targetMeters) {
+      const remaining = targetMeters - traveled;
+      const ratio = segmentMeters > 0 ? remaining / segmentMeters : 0;
+      trimmed.push([a[0] + (b[0] - a[0]) * ratio, a[1] + (b[1] - a[1]) * ratio]);
+      return trimmed;
+    }
+    trimmed.push(b);
+    traveled += segmentMeters;
+  }
+  return null;
+}
+
 async function getRoute(coordinates, apiKey) {
   const response = await fetch(ORS_URL, {
     method: "POST",
@@ -520,33 +540,36 @@ exports.handler = async (event) => {
       // same network path, making the turn-around the true route midpoint.
       const bearings = [0, 90, 180, 270];
       const candidateResults = await Promise.all(bearings.map(async bearing => {
+        // Route slightly beyond the desired midpoint, then trim the returned
+        // pedestrian-network geometry at exactly half the requested distance.
+        // Reversing that trimmed geometry produces the exact requested total.
         let endpointDistance = distance / 2 / 1.25;
         let best = null;
         for (let attempt = 0; attempt < 6; attempt++) {
           try {
             const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
             const outbound = await getRoute([start, endpoint], apiKey);
-            const total = outbound.meters * 2;
-            if (total <= distance && (!best || total > best.meters * 2)) best = outbound;
+            const trimmedCoordinates = trimCoordinatesToDistance(outbound.coordinates, distance / 2);
+            if (trimmedCoordinates) {
+              best = { ...outbound, coordinates: trimmedCoordinates, meters: distance / 2 };
+              break;
+            }
             const ratio = (distance / 2) / outbound.meters;
-            if (total <= distance && distance - total <= MAX_ROUTE_DISTANCE_ERROR_METERS) break;
-            endpointDistance *= Math.max(0.65, Math.min(1.5, ratio));
+            endpointDistance *= Math.max(1.15, Math.min(2, ratio * 1.15));
           } catch (error) {
-            providerFailure = error.message || "The routing service could not create this route.";
-            if (attempt === 5 && !best) break;
-            endpointDistance *= 0.75;
+            if (attempt === 5) return null;
+            endpointDistance *= 1.5;
           }
         }
         if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
         const returnCoordinates = [...best.coordinates].reverse().slice(1);
         const fullCoordinates = [...best.coordinates, ...returnCoordinates];
-        const totalMeters = best.meters * 2;
+        const totalMeters = distance;
         return {
           id: "outback-" + bearing, type: "outback", distanceMeters: totalMeters,
           outboundDistanceMeters: best.meters, coordinates: fullCoordinates,
           turnaround: best.coordinates[best.coordinates.length - 1],
-          label: "Out-and-back", differenceMeters: Math.abs(totalMeters - distance),
-          differencePercent: Math.round(Math.abs(totalMeters - distance) / distance * 100),
+          label: "Out-and-back", differenceMeters: 0, differencePercent: 0,
           safety: best.safety
         };
       }));
