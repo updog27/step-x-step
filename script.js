@@ -311,13 +311,13 @@ async function generateRoutes() {
     renderRouteChoices();
     drawSelectedRoute(routeChoices[0]);
     const availableCount = routeChoices.length;
-    const targetNote = "All displayed routes are within 0.05 miles of your requested distance.";
+    const targetNote = "No route exceeds your requested distance. All displayed routes are within 0.01 miles below your target.";
     if (availableCount < 3) {
       setStatus("Found " + availableCount + " distinct route option that passed the available map checks" + (availableCount === 1 ? "" : "s") +
         " near your starting point. " + targetNote +
         " We won't add routes that fail the distance or map-screening checks.");
     } else {
-      setStatus("Found 3 distinct route option that passed the available map checkss near your starting point. " + targetNote);
+      setStatus("Found 3 distinct route options that passed the available map checks near your starting point. " + targetNote);
     }
   } catch (error) {
     setStatus(error.message || "Unable to find routes.");
