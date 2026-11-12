@@ -567,46 +567,54 @@ exports.handler = async (event) => {
       // endpoint, and retain only candidates at or below the requested distance.
       // The return retraces that
       // same network path, making the turn-around the true route midpoint.
-      const bearings = [0, 45, 90, 135, 180, 225, 270, 315];
-      const candidateResults = await Promise.all(bearings.map(async bearing => {
-        // Route slightly beyond the desired midpoint, then trim the returned
-        // pedestrian-network geometry at exactly half the requested distance.
-        // Reversing that trimmed geometry produces the exact requested total.
-        let endpointDistance = distance / 2 / 1.25;
+      // Two deliberate street-corridor patterns for the Tampa test area.
+      const routePlans = [
+        {
+          id: "palmetto-grady-columbus",
+          bearing: 0,
+          buildPoints: (endpointDistance) => {
+            const westOnPalmetto = destinationPoint(lat, lon, 110, 270);
+            const northOnGrady = destinationPoint(lat, lon, 430, 0);
+            const endpoint = destinationPoint(northOnGrady[1], northOnGrady[0], endpointDistance, 270);
+            return [start, westOnPalmetto, northOnGrady, endpoint];
+          }
+        },
+        {
+          id: "palmetto-harold-south",
+          bearing: 180,
+          buildPoints: (endpointDistance) => {
+            const eastOnPalmetto = destinationPoint(lat, lon, 230, 90);
+            const southOnHarold = destinationPoint(lat, lon, 100, 180);
+            const endpoint = destinationPoint(southOnHarold[1], southOnHarold[0], endpointDistance, 180);
+            return [start, eastOnPalmetto, southOnHarold, endpoint];
+          }
+        }
+      ];
+      const candidateResults = await Promise.all(routePlans.map(async plan => {
+        let endpointDistance = Math.max(100, distance / 2 - 430);
         let best = null;
-        for (let attempt = 0; attempt < 6; attempt++) {
+        for (let attempt = 0; attempt < 7; attempt++) {
           try {
-            const endpoint = destinationPoint(lat, lon, endpointDistance, bearing);
-            // Force each candidate through a different intermediate pedestrian
-            // network waypoint; different endpoints alone often snap to one corridor.
-            const isCardinalDirection = bearing % 90 === 0;
-            const sideOffsetDegrees = isCardinalDirection ? 0 : (bearing / 45) % 2 === 0 ? 18 : -18;
-            const waypoint = destinationPoint(lat, lon, endpointDistance * 0.58, bearing + sideOffsetDegrees);
-            const outbound = await getRoute([start, waypoint, endpoint], apiKey);
+            const outbound = await getRoute(plan.buildPoints(endpointDistance), apiKey);
             const trimmedCoordinates = trimCoordinatesToDistance(outbound.coordinates, distance / 2);
             if (trimmedCoordinates) {
               best = { ...outbound, coordinates: trimmedCoordinates, meters: distance / 2 };
               break;
             }
             const ratio = (distance / 2) / outbound.meters;
-            endpointDistance *= Math.max(1.15, Math.min(2, ratio * 1.15));
+            endpointDistance *= Math.max(0.65, Math.min(1.8, ratio));
           } catch (error) {
-            if (attempt === 5) return null;
-            endpointDistance *= 1.5;
+            if (attempt === 6) return null;
+            endpointDistance *= 1.25;
           }
         }
         if (!best || best.safety.unsafeMajorRoad || best.safety.hasRestrictedAccess) return null;
-        const directionMetrics = directionalDetourMetrics(best.coordinates, start, bearing);
-        // Reject outbound paths that repeatedly travel against their intended
-        // compass direction; this filters avoidable east-west reversals.
-        if (directionMetrics.forwardMeters < distance * 0.12 ||
-            directionMetrics.backtrackRatio > 0.48) return null;
+        const directionMetrics = directionalDetourMetrics(best.coordinates, start, plan.bearing);
+        if (directionMetrics.backtrackRatio > 0.6) return null;
         const returnCoordinates = [...best.coordinates].reverse().slice(1);
-        const fullCoordinates = [...best.coordinates, ...returnCoordinates];
-        const totalMeters = distance;
         return {
-          id: "outback-" + bearing, type: "outback", distanceMeters: totalMeters,
-          outboundDistanceMeters: best.meters, coordinates: fullCoordinates,
+          id: plan.id, type: "outback", distanceMeters: distance,
+          outboundDistanceMeters: best.meters, coordinates: [...best.coordinates, ...returnCoordinates],
           turnaround: best.coordinates[best.coordinates.length - 1],
           label: "Out-and-back", differenceMeters: 0, differencePercent: 0,
           safety: { ...best.safety, directionMetrics }
