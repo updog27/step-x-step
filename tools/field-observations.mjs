@@ -12,8 +12,22 @@ export function validateFieldObservation(o,expected={},options={}) {
  if(typeof expected.featureId!=="string"||!expected.featureId||o.featureId!==expected.featureId) failures.push("feature_id_mismatch");
  if(!TYPES.has(o.featureType)||(expected.featureType&&o.featureType!==expected.featureType)) failures.push("feature_type_mismatch");
  if(o.status!=="verified") failures.push("observation_not_verified");
-  const timestampPattern=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
-  const stamp=typeof o.observedAt==="string"&&timestampPattern.test(o.observedAt)?Date.parse(o.observedAt):NaN;
+  const timestampPattern=/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.\\d{1,3})?(Z|([+-])(\\d{2}):(\\d{2}))$/;
+  const timestampMatch=typeof o.observedAt==="string"?o.observedAt.match(timestampPattern):null;
+  let stamp=NaN;
+  if(timestampMatch){
+   const [,yearText,monthText,dayText,hourText,minuteText,secondText,zone,,offsetHourText,offsetMinuteText]=timestampMatch;
+   const year=Number(yearText),month=Number(monthText),day=Number(dayText);
+   const hour=Number(hourText),minute=Number(minuteText),second=Number(secondText);
+   const offsetHour=offsetHourText===undefined?0:Number(offsetHourText);
+   const offsetMinute=offsetMinuteText===undefined?0:Number(offsetMinuteText);
+   const calendar=new Date(0);
+   calendar.setUTCFullYear(year,month-1,day);
+   calendar.setUTCHours(0,0,0,0);
+   const validCalendar=calendar.getUTCFullYear()===year&&calendar.getUTCMonth()===month-1&&calendar.getUTCDate()===day;
+   if(validCalendar&&hour<=23&&minute<=59&&second<=59&&offsetHour<=23&&offsetMinute<=59)
+    stamp=Date.parse(o.observedAt);
+  }
  if(!Number.isFinite(stamp)) failures.push("observation_timestamp_invalid");
  else {const age=now.getTime()-stamp;if(age<0)failures.push("observation_timestamp_in_future");else if(age>maxAge*86400000)failures.push("observation_stale");}
  const e=o.evidence||{};
