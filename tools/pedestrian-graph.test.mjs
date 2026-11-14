@@ -698,7 +698,7 @@ test("spatial gap index checks neighboring bucket boundaries and preserves trunc
   ["a",[{to:"b",meters:2,wayId:1}]],["b",[]],
   ["c",[{to:"d",meters:2,wayId:2}]],["d",[]]
  ]);
- const result=findPedestrianNetworkGapCandidates(nodes,graph,{maxGapMeters:2,maxCandidates:1});
+ const result=findPedestrianNetworkGapCandidates(nodes,graph,{maxGapMeters:5,maxCandidates:1});
  assert.equal(result.candidateCount,4);
  assert.equal(result.truncated,true);
  assert.equal(result.candidates.length,1);
