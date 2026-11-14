@@ -422,7 +422,18 @@ export function snapOriginToPedestrianGraph(nodes, adjacency, origin, maxSnapMet
       projection:{from:projection.from,to:projection.to,wayId:projection.wayId,
         fraction:projection.fraction,offsetMeters:projection.offsetMeters}};
   }
+  const connectorDistanceClass=projection.offsetMeters<=3
+    ? "near_geometry_candidate" : "requires_field_review";
   return {ok:true,graph,startNode,connectorStatus:"unverified",
+    connectorReview:{
+      status:"unverified",
+      distanceClass:connectorDistanceClass,
+      straightLineOffsetMeters:+projection.offsetMeters.toFixed(2),
+      projectedPosition:projection.fraction<=0.000001?"from_endpoint":
+        projection.fraction>=0.999999?"to_endpoint":"edge_interior",
+      directedEdge:{from:projection.from,to:projection.to,wayId:projection.wayId},
+      warning:"Geometric proximity is not evidence of a walkable, public, accessible, or same-side connection."
+    },
     projection:{from:projection.from,to:projection.to,wayId:projection.wayId,
       fraction:projection.fraction,offsetMeters:projection.offsetMeters,
       isVirtual:startNode===virtualNodeId},
