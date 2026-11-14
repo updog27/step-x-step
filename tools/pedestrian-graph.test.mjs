@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
   isEligiblePedestrianWay, pedestrianDirections, reconstructNodePath,
-  directedPathOverlap, selectDiversePaths, kShortestPaths
+  directedPathOverlap, selectDiversePaths, kShortestPaths,
+  corridorPathOverlap, selectCorridorDiversePaths
 } from "./pedestrian-graph.mjs";
 
 const nodes = new Map([
@@ -120,4 +121,38 @@ test("diversity selector rejects near-duplicate paths but retains distinct corri
 test("diversity selector validates its controls", () => {
   assert.throws(()=>selectDiversePaths([],0),RangeError);
   assert.throws(()=>selectDiversePaths([],3,1.1),RangeError);
+});
+
+
+test("corridor overlap detects shared OSM way despite different node segmentation", () => {
+  const graph = new Map([
+    ["S",[{to:"A",meters:10,wayId:100}]],
+    ["A",[{to:"B",meters:10,wayId:100},{to:"C",meters:10,wayId:200}]],
+    ["B",[{to:"T",meters:10,wayId:100}]],
+    ["C",[{to:"T",meters:10,wayId:300}]],
+    ["T",[]]
+  ]);
+  assert.ok(corridorPathOverlap(graph,["S","A","B","T"],["S","A","C","T"]) > 0.3);
+  assert.equal(corridorPathOverlap(graph,["S","A","B","T"],["S","A","B","T"]),1);
+});
+
+test("corridor diversity selector rejects same-way variants and retains separate ways", () => {
+  const graph = new Map([
+    ["S",[{to:"A",meters:10,wayId:1},{to:"D",meters:10,wayId:2}]],
+    ["A",[{to:"B",meters:10,wayId:1}]],
+    ["B",[{to:"T",meters:10,wayId:1}]],
+    ["D",[{to:"E",meters:10,wayId:2}]],
+    ["E",[{to:"T",meters:10,wayId:2}]],
+    ["T",[]]
+  ]);
+  const pool = [
+    {nodes:["S","A","B","T"],distanceMeters:30},
+    {nodes:["S","A","B","T"],distanceMeters:31},
+    {nodes:["S","D","E","T"],distanceMeters:32}
+  ];
+  const selected = selectCorridorDiversePaths(graph,pool,3,0.55);
+  assert.equal(selected.length,2);
+  assert.deepEqual(selected.map(path=>path.nodes),[
+    ["S","A","B","T"],["S","D","E","T"]
+  ]);
 });
