@@ -408,3 +408,12 @@ The distance tolerance passed to the acceptance engine is aligned with its defau
 
 
 Turnaround nodes are also re-ranked globally after their best complete route variants are assembled. A turnaround with a slightly less exact outbound half-distance can rank higher if its independent directed return produces a better full-route match. The ordering prioritizes a valid complete return, then fewer detected mapped roadway intersections, then lower full-route distance error, and finally shorter shortest-path outbound distance. The candidate nodes still originate from a bounded shortest-path-tree search; this is not yet an exhaustive search over every possible turnaround or a globally optimal route solver.
+
+
+### Wider turnaround candidate search (2026-11-13)
+
+The candidate generator now searches a wider outbound-distance band before ranking complete round trips:
+- Candidate turnarounds may be up to the greater of 60m or 12% of the outbound target away from the nominal half-distance.
+- Up to 24 corridor-distinct turnaround nodes are evaluated (previously 12).
+- This is intentionally a candidate-discovery band, not a relaxation of route acceptance. Completed geometry must still pass the configured full-route distance tolerance, and origin/connectivity/crossing observations remain unverified.
+- The wider band increases the chance of finding a return leg that brings the total route closer to target, but increases computation and does not remove the bounded shortest-path-tree search-space limitation.
