@@ -78,16 +78,44 @@ const results = miles.map(requestedMiles => {
     .filter(([id, meters]) => id !== start &&
       Math.abs(meters-target) <= turnaroundSearchBandMeters)
     .sort((a,b) => Math.abs(a[1]-target)-Math.abs(b[1]-target));
+  // Seed a bounded set of anchor destinations from the shortest-path tree,
+  // then inspect a few Yen alternatives to each anchor. Nodes along those
+  // alternatives can fall inside the target band even when their shortest
+  // tree distance does not, exposing turnarounds on additional corridors.
+  const turnaroundById = new Map(candidatePool.map(([id,meters]) => [id,{id,meters,path:null}]));
+  const anchorCount = Math.min(8,candidatePool.length);
+  for (const [anchorId,anchorMeters] of candidatePool.slice(0,anchorCount)) {
+    const anchorPaths = kShortestPaths(adjacency,start,anchorId,3,
+      {maxDistanceMeters:target+turnaroundSearchBandMeters});
+    for (const path of anchorPaths) {
+      let cumulativeMeters = 0;
+      for (let index=1;index<path.nodes.length;index++) {
+        cumulativeMeters += path.edges[index-1].meters;
+        if (Math.abs(cumulativeMeters-target)>turnaroundSearchBandMeters) continue;
+        const id=path.nodes[index];
+        if (id===start) continue;
+        const existing=turnaroundById.get(id);
+        if (!existing || cumulativeMeters<existing.meters) {
+          turnaroundById.set(id,{id,meters:cumulativeMeters,path:{
+            nodes:path.nodes.slice(0,index+1),edges:path.edges.slice(0,index),
+            distanceMeters:cumulativeMeters
+          }});
+        }
+      }
+    }
+  }
+  const expandedPool=[...turnaroundById.values()]
+    .sort((a,b)=>Math.abs(a.meters-target)-Math.abs(b.meters-target)||String(a.id).localeCompare(String(b.id)));
   const selectedTurnarounds = [];
-  for (const candidate of candidatePool) {
-    // Retain the exact edge sequence selected by Yen; a node-only path can
-    // silently choose the wrong parallel sidewalk/way during corridor scoring.
-    const candidatePath = kShortestPaths(adjacency,start,candidate[0],1,
-      {maxDistanceMeters:candidate[1] + 0.01})[0];
+  for (const candidate of expandedPool) {
+    // Retain exact edge sequences; node-only paths can choose the wrong
+    // parallel sidewalk/way during corridor scoring.
+    const candidatePath = candidate.path || kShortestPaths(adjacency,start,candidate.id,1,
+      {maxDistanceMeters:candidate.meters + 0.01})[0];
     if (!candidatePath) continue;
     if (selectedTurnarounds.every(existing =>
       corridorPathOverlap(adjacency,existing.path,candidatePath) <= 0.75)) {
-      selectedTurnarounds.push({candidate,path:candidatePath});
+      selectedTurnarounds.push({candidate:[candidate.id,candidate.meters],path:candidatePath});
     }
     if (selectedTurnarounds.length >= 24) break;
   }
@@ -210,7 +238,7 @@ console.log(JSON.stringify({
     status:"withheld_unverified_origin_connector"})),
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
-    "Candidate turnaround nodes are drawn from one bounded shortest-path tree and remain a search-space limitation. The candidate search band is wider than the final distance tolerance (maximum of 60m or 12% of the outbound target), and up to 24 corridor-distinct turnarounds are evaluated. Path variants to each node are independently searched with Yen k-shortest paths; complete directed round trips are evaluated first, then turnaround nodes are ranked globally by return availability, detected roadway intersections, and full-route distance error. The top three variants per turnaround are retained for diagnostics.",
+    "Candidate turnaround discovery starts with a bounded shortest-path tree, then expands around up to eight near-target anchor destinations by inspecting up to three Yen alternatives per anchor. Nodes along those alternatives can enter the target band even when their shortest-tree distance does not. The candidate search band is wider than final distance tolerance (maximum of 60m or 12% of the outbound target), and up to 24 corridor-distinct turnarounds are evaluated. Complete directed round trips are evaluated first, then turnaround nodes are ranked globally by return availability, detected roadway intersections, and full-route distance error. The top three variants per turnaround are retained for diagnostics.",
     "Path diversity is screened by weighted shared OSM-way length (maximum 0.55); turnaround candidates are also screened against each other (maximum 0.75). OSM way IDs are only a corridor proxy, not a guarantee of visually distinct or safer routes.",
     "The GPS origin is projected onto a nearby eligible directed edge and that edge is split at a virtual graph node.",
     "The origin-to-network connector remains unverified; all candidate paths are withheld and must not be presented as usable routes. The acceptance engine is run on assembled round trips, and candidates remain in field-review status until origin and every connection/crossing have current feature-matched observations.",
