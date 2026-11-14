@@ -215,3 +215,17 @@ The candidate utility now uses `findNearestPedestrianEdge` rather than selecting
 Crucially, the origin-to-network connector is still unverified. The utility therefore withholds all generated route candidates and labels each requested distance `withheld_unverified_origin_connector`. It reports only the snap offset, projection fraction, and diagnostic candidate count; it does not print coordinates or route geometry. This is an intentional fail-closed state, not a completed routing feature.
 
 The CI workflow now syntax-checks `tools/pedestrian-candidates.mjs` in addition to running the offline graph unit tests. The script has not yet been executed against live Overpass data in this environment. Before any route can be released, implement a connector validator that can establish same-side pedestrian access using mapped/field-verified topology; otherwise keep the route withheld. Do not bypass this gate with a configuration flag.
+
+
+### Directed origin-snap topology checks (2026-11-14)
+
+Extracted the GPS-origin attachment into the pure graph module as `snapOriginToPedestrianGraph`, so the production candidate script and offline tests use the same logic.
+
+- Interior projections split the selected directed edge and return a virtual start node.
+- Endpoint projections reuse the mapped node, but are rejected if that node has no outgoing pedestrian edge. This prevents a one-way dead-end endpoint from being treated as a valid starting point.
+- Bidirectional interior edges retain both legal directions; one-way edges do not gain an invented reverse connection.
+- The helper rejects virtual-node ID collisions and snaps outside the configured distance.
+- The input graph is not mutated.
+- Every successful snap still reports `connectorStatus: "unverified"`; this helper does not establish a safe or legal connection from GPS to the mapped path.
+
+The candidate script now uses this shared helper. Its adjacency binding was changed to mutable because interior snapping replaces the graph with a split copy. Offline regression tests cover interior, endpoint, one-way, bidirectional, distant-origin, and ID-collision cases. The latest CI run is pending; no live Overpass request has been performed.
