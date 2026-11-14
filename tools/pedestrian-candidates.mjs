@@ -7,7 +7,7 @@ import process from "node:process";
 import {
   buildDirectedPedestrianGraph, dijkstra, isEligiblePedestrianWay,
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
-  snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath
+  snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath, selectCrossingAwarePaths
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -80,19 +80,19 @@ const results = miles.map(requestedMiles => {
   }
   const candidates = selectedTurnarounds.map(({candidate:[id,meters],path:shortestPath}) => {
       const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});
-      const alternatives = selectCorridorDiversePaths(adjacency,pathPool,3,0.55);
+      const alternatives = selectCrossingAwarePaths(nodes,ways,pathPool,3,0.55);
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
         networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.nodes.length ?? 0,
         pathVariants:alternatives.map((variant,index)=>({
           rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
           distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
           maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3),
-          crossingGeometry:detectRoadwayCrossingsForPath(nodes,ways,variant).crossings.map(crossing=>({
+          crossingGeometry:variant.crossingGeometry.map(crossing=>({
             roadClass:crossing.roadClass,
             intersectionAngleDegrees:crossing.intersectionAngleDegrees,
             mappedCrossingEvidence:crossing.mappedCrossingEvidence
           })),
-          detectedRoadwayCrossingCount:detectRoadwayCrossingsForPath(nodes,ways,variant).crossingCount
+          detectedRoadwayCrossingCount:variant.detectedRoadwayCrossingCount
         }))};
     });
   return {requestedOutAndBackMiles:requestedMiles,
