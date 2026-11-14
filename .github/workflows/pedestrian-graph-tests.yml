@@ -10,6 +10,7 @@ on:
     paths:
       - "tools/pedestrian-graph.mjs"
       - "tools/pedestrian-graph.test.mjs"
+      - "tools/pedestrian-candidates.mjs"
       - ".github/workflows/pedestrian-graph-tests.yml"
 
 jobs:
@@ -22,5 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check candidate generator syntax
+        run: node --check tools/pedestrian-candidates.mjs
       - name: Run pedestrian graph tests
         run: node --test tools/pedestrian-graph.test.mjs
