@@ -687,3 +687,22 @@ test("gap analysis ignores endpoints in the same weak component and enforces bou
  assert.equal(findPedestrianNetworkGapCandidates(fixture,graph).candidateCount,0);
  assert.throws(()=>findPedestrianNetworkGapCandidates(fixture,graph,{maxGapMeters:101}),/maxGapMeters/);
 });
+
+
+test("origin snap reports connector distance and geometry class without claiming access", async () => {
+ const {snapOriginToPedestrianGraph}=await import("./pedestrian-graph.mjs");
+ const nodes=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],["b",{id:"b",lat:27.001,lon:-82}]
+ ]);
+ const graph=new Map([["a",[{to:"b",meters:111,wayId:77}]]]);
+ const near=snapOriginToPedestrianGraph(nodes,graph,{lat:27.000001,lon:-82.000001},60);
+ assert.equal(near.ok,true);
+ assert.equal(near.connectorStatus,"unverified");
+ assert.equal(near.connectorReview.status,"unverified");
+ assert.equal(near.connectorReview.distanceClass,"near_geometry_candidate");
+ assert.equal(near.connectorReview.directedEdge.wayId,77);
+ assert.match(near.connectorReview.warning,/not evidence of a walkable/);
+ const farther=snapOriginToPedestrianGraph(nodes,graph,{lat:27.0005,lon:-82.0002},60);
+ assert.equal(farther.ok,true);
+ assert.equal(farther.connectorReview.distanceClass,"requires_field_review");
+});
