@@ -257,29 +257,44 @@ export function selectDiversePaths(paths, maxPaths = 3, maxOverlap = 0.65) {
 // Weighted Jaccard overlap by OSM way ID. This treats differently segmented
 // edges on the same mapped way as one corridor. It is a corridor proxy:
 // separate OSM ways can still describe the same physical street.
+// Weighted corridor overlap uses both mapped OSM way identity and shared
+// graph-segment topology. The latter catches duplicate/parallel OSM way
+// records that reuse the same endpoint nodes but have different way IDs.
+// It cannot identify physically coincident facilities with entirely separate
+// node geometry; OSM identity remains a proxy, not a street-side ground truth.
 export function corridorPathOverlap(adjacency, pathA, pathB) {
   const weightsFor = input => {
     const path = Array.isArray(input) ? {nodes:input} : input;
-    const weights = new Map();
+    const wayWeights = new Map(), segmentWeights = new Map();
     for (let i = 1; i < path.nodes.length; i++) {
+      const from=path.nodes[i-1],to=path.nodes[i];
       const edge = Array.isArray(path.edges) ? path.edges[i-1] :
-        (adjacency.get(path.nodes[i - 1]) || []).filter(item => item.to === path.nodes[i])
+        (adjacency.get(from) || []).filter(item => item.to === to)
           .sort((a,b) => a.meters - b.meters)[0];
       if (!edge) continue;
-      const key = String(edge.wayId ?? directedEdgeKey(path.nodes[i - 1],path.nodes[i]));
-      weights.set(key,(weights.get(key) || 0) + edge.meters);
+      const meters=Number(edge.meters)||0;
+      const wayKey=String(edge.wayId ?? directedEdgeKey(from,to));
+      const segmentKey=JSON.stringify([String(from),String(to)].sort());
+      wayWeights.set(wayKey,(wayWeights.get(wayKey)||0)+meters);
+      segmentWeights.set(segmentKey,(segmentWeights.get(segmentKey)||0)+meters);
     }
-    return weights;
+    return {wayWeights,segmentWeights};
   };
-  const a = weightsFor(pathA), b = weightsFor(pathB);
-  const keys = new Set([...a.keys(),...b.keys()]);
-  if (!keys.size) return 1;
-  let intersection = 0, union = 0;
-  for (const key of keys) {
-    intersection += Math.min(a.get(key) || 0,b.get(key) || 0);
-    union += Math.max(a.get(key) || 0,b.get(key) || 0);
-  }
-  return union ? intersection / union : 1;
+  const weightedJaccard=(a,b)=>{
+    const keys=new Set([...a.keys(),...b.keys()]);
+    if(!keys.size)return 1;
+    let intersection=0,union=0;
+    for(const key of keys){
+      intersection+=Math.min(a.get(key)||0,b.get(key)||0);
+      union+=Math.max(a.get(key)||0,b.get(key)||0);
+    }
+    return union?intersection/union:1;
+  };
+  const a=weightsFor(pathA),b=weightsFor(pathB);
+  return Math.max(
+    weightedJaccard(a.wayWeights,b.wayWeights),
+    weightedJaccard(a.segmentWeights,b.segmentWeights)
+  );
 }
 
 export function selectCorridorDiversePaths(adjacency, paths, maxPaths = 3, maxOverlap = 0.55) {
