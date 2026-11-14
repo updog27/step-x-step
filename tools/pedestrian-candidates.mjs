@@ -153,7 +153,7 @@ const results = miles.map(requestedMiles => {
         (a.roundTripRoadwayCrossingCount ?? Infinity)-(b.roundTripRoadwayCrossingCount ?? Infinity)||
         a._rank.distanceError-b._rank.distanceError||
         a.distanceMeters-b.distanceMeters);
-      const best=completedVariants[0];
+      const best=[...completedVariants].sort((a,b)=>\n        (a.roundTripRoadwayCrossingCount ?? Infinity)-(b.roundTripRoadwayCrossingCount ?? Infinity)||\n        a._rank.distanceError-b._rank.distanceError||a.distanceMeters-b.distanceMeters)[0];
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
         networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.nodes.length ?? 0,
         bestRoundTrip:best?{
