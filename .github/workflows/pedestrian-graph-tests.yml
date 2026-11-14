@@ -1,4 +1,4 @@
-name: Pedestrian graph tests
+name: Pedestrian graph and route acceptance tests
 
 on:
   push:
@@ -11,10 +11,12 @@ on:
       - "tools/pedestrian-graph.mjs"
       - "tools/pedestrian-graph.test.mjs"
       - "tools/pedestrian-candidates.mjs"
+      - "tools/route-acceptance.mjs"
+      - "tools/route-acceptance.test.mjs"
       - ".github/workflows/pedestrian-graph-tests.yml"
 
 jobs:
-  graph-tests:
+  graph-and-acceptance-tests:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -25,5 +27,5 @@ jobs:
           node-version: 22
       - name: Check candidate generator syntax
         run: node --check tools/pedestrian-candidates.mjs
-      - name: Run pedestrian graph tests
-        run: node --test tools/pedestrian-graph.test.mjs
+      - name: Run offline graph and acceptance tests
+        run: node --test tools/pedestrian-graph.test.mjs tools/route-acceptance.test.mjs
