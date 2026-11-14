@@ -199,3 +199,17 @@ test("splitting a one-way edge does not invent reverse travel", async () => {
   assert.deepEqual(split.get("snap"),[{to:2,meters:60,wayId:88}]);
   assert.equal(split.has(2),false);
 });
+
+
+test("projection and split target the selected parallel edge rather than the first matching way", async () => {
+  const {findNearestPedestrianEdge,splitPedestrianEdgeAtProjection}=await import("./pedestrian-graph.mjs");
+  const graph=new Map([[1,[
+    {to:2,meters:90,wayId:99},
+    {to:2,meters:100,wayId:99}
+  ]]]);
+  const match=findNearestPedestrianEdge(nodes,graph,{lat:27.0001,lon:-81.9995},30);
+  assert.equal(match.edgeIndex,0);
+  const split=splitPedestrianEdgeAtProjection(graph,match,"virtual");
+  assert.equal(split.get(1).some(edge=>edge.meters===90*match.fraction),true);
+  assert.equal(split.get(1).some(edge=>edge.to===2 && edge.meters===100),true);
+});
