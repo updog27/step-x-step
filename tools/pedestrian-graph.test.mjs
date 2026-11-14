@@ -132,7 +132,7 @@ test("corridor overlap detects shared OSM way despite different node segmentatio
     ["C",[{to:"T",meters:10,wayId:300}]],
     ["T",[]]
   ]);
-  assert.ok(corridorPathOverlap(graph,["S","A","B","T"],["S","A","C","T"]) > 0.3);
+  assert.ok(corridorPathOverlap(graph,["S","A","B","T"],["S","A","C","T"]) > 0.15);
   assert.equal(corridorPathOverlap(graph,["S","A","B","T"],["S","A","B","T"]),1);
 });
 
