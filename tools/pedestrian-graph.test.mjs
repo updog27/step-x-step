@@ -156,3 +156,46 @@ test("corridor diversity selector rejects same-way variants and retains separate
     ["S","A","B","T"],["S","D","E","T"]
   ]);
 });
+
+
+test("edge projection finds the closest point along an eligible mapped edge", async () => {
+  const {findNearestPedestrianEdge,projectPointToSegment}=await import("./pedestrian-graph.mjs");
+  const point={lat:27,lon:-81.9995};
+  const projected=projectPointToSegment(point,nodes.get(1),nodes.get(2));
+  assert.ok(projected.offsetMeters < 0.01);
+  const graph=new Map([[1,[{to:2,meters:100,wayId:10}]]]);
+  const match=findNearestPedestrianEdge(nodes,graph,{lat:27.0001,lon:-81.9995},30);
+  assert.equal(match.from,1);
+  assert.equal(match.to,2);
+  assert.ok(Math.abs(match.fraction-0.5)<0.01);
+  assert.ok(match.offsetMeters<12);
+});
+
+test("edge projection fails closed beyond snap limit and validates controls", async () => {
+  const {findNearestPedestrianEdge}=await import("./pedestrian-graph.mjs");
+  const graph=new Map([[1,[{to:2,meters:100,wayId:10}]]]);
+  assert.equal(findNearestPedestrianEdge(nodes,graph,{lat:27.01,lon:-82},20),null);
+  assert.throws(()=>findNearestPedestrianEdge(nodes,graph,{lat:27,lon:-82},-1),RangeError);
+});
+
+test("splitting a bidirectional edge preserves direction and way metadata", async () => {
+  const {splitPedestrianEdgeAtProjection}=await import("./pedestrian-graph.mjs");
+  const graph=new Map([
+    [1,[{to:2,meters:100,wayId:77}]],
+    [2,[{to:1,meters:100,wayId:77}]]
+  ]);
+  const split=splitPedestrianEdgeAtProjection(graph,{from:1,to:2,wayId:77,fraction:0.25},"snap");
+  assert.deepEqual(split.get(1),[{to:"snap",meters:25,wayId:77}]);
+  assert.deepEqual(split.get("snap"),[
+    {to:2,meters:75,wayId:77},{to:1,meters:25,wayId:77}
+  ]);
+  assert.deepEqual(split.get(2),[{to:"snap",meters:75,wayId:77}]);
+});
+
+test("splitting a one-way edge does not invent reverse travel", async () => {
+  const {splitPedestrianEdgeAtProjection}=await import("./pedestrian-graph.mjs");
+  const graph=new Map([[1,[{to:2,meters:100,wayId:88}]]]);
+  const split=splitPedestrianEdgeAtProjection(graph,{from:1,to:2,wayId:88,fraction:0.4},"snap");
+  assert.deepEqual(split.get("snap"),[{to:2,meters:60,wayId:88}]);
+  assert.equal(split.has(2),false);
+});
