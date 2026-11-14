@@ -267,3 +267,10 @@ Added `auditPedestrianConnectivity(nodes, adjacency)` to the offline graph modul
 The audit uses the undirected incidence of eligible pedestrian edges to identify structural junctions while separately preserving directed in/out counts. It is linear in the number of graph nodes and edges. The candidate generator now emits aggregate counts only; it does not print node IDs, coordinates, or geometry.
 
 These findings are review flags, not safety judgments. A junction without crossing tags may not require a road crossing, and a mapped crossing does not prove safety. Likewise, a terminal may be a legitimate path endpoint. The diagnostics do not yet block candidate generation; all candidate paths remain withheld because the GPS connector is unverified. Added a synthetic regression test for isolated nodes, terminal nodes, and junctions with/without crossing evidence. No live Overpass request was made.
+
+
+### Crossing-tag interpretation correction (2026-11-14)
+
+Refined crossing evidence to avoid treating every `highway=traffic_signals` node as a mapped pedestrian crossing. A signalized road node without crossing-specific tags now reports signal evidence separately while leaving pedestrian-crossing status unknown. Explicit `crossing=traffic_signals` remains mapped crossing evidence. Crossing-marking values are retained as the evidence type, including explicit `no` markings. Added regression cases for these distinctions.
+
+The connectivity audit also counts edges explicitly tagged as `footway=crossing` or `highway=crossing`. The candidate utility exposes this as an aggregate count only. This remains descriptive OSM evidence; it does not establish crossing legality, signal availability to pedestrians, or safety.
