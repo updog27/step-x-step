@@ -623,3 +623,34 @@ test("pedestrian way classifier fails closed on access restrictions and ambiguou
  assert.equal(classifyPedestrianWay({highway:"track",foot:"yes"}).status,"needs_review");
  assert.equal(isEligiblePedestrianWay({highway:"residential",sidewalk:"both"}),false);
 });
+
+
+test("connectivity audit reports weak components and directed reachability from origin", () => {
+ const graphNodes=new Map([
+  ["origin",{id:"origin",tags:{}}],
+  ["a",{id:"a",tags:{}}],
+  ["b",{id:"b",tags:{}}],
+  ["reverse-only",{id:"reverse-only",tags:{}}],
+  ["island",{id:"island",tags:{}}]
+ ]);
+ const graph=new Map([
+  ["origin",[{to:"a",meters:10,wayId:1}]],
+  ["a",[{to:"b",meters:10,wayId:1}]],
+  ["b",[]],
+  ["reverse-only",[{to:"a",meters:10,wayId:2}]],
+  ["island",[]]
+ ]);
+ const result=auditPedestrianConnectivity(graphNodes,graph,"origin");
+ assert.equal(result.componentCount,2);
+ assert.deepEqual(result.components.map(x=>x.nodeCount),[4,1]);
+ assert.equal(result.reachableFromStart,3);
+ assert.deepEqual(result.unreachableFromStart,["reverse-only","island"]);
+});
+
+test("connectivity audit handles a graph with only isolated nodes", () => {
+ const graphNodes=new Map([["a",{id:"a"}],["b",{id:"b"}]]);
+ const result=auditPedestrianConnectivity(graphNodes,new Map(),"a");
+ assert.equal(result.componentCount,2);
+ assert.equal(result.reachableFromStart,1);
+ assert.deepEqual(result.unreachableFromStart,["b"]);
+});
