@@ -549,9 +549,14 @@ test("inventories connections and roadway crossings across both out-and-back leg
   ["t",{id:"t",lat:27.002,lon:-82,tags:{}}],
   ["x",{id:"x",lat:27.002,lon:-81.999,tags:{}}],
   ["r",{id:"r",lat:27.001,lon:-82.001,tags:{}}],
-  ["s",{id:"s",lat:27.001,lon:-81.999,tags:{}}]
+  ["s",{id:"s",lat:27.001,lon:-81.999,tags:{}}],
+  ["p",{id:"p",lat:27.0015,lon:-82.001,tags:{}}],
+  ["q",{id:"q",lat:27.0015,lon:-81.999,tags:{}}]
  ]);
- const ways=[{id:900,nodes:["r","s"],tags:{highway:"residential"}}];
+ const ways=[
+  {id:900,nodes:["r","s"],tags:{highway:"residential"}},
+  {id:901,nodes:["p","q"],tags:{highway:"tertiary"}}
+ ];
  const outbound={nodes:["o","t"],edges:[{wayId:11,meters:222}]};
  const returning={nodes:["t","x","o"],edges:[{wayId:12,meters:111},{wayId:11,meters:248}]};
  const inventory=buildRouteFeatureInventory(fixture,ways,outbound,returning);
