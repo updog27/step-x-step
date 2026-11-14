@@ -856,10 +856,32 @@ export function findPedestrianNetworkGapCandidates(nodes, adjacency, options = {
     Number.isFinite(node.lat)&&Number.isFinite(node.lon));
   if(endpoints.length>maxEndpoints)
     throw new RangeError("Too many terminal nodes for bounded gap analysis");
+  // Spatially bucket endpoints before exact distance checks. The former
+  // all-pairs scan was quadratic even when almost every endpoint was far away.
+  // A local equirectangular projection is used only for bucket lookup; final
+  // candidate inclusion and reported distance still use haversine distance.
   const candidates=[];
+  const referenceLatitude=endpoints.length
+    ? endpoints.reduce((sum,[,node])=>sum+node.lat,0)/endpoints.length : 0;
+  const longitudeScale=111320*Math.max(0.01,Math.cos(referenceLatitude*Math.PI/180));
+  const cellFor=node=>({
+    x:Math.floor(node.lon*longitudeScale/maxGapMeters),
+    y:Math.floor(node.lat*111320/maxGapMeters)
+  });
+  const buckets=new Map();
+  const endpointCells=endpoints.map(([,node])=>cellFor(node));
   for(let i=0;i<endpoints.length;i++){
-    const [aId,a]=endpoints[i];
-    for(let j=i+1;j<endpoints.length;j++){
+    const cell=endpointCells[i],key=`${cell.x},${cell.y}`;
+    if(!buckets.has(key))buckets.set(key,[]);
+    buckets.get(key).push(i);
+  }
+  for(let i=0;i<endpoints.length;i++){
+    const [aId,a]=endpoints[i],cell=endpointCells[i];
+    const nearby=[];
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)
+      nearby.push(...(buckets.get(`${cell.x+dx},${cell.y+dy}`)||[]));
+    for(const j of nearby){
+      if(j<=i)continue;
       const [bId,b]=endpoints[j];
       if(component.get(aId)===component.get(bId))continue;
       const distanceMeters=haversineMeters(a,b);
