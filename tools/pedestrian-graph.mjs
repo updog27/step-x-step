@@ -561,6 +561,8 @@ export function buildDirectedOutAndBackCandidate(adjacency,nodes,outboundPath,op
  if(!(adjacency instanceof Map)||!(nodes instanceof Map)||
     !outboundPath||!Array.isArray(outboundPath.nodes)||outboundPath.nodes.length<2)
   throw new TypeError("Directed graph, node coordinates, and outbound path are required");
+ if(!isValidDirectedPath(adjacency,outboundPath))
+  return {ok:false,reason:"invalid_outbound_path",originNode:outboundPath.nodes[0],turnaroundNode:outboundPath.nodes.at(-1)};
  const origin=outboundPath.nodes[0],turnaround=outboundPath.nodes.at(-1);
  const maxReturnDistanceMeters=options.maxReturnDistanceMeters??Infinity;
  if(!(maxReturnDistanceMeters>0))throw new RangeError("Return distance limit must be positive");
