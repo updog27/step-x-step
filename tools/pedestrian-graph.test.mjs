@@ -596,3 +596,30 @@ test("route crossing inventory carries mapped pedestrian signal-control evidence
  const inventory=buildRouteFeatureInventory(fixture,ways,outbound,returning);
  assert.ok(inventory.crossings.some(x=>x.crossingEvidence.mapped&&x.crossingEvidence.controlled));
 });
+
+
+test("pedestrian way classifier distinguishes dedicated geometry from road centerlines", async () => {
+ const {classifyPedestrianWay,isEligiblePedestrianWay}=await import("./pedestrian-graph.mjs");
+ assert.deepEqual(classifyPedestrianWay({highway:"footway",footway:"sidewalk"}),
+  {status:"eligible",reason:"dedicated_pedestrian_geometry"});
+ assert.equal(isEligiblePedestrianWay({highway:"path"}),true);
+ assert.deepEqual(classifyPedestrianWay({highway:"residential",sidewalk:"both"}),
+  {status:"needs_review",reason:"sidewalk_tag_without_sidewalk_geometry"});
+ assert.deepEqual(classifyPedestrianWay({highway:"service",foot:"yes"}),
+  {status:"needs_review",reason:"foot_access_on_carriageway_centerline"});
+ assert.deepEqual(classifyPedestrianWay({highway:"service"}),
+  {status:"excluded",reason:"roadway_centerline_not_sidewalk_geometry"});
+});
+
+test("pedestrian way classifier fails closed on access restrictions and ambiguous roads", async () => {
+ const {classifyPedestrianWay,isEligiblePedestrianWay}=await import("./pedestrian-graph.mjs");
+ for (const tags of [
+  {highway:"footway",access:"private"},
+  {highway:"path",foot:"no"},
+  {highway:"residential",access:"destination",sidewalk:"both"}
+ ]) assert.equal(classifyPedestrianWay(tags).status,"excluded");
+ assert.equal(classifyPedestrianWay({highway:"cycleway",foot:"designated"}).status,"eligible");
+ assert.equal(classifyPedestrianWay({highway:"steps"}).status,"eligible");
+ assert.equal(classifyPedestrianWay({highway:"track",foot:"yes"}).status,"needs_review");
+ assert.equal(isEligiblePedestrianWay({highway:"residential",sidewalk:"both"}),false);
+});
