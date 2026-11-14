@@ -213,3 +213,17 @@ test("projection and split target the selected parallel edge rather than the fir
   assert.equal(split.get(1).some(edge=>edge.meters===90*match.fraction),true);
   assert.equal(split.get(1).some(edge=>edge.to===2 && edge.meters===100),true);
 });
+
+
+test("Yen search preserves distinct parallel-edge alternatives with identical node sequences", () => {
+  const graph=new Map([
+    ["S",[{to:"T",meters:10,wayId:1,edgeId:"walkway-a"},{to:"T",meters:12,wayId:2,edgeId:"walkway-b"}]],
+    ["T",[]]
+  ]);
+  const paths=kShortestPaths(graph,"S","T",3);
+  assert.equal(paths.length,2);
+  assert.deepEqual(paths.map(path=>path.nodes),[["S","T"],["S","T"]]);
+  assert.deepEqual(paths.map(path=>path.distanceMeters),[10,12]);
+  assert.deepEqual(paths.map(path=>path.edges[0].edgeId),["walkway-a","walkway-b"]);
+  assert.notEqual(paths[0].edgeKeys[0],paths[1].edgeKeys[0]);
+});
