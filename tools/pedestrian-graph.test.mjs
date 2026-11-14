@@ -1,7 +1,7 @@
 import test from "node:test";
 import { inspectPathCrossingEvidence } from "./pedestrian-graph.mjs";
 import { buildOutAndBackRoute } from "./pedestrian-graph.mjs";
-import { detectRoadwayCrossingsForPath, selectCrossingAwarePaths } from "./pedestrian-graph.mjs";
+import { detectRoadwayCrossingsForPath, selectCrossingAwarePaths, detectOriginConnectorRoadwayIntersections } from "./pedestrian-graph.mjs";
 import assert from "node:assert/strict";
 import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
@@ -705,4 +705,30 @@ test("origin snap reports connector distance and geometry class without claiming
  const farther=snapOriginToPedestrianGraph(nodes,graph,{lat:27.0005,lon:-82.0002},60);
  assert.equal(farther.ok,true);
  assert.equal(farther.connectorReview.distanceClass,"requires_field_review");
+});
+
+test("origin connector roadway review flags mapped centerline intersection and stays unverified", () => {
+ const map = new Map([
+  [1,{id:1,lat:-0.001,lon:0.0005}],
+  [2,{id:2,lat:0.001,lon:0.0005}]
+ ]);
+ const roads = [{id:90,nodes:[1,2],tags:{highway:"residential"}}];
+ const result = detectOriginConnectorRoadwayIntersections(map,roads,
+  {lat:0,lon:0},{lat:0,lon:0.001});
+ assert.equal(result.status,"connector_crosses_mapped_roadway");
+ assert.equal(result.crossingCount,1);
+ assert.equal(result.connectorStatus,"unverified");
+ assert.match(result.warning,/does not prove/);
+});
+test("origin connector review reports no mapped intersection without validating access", () => {
+ const map = new Map([
+  [1,{id:1,lat:0.001,lon:0.0005}],
+  [2,{id:2,lat:0.002,lon:0.0005}]
+ ]);
+ const result = detectOriginConnectorRoadwayIntersections(map,
+  [{id:90,nodes:[1,2],tags:{highway:"residential"}}],
+  {lat:0,lon:0},{lat:0,lon:0.001});
+ assert.equal(result.status,"no_mapped_roadway_intersection_detected");
+ assert.equal(result.crossingCount,0);
+ assert.equal(result.connectorStatus,"unverified");
 });
