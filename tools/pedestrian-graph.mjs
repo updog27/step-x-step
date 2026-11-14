@@ -279,10 +279,8 @@ export function corridorPathOverlap(adjacency, pathA, pathB) {
       const tags=edge.tags||{};
       const norm=value=>String(value||"").normalize("NFKC").trim().toLocaleLowerCase("en-US").replace(/\\s+/g," ");
       const ref=norm(tags.ref), name=norm(tags.name);
-      if(ref||name){
-        const streetKey=ref?"ref:"+ref:"name:"+name;
-        streetWeights.set(streetKey,(streetWeights.get(streetKey)||0)+meters);
-      }
+      if(ref)streetWeights.set("ref:"+ref,(streetWeights.get("ref:"+ref)||0)+meters);
+      if(name)streetWeights.set("name:"+name,(streetWeights.get("name:"+name)||0)+meters);
     }
     return {wayWeights,streetWeights};
   };
