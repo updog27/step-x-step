@@ -206,3 +206,12 @@ A remaining graph-model limitation is that shortest-path results are still repre
 The k-shortest-path implementation now retains the exact directed edge selected at every step, not only the node sequence. Graph edges created from OSM ways receive stable directional segment IDs. Yen's spur search bans the specific directed edge used by an accepted path, and candidate identity is based on edge sequences. Path distance and corridor overlap use the retained edge records. This allows two genuinely distinct parallel mapped ways between the same pair of nodes to remain separate alternatives instead of collapsing into one node-sequence path.
 
 A regression test covers two parallel edges with identical endpoints but different way identity and length. This is still a code-level change only: tests have been added but not executed in a Node runtime during this session. Candidate generator and its corridor-diversity reporting still pass node sequences into parts of the scoring layer; those interfaces should be migrated to edge-aware path objects before treating alternatives as fully audited.
+
+
+### Fail-closed GPS edge-projection integration (2026-11-14)
+
+The candidate utility now uses `findNearestPedestrianEdge` rather than selecting the nearest graph node. For an interior projection, it splits the selected directed edge and inserts a virtual origin node with the projected coordinate in the in-memory node map. Endpoint projections use the corresponding existing graph node to avoid creating a zero-length edge.
+
+Crucially, the origin-to-network connector is still unverified. The utility therefore withholds all generated route candidates and labels each requested distance `withheld_unverified_origin_connector`. It reports only the snap offset, projection fraction, and diagnostic candidate count; it does not print coordinates or route geometry. This is an intentional fail-closed state, not a completed routing feature.
+
+The CI workflow now syntax-checks `tools/pedestrian-candidates.mjs` in addition to running the offline graph unit tests. The script has not yet been executed against live Overpass data in this environment. Before any route can be released, implement a connector validator that can establish same-side pedestrian access using mapped/field-verified topology; otherwise keep the route withheld. Do not bypass this gate with a configuration flag.
