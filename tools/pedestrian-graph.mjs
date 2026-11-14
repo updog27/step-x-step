@@ -368,3 +368,36 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   }
   return next;
 }
+
+
+// Attach a private GPS origin to a directed pedestrian graph for diagnostics.
+// Endpoint snaps are accepted only when the resulting node has an outgoing
+// pedestrian edge. Interior snaps split the exact directed edge. This remains
+// a geometric snap only: connectorStatus is always unverified.
+export function snapOriginToPedestrianGraph(nodes, adjacency, origin, maxSnapMeters=60,
+  virtualNodeId="__stepx_private_origin_snap__") {
+  if (nodes.has(virtualNodeId) || adjacency.has(virtualNodeId)) {
+    throw new Error("Virtual origin node ID already exists");
+  }
+  const projection=findNearestPedestrianEdge(nodes,adjacency,origin,maxSnapMeters);
+  if (!projection) return {ok:false,reason:"no_eligible_edge_within_snap_limit"};
+  let graph=adjacency, startNode;
+  if (projection.fraction <= 0.000001) {
+    startNode=projection.from;
+  } else if (projection.fraction >= 0.999999) {
+    startNode=projection.to;
+  } else {
+    startNode=virtualNodeId;
+    graph=splitPedestrianEdgeAtProjection(adjacency,projection,virtualNodeId);
+  }
+  if (!(graph.get(startNode)||[]).length) {
+    return {ok:false,reason:"snapped_node_has_no_outgoing_pedestrian_edge",
+      projection:{from:projection.from,to:projection.to,wayId:projection.wayId,
+        fraction:projection.fraction,offsetMeters:projection.offsetMeters}};
+  }
+  return {ok:true,graph,startNode,connectorStatus:"unverified",
+    projection:{from:projection.from,to:projection.to,wayId:projection.wayId,
+      fraction:projection.fraction,offsetMeters:projection.offsetMeters,
+      isVirtual:startNode===virtualNodeId},
+    virtualNode:startNode===virtualNodeId ? {id:virtualNodeId,...projection.point} : null};
+}
