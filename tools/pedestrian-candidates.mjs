@@ -5,7 +5,7 @@
 // not finished routes; engine routing and safety validation remain separate steps.
 import process from "node:process";
 import {
-  buildDirectedPedestrianGraph, dijkstra, haversineMeters, reconstructNodePath
+  buildDirectedPedestrianGraph, dijkstra, haversineMeters, isEligiblePedestrianWay, reconstructNodePath
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -74,7 +74,7 @@ const results = miles.map(requestedMiles => {
 });
 console.log(JSON.stringify({
   source:"OpenStreetMap pedestrian-tagged ways via Overpass",
-  radiusMeters:radius,eligibleWayCount:ways.filter(w => adjacencyHasWay(adjacency,w.id)).length,
+  radiusMeters:radius,eligibleWayCount:ways.filter(w => isEligiblePedestrianWay(w.tags)).length,
   graphNodeCount:adjacency.size,snappedStartOffsetMeters:+snap.toFixed(1),results,
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
@@ -87,7 +87,3 @@ console.log(JSON.stringify({
   ]
 },null,2));
 
-function adjacencyHasWay(graph, wayId) {
-  for (const edges of graph.values()) if (edges.some(edge => edge.wayId === wayId)) return true;
-  return false;
-}
