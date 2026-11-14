@@ -346,11 +346,12 @@ test("connectivity audit identifies isolated nodes, terminals, and ambiguous jun
     [2,[{to:3,meters:10,wayId:12},{to:4,meters:10,wayId:13}]],
     [3,[]],
     [4,[{to:2,meters:10,wayId:13}]],
-    [5,[{to:2,meters:10,wayId:14}]]
+    [5,[{to:2,meters:10,wayId:14,tags:{highway:"footway",footway:"crossing"}}]]
   ]);
   const result=auditPedestrianConnectivity(auditNodes,auditGraph);
   assert.equal(result.nodeCount,6);
   assert.equal(result.connectedNodeCount,5);
+  assert.equal(result.crossingTaggedEdges,1);
   assert.deepEqual(result.isolated.map(x=>x.nodeId),[6]);
   assert.ok(result.terminals.some(x=>x.nodeId===1));
   assert.ok(result.junctions.some(x=>x.nodeId===2));
