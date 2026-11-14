@@ -6,7 +6,7 @@
 import process from "node:process";
 import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters, isEligiblePedestrianWay,
-  kShortestPaths, reconstructNodePath, selectCorridorDiversePaths, corridorPathOverlap
+  kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -66,7 +66,11 @@ const results = miles.map(requestedMiles => {
     .sort((a,b) => Math.abs(a[1]-target)-Math.abs(b[1]-target));
   const selectedTurnarounds = [];
   for (const candidate of candidatePool) {
-    const candidatePath = reconstructNodePath(previous,start,candidate[0]);
+    // Retain the exact edge sequence selected by Yen; a node-only path can
+    // silently choose the wrong parallel sidewalk/way during corridor scoring.
+    const candidatePath = kShortestPaths(adjacency,start,candidate[0],1,
+      {maxDistanceMeters:candidate[1] + 0.01})[0];
+    if (!candidatePath) continue;
     if (selectedTurnarounds.every(existing =>
       corridorPathOverlap(adjacency,existing.path,candidatePath) <= 0.75)) {
       selectedTurnarounds.push({candidate,path:candidatePath});
@@ -77,7 +81,7 @@ const results = miles.map(requestedMiles => {
       const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});
       const alternatives = selectCorridorDiversePaths(adjacency,pathPool,3,0.55);
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
-        networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.length ?? 0,
+        networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.nodes.length ?? 0,
         pathVariants:alternatives.map((variant,index)=>({
           rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
           distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
