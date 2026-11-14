@@ -428,8 +428,8 @@ test("does not treat footways as roadways and rejects malformed geometry", () =>
 test("detects crossings on multiple road segments and reports unknown crossing status conservatively", () => {
  const fixtureNodes=new Map([
   ["a",{id:"a",lat:27,lon:-82}],["b",{id:"b",lat:27.002,lon:-82}],
-  ["c",{id:"c",lat:27.0005,lon:-82.001}],["d",{id:"d",lat:27.0005,lon:-82.0001}],
-  ["e",{id:"e",lat:27.0015,lon:-82.001}],["f",{id:"f",lat:27.0015,lon:-82.0001}]
+  ["c",{id:"c",lat:27.0005,lon:-82.001}],["d",{id:"d",lat:27.0005,lon:-81.999}],
+  ["e",{id:"e",lat:27.0015,lon:-82.001}],["f",{id:"f",lat:27.0015,lon:-81.999}]
  ]);
  const ways=[
   {id:703,nodes:["c","d"],tags:{highway:"tertiary"}},
