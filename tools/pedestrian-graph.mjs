@@ -469,8 +469,19 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   forward.splice(index,1);
   const firstMeters=edge.meters*projection.fraction;
   const secondMeters=edge.meters-firstMeters;
-  forward.push({...edge,to:virtualNodeId,meters:firstMeters,...(edge.edgeId ? {edgeId:edge.edgeId+":a"} : {})});
-  next.get(virtualNodeId).push({...edge,to:projection.to,meters:secondMeters,...(edge.edgeId ? {edgeId:edge.edgeId+":b"} : {})});
+  const splitGeometry=(geometry,fraction)=>{
+    if(!Array.isArray(geometry)||geometry.length<2)return [null,null];
+    const start=geometry[0],end=geometry[geometry.length-1];
+    const middle={lat:start.lat+(end.lat-start.lat)*fraction,lon:start.lon+(end.lon-start.lon)*fraction};
+    return [[start,middle],[middle,end]];
+  };
+  const [firstGeometry,secondGeometry]=splitGeometry(edge.geometry,projection.fraction);
+  forward.push({...edge,to:virtualNodeId,meters:firstMeters,
+    ...(firstGeometry?{geometry:firstGeometry}:{}),
+    ...(edge.edgeId?{edgeId:edge.edgeId+":a"}:{})});
+  next.get(virtualNodeId).push({...edge,to:projection.to,meters:secondMeters,
+    ...(secondGeometry?{geometry:secondGeometry}:{}),
+    ...(edge.edgeId?{edgeId:edge.edgeId+":b"}:{})});
 
   // If the exact reverse arc exists, split it too, but preserve its own
   // direction. One-way pedestrian edges remain one-way.
@@ -483,8 +494,13 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   if (reverseIndex >= 0) {
     const reverseEdge=reverse[reverseIndex];
     reverse.splice(reverseIndex,1);
-    reverse.push({...reverseEdge,to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction),...(reverseEdge.edgeId ? {edgeId:reverseEdge.edgeId+":a"} : {})});
-    next.get(virtualNodeId).push({...reverseEdge,to:projection.from,meters:reverseEdge.meters*projection.fraction,...(reverseEdge.edgeId ? {edgeId:reverseEdge.edgeId+":b"} : {})});
+    const [reverseFirstGeometry,reverseSecondGeometry]=splitGeometry(reverseEdge.geometry,1-projection.fraction);
+    reverse.push({...reverseEdge,to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction),
+      ...(reverseFirstGeometry?{geometry:reverseFirstGeometry}:{}),
+      ...(reverseEdge.edgeId?{edgeId:reverseEdge.edgeId+":a"}:{})});
+    next.get(virtualNodeId).push({...reverseEdge,to:projection.from,meters:reverseEdge.meters*projection.fraction,
+      ...(reverseSecondGeometry?{geometry:reverseSecondGeometry}:{}),
+      ...(reverseEdge.edgeId?{edgeId:reverseEdge.edgeId+":b"}:{})});
   }
   return next;
 }
