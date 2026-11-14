@@ -5,8 +5,9 @@
 // not finished routes; engine routing and safety validation remain separate steps.
 import process from "node:process";
 import {
-  buildDirectedPedestrianGraph, dijkstra, haversineMeters, isEligiblePedestrianWay,
-  kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap
+  buildDirectedPedestrianGraph, dijkstra, isEligiblePedestrianWay,
+  kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
+  findNearestPedestrianEdge, splitPedestrianEdgeAtProjection
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -49,14 +50,18 @@ for (const element of data.elements || []) {
 const adjacency = buildDirectedPedestrianGraph(nodes, ways);
 if (!adjacency.size) throw new Error("No eligible directed pedestrian edges found.");
 
-let start = null, snap = Infinity;
-for (const id of adjacency.keys()) {
-  const node = nodes.get(id);
-  const offset = haversineMeters({lat,lon}, node);
-  if (offset < snap) { snap = offset; start = id; }
-}
-if (snap > snapLimit) throw new Error("Nearest eligible graph node exceeds snap limit; no candidates generated.");
+const snap = findNearestPedestrianEdge(nodes,adjacency,{lat,lon},snapLimit);
+if (!snap) throw new Error("No eligible pedestrian edge found within snap limit; no candidates generated.");
 
+let start;
+if (snap.fraction > 0.000001 && snap.fraction < 0.999999) {
+  start = "__stepx_private_origin_snap__";
+  adjacency = splitPedestrianEdgeAtProjection(adjacency,snap,start);
+  nodes.set(start,{id:start,...snap.point});
+} else {
+  start = snap.fraction <= 0.000001 ? snap.from : snap.to;
+}
+const connectorStatus = "unverified";
 const maxOutbound = Math.max(...miles) * MILE / 2 + 100;
 const {distances, previous} = dijkstra(adjacency, start, maxOutbound);
 const results = miles.map(requestedMiles => {
@@ -94,12 +99,18 @@ const results = miles.map(requestedMiles => {
 console.log(JSON.stringify({
   source:"OpenStreetMap pedestrian-tagged ways via Overpass",
   radiusMeters:radius,eligibleWayCount:ways.filter(w => isEligiblePedestrianWay(w.tags)).length,
-  graphNodeCount:adjacency.size,snappedStartOffsetMeters:+snap.toFixed(1),results,
+  graphNodeCount:adjacency.size,
+  originSnap:{method:"nearest eligible directed edge projection",offsetMeters:+snap.offsetMeters.toFixed(1),
+    fraction:+snap.fraction.toFixed(4),connectorStatus},
+  results:results.map(result=>({...result,candidates:[],diagnosticCandidateCount:result.candidates.length,
+    status:"withheld_unverified_origin_connector"})),
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
     "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by corridor overlap.",
     "Path diversity is screened by weighted shared OSM-way length (maximum 0.55); turnaround candidates are also screened against each other (maximum 0.75). OSM way IDs are only a corridor proxy, not a guarantee of visually distinct or safer routes.",
-    "The GPS origin is snapped to a nearby graph node by proximity; a verified on-network connector is not yet built.",
+    "The GPS origin is projected onto a nearby eligible directed edge and that edge is split at a virtual graph node.",
+    "The origin-to-network connector remains unverified; all candidate paths are withheld and must not be presented as usable routes.",
+    "A close geometric snap does not prove that the user is on the correct sidewalk side or has a legal, walkable connection to it.",
     "Crossing legality, polygon/parcel exclusions, field overlays, and side-specific sidewalk geometry are not enforced.",
     "Road centerlines are included only when OSM explicitly tags a sidewalk; side-specific geometry still needs validation.",
     "Unknown access and incomplete tags are not proof of legal public access or safe pedestrian conditions.",
