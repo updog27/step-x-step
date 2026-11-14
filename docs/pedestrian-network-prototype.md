@@ -253,3 +253,17 @@ The graph now preserves OSM tags on directed edges, and the candidate generator 
 This is deliberately evidence-only. A mapped zebra marking or signal does not prove current operation, accessibility, legal crossing conditions, or safe timing. An untagged node is not treated as a crossing. The candidate generator does not yet use crossing evidence as a route acceptance gate, so routes remain withheld while origin connection is unverified.
 
 Also corrected the candidate report's limitation text: road centerlines are excluded even when a sidewalk-presence tag exists; dedicated sidewalk geometry and side-specific connectivity must be mapped and validated. Offline regression tests cover mapped, controlled, unmarked, and unknown crossing evidence. No live Overpass request has been performed.
+
+
+### Pedestrian connectivity audit diagnostics (2026-11-14)
+
+Added `auditPedestrianConnectivity(nodes, adjacency)` to the offline graph module. It summarizes:
+- isolated OSM nodes with no eligible pedestrian edge;
+- terminal nodes with one distinct neighboring node;
+- junctions with three or more distinct neighbors;
+- junctions lacking explicit mapped crossing evidence;
+- incoming/outgoing directed-edge counts and distinct way counts for each diagnostic record.
+
+The audit uses the undirected incidence of eligible pedestrian edges to identify structural junctions while separately preserving directed in/out counts. It is linear in the number of graph nodes and edges. The candidate generator now emits aggregate counts only; it does not print node IDs, coordinates, or geometry.
+
+These findings are review flags, not safety judgments. A junction without crossing tags may not require a road crossing, and a mapped crossing does not prove safety. Likewise, a terminal may be a legitimate path endpoint. The diagnostics do not yet block candidate generation; all candidate paths remain withheld because the GPS connector is unverified. Added a synthetic regression test for isolated nodes, terminal nodes, and junctions with/without crossing evidence. No live Overpass request was made.
