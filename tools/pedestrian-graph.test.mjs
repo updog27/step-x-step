@@ -4,7 +4,7 @@ import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
   isEligiblePedestrianWay, pedestrianDirections, reconstructNodePath,
   directedPathOverlap, selectDiversePaths, kShortestPaths,
-  corridorPathOverlap, selectCorridorDiversePaths, snapOriginToPedestrianGraph
+  corridorPathOverlap, selectCorridorDiversePaths, snapOriginToPedestrianGraph, pedestrianCrossingEvidence, crossingEvidenceForNode
 } from "./pedestrian-graph.mjs";
 
 const nodes = new Map([
@@ -298,4 +298,26 @@ test("origin snap rejects an existing virtual node ID and distant origins", () =
   assert.throws(()=>snapOriginToPedestrianGraph(new Map([[ "__stepx_private_origin_snap__",{} ]]),graph,
     {lat:27,lon:-82},30),/already exists/);
   assert.equal(snapOriginToPedestrianGraph(nodes,graph,{lat:27.01,lon:-82},10).ok,false);
+});
+
+
+test("crossing evidence distinguishes mapped, controlled, and unknown crossings", () => {
+  assert.deepEqual(pedestrianCrossingEvidence({}),{
+    mapped:false,type:"unknown",controlled:false,signals:false
+  });
+  assert.deepEqual(pedestrianCrossingEvidence({highway:"crossing",crossing:"marked"}),{
+    mapped:true,type:"marked",controlled:true,signals:false
+  });
+  assert.deepEqual(pedestrianCrossingEvidence({highway:"crossing",crossing:"traffic_signals"}),{
+    mapped:true,type:"traffic_signals",controlled:true,signals:true
+  });
+  assert.equal(pedestrianCrossingEvidence({crossing:"unmarked"}).controlled,false);
+});
+
+test("crossing evidence reads tags retained on OSM node records", () => {
+  const taggedNodes=new Map([[50,{id:50,lat:27,lon:-82,tags:{highway:"crossing",crossing:"zebra"}}]]);
+  assert.deepEqual(crossingEvidenceForNode(taggedNodes,50),{
+    mapped:true,type:"zebra",controlled:true,signals:false
+  });
+  assert.equal(crossingEvidenceForNode(new Map(),99).mapped,false);
 });
