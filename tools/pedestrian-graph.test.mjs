@@ -654,3 +654,36 @@ test("connectivity audit handles a graph with only isolated nodes", () => {
  assert.equal(result.reachableFromStart,1);
  assert.deepEqual(result.unreachableFromStart,["b"]);
 });
+
+
+// Nearby disconnected terminal nodes are reported as review gaps, never linked.
+test("finds nearby endpoints across disconnected components without connecting them", async () => {
+ const {findPedestrianNetworkGapCandidates}=await import("./pedestrian-graph.mjs");
+ const fixture=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],["b",{id:"b",lat:27.001,lon:-82}],
+  ["c",{id:"c",lat:27.00105,lon:-82}],["d",{id:"d",lat:27.002,lon:-82}],
+  ["island",{id:"island",lat:27.01,lon:-82}]
+ ]);
+ const graph=new Map([
+  ["a",[{to:"b",meters:111}]],["b",[]],
+  ["c",[{to:"d",meters:111}]],["d",[]],["island",[]]
+ ]);
+ const result=findPedestrianNetworkGapCandidates(fixture,graph,{maxGapMeters:12});
+ assert.equal(result.terminalNodeCount,4);
+ assert.equal(result.candidateCount,1);
+ assert.equal(result.candidates[0].status,"unverified_gap_candidate");
+ assert.deepEqual([result.candidates[0].fromNodeId,result.candidates[0].toNodeId],["b","c"]);
+ assert.equal(result.candidates[0].distanceMeters<12,true);
+ assert.equal(graph.get("b").length,0,"gap analysis must not mutate or connect graph");
+});
+
+test("gap analysis ignores endpoints in the same weak component and enforces bounds", async () => {
+ const {findPedestrianNetworkGapCandidates}=await import("./pedestrian-graph.mjs");
+ const fixture=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],["b",{id:"b",lat:27.001,lon:-82}],
+  ["c",{id:"c",lat:27.002,lon:-82}]
+ ]);
+ const graph=new Map([["a",[{to:"b",meters:111}]],["b",[{to:"c",meters:111}]],["c",[]]]);
+ assert.equal(findPedestrianNetworkGapCandidates(fixture,graph).candidateCount,0);
+ assert.throws(()=>findPedestrianNetworkGapCandidates(fixture,graph,{maxGapMeters:101}),/maxGapMeters/);
+});
