@@ -309,6 +309,46 @@ export function selectCorridorDiversePaths(adjacency, paths, maxPaths = 3, maxOv
 }
 
 
+// Compare complete round trips by the union of outbound and return corridor
+// lengths. This prevents alternatives that diverge outbound but converge on
+// the same return streets (or vice versa) from being presented as distinct.
+export function roundTripCorridorOverlap(adjacency, routeA, routeB) {
+  if (!routeA || !routeB || !routeA.outboundPath || !routeA.returnPath ||
+      !routeB.outboundPath || !routeB.returnPath) {
+    throw new TypeError("Each round trip requires outboundPath and returnPath");
+  }
+  const combine = route => ({
+    nodes: [...route.outboundPath.nodes, ...route.returnPath.nodes.slice(1)],
+    edges: [...(route.outboundPath.edges || []), ...(route.returnPath.edges || [])]
+  });
+  return corridorPathOverlap(adjacency, combine(routeA), combine(routeB));
+}
+
+export function selectRoundTripCorridorDiversePaths(adjacency, routes, maxPaths=3, maxOverlap=0.55) {
+  if (!Number.isInteger(maxPaths) || maxPaths < 1 || maxPaths > 10) {
+    throw new RangeError("maxPaths must be an integer from 1 to 10");
+  }
+  if (!Number.isFinite(maxOverlap) || maxOverlap < 0 || maxOverlap > 1) {
+    throw new RangeError("maxOverlap must be between 0 and 1");
+  }
+  const ordered=[...routes].sort((a,b)=>
+    (a.distanceErrorMeters ?? Infinity)-(b.distanceErrorMeters ?? Infinity));
+  const selected=[];
+  for (const candidate of ordered) {
+    if (selected.every(existing=>
+      roundTripCorridorOverlap(adjacency,existing,candidate)<=maxOverlap)) {
+      selected.push(candidate);
+      if (selected.length>=maxPaths) break;
+    }
+  }
+  return selected.map(route=>({...route,
+    maxRoundTripCorridorOverlapWithSelected:selected.length===1?0:
+      Math.max(...selected.filter(other=>other!==route)
+        .map(other=>roundTripCorridorOverlap(adjacency,route,other)))
+  }));
+}
+
+
 // Project a GPS point onto mapped pedestrian edge geometry using a local
 // equirectangular plane. The result is a geometric snap candidate only;
 // it does not prove that the straight GPS-to-edge connector is walkable.
