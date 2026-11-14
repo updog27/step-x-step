@@ -769,10 +769,12 @@ export function findPedestrianNetworkGapCandidates(nodes, adjacency, options = {
     throw new RangeError("maxCandidates must be an integer from 1 to 500");
   if(!Number.isInteger(maxEndpoints)||maxEndpoints<2||maxEndpoints>10000)
     throw new RangeError("maxEndpoints must be an integer from 2 to 10000");
-  const weak=new Map(),degree=new Map();
-  for(const id of nodes.keys()){weak.set(id,new Set());degree.set(id,0);}
+  const weak=new Map(),degree=new Map(),incidentEdges=new Map();
+  for(const id of nodes.keys()){weak.set(id,new Set());degree.set(id,0);incidentEdges.set(id,[]);}
   for(const [from,edges] of adjacency) for(const edge of edges){
     weak.get(from)?.add(edge.to); weak.get(edge.to)?.add(from);
+    incidentEdges.get(from)?.push({neighbor:edge.to,wayId:edge.wayId,tags:edge.tags||{}});
+    incidentEdges.get(edge.to)?.push({neighbor:from,wayId:edge.wayId,tags:edge.tags||{}});
   }
   const component=new Map();let componentId=0;
   for(const id of nodes.keys()){
@@ -794,13 +796,30 @@ export function findPedestrianNetworkGapCandidates(nodes, adjacency, options = {
       const [bId,b]=endpoints[j];
       if(component.get(aId)===component.get(bId))continue;
       const distanceMeters=haversineMeters(a,b);
-      if(distanceMeters<=maxGapMeters)candidates.push({
-        fromNodeId:aId,toNodeId:bId,
-        fromComponentId:component.get(aId),toComponentId:component.get(bId),
-        distanceMeters:+distanceMeters.toFixed(2),
-        status:"unverified_gap_candidate",
-        warning:"Spatial proximity does not establish sidewalk continuity or authorize graph connection."
-      });
+      if(distanceMeters<=maxGapMeters){
+        const aEdges=incidentEdges.get(aId)||[],bEdges=incidentEdges.get(bId)||[];
+        const aWays=[...new Set(aEdges.map(edge=>String(edge.wayId??"unknown")))].sort();
+        const bWays=[...new Set(bEdges.map(edge=>String(edge.wayId??"unknown")))].sort();
+        const aHighways=[...new Set(aEdges.map(edge=>edge.tags.highway).filter(Boolean))].sort();
+        const bHighways=[...new Set(bEdges.map(edge=>edge.tags.highway).filter(Boolean))].sort();
+        const sharedWayIds=aWays.filter(id=>bWays.includes(id)&&id!=="unknown");
+        const aSidewalkValues=[...new Set(aEdges.map(edge=>edge.tags.sidewalk).filter(Boolean))].sort();
+        const bSidewalkValues=[...new Set(bEdges.map(edge=>edge.tags.sidewalk).filter(Boolean))].sort();
+        candidates.push({
+          fromNodeId:aId,toNodeId:bId,
+          fromComponentId:component.get(aId),toComponentId:component.get(bId),
+          distanceMeters:+distanceMeters.toFixed(2),
+          endpointEvidence:{
+            from:{wayIds:aWays,highwayClasses:aHighways,sidewalkTags:aSidewalkValues},
+            to:{wayIds:bWays,highwayClasses:bHighways,sidewalkTags:bSidewalkValues},
+            sharedWayIds,
+            highwayClassesMatch:aHighways.length>0&&bHighways.length>0&&aHighways.some(value=>bHighways.includes(value))
+          },
+          reviewClass:sharedWayIds.length?"possible_same_way_mapping_gap":"cross_way_continuity_review",
+          status:"unverified_gap_candidate",
+          warning:"Endpoint metadata helps prioritize review only. It does not establish physical continuity, same-side access, public access, or authorize a graph connection."
+        });
+      }
     }
   }
   candidates.sort((a,b)=>a.distanceMeters-b.distanceMeters||
