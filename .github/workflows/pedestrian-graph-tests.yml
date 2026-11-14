@@ -1,0 +1,26 @@
+name: Pedestrian graph tests
+
+on:
+  push:
+    branches:
+      - pedestrian-network-prototype
+  pull_request:
+    branches:
+      - pedestrian-network-prototype
+    paths:
+      - "tools/pedestrian-graph.mjs"
+      - "tools/pedestrian-graph.test.mjs"
+      - ".github/workflows/pedestrian-graph-tests.yml"
+
+jobs:
+  graph-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run pedestrian graph tests
+        run: node --test tools/pedestrian-graph.test.mjs
