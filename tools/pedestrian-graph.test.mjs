@@ -749,3 +749,44 @@ test("origin connector review reports no mapped intersection without validating 
  assert.equal(result.crossingCount,0);
  assert.equal(result.connectorStatus,"unverified");
 });
+
+
+test("gap review never treats missing way IDs as shared-way continuity evidence", async () => {
+ const {findPedestrianNetworkGapCandidates}=await import("./pedestrian-graph.mjs");
+ const nodes=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],
+  ["b",{id:"b",lat:27.00005,lon:-82}],
+  ["c",{id:"c",lat:27.0001,lon:-82}],
+  ["d",{id:"d",lat:27.00015,lon:-82}]
+ ]);
+ const graph=new Map([
+  ["a",[{to:"b",meters:5,tags:{highway:"footway"}}]],["b",[]],
+  ["c",[{to:"d",meters:5,tags:{highway:"footway"}}]],["d",[]]
+ ]);
+ const result=findPedestrianNetworkGapCandidates(nodes,graph,{maxGapMeters:12});
+ assert.equal(result.candidateCount,1);
+ assert.deepEqual(result.candidates[0].endpointEvidence.sharedWayIds,[]);
+ assert.equal(result.candidates[0].reviewClass,"cross_way_continuity_review");
+ assert.deepEqual(result.candidates[0].endpointEvidence.from.wayIds,["unknown"]);
+ assert.deepEqual(result.candidates[0].endpointEvidence.to.wayIds,["unknown"]);
+ assert.equal(result.candidates[0].status,"unverified_gap_candidate");
+});
+
+test("gap review reports truncation without changing deterministic nearest-first ordering", async () => {
+ const {findPedestrianNetworkGapCandidates}=await import("./pedestrian-graph.mjs");
+ const nodes=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],["b",{id:"b",lat:27.001,lon:-82}],
+  ["c",{id:"c",lat:27.00101,lon:-82}],["d",{id:"d",lat:27.002,lon:-82}],
+  ["e",{id:"e",lat:27.00201,lon:-82}],["f",{id:"f",lat:27.003,lon:-82}]
+ ]);
+ const graph=new Map([
+  ["a",[{to:"b",meters:111,wayId:1,tags:{highway:"footway"}}]],["b",[]],
+  ["c",[{to:"d",meters:111,wayId:2,tags:{highway:"footway"}}]],["d",[]],
+  ["e",[{to:"f",meters:111,wayId:3,tags:{highway:"footway"}}]],["f",[]]
+ ]);
+ const result=findPedestrianNetworkGapCandidates(nodes,graph,{maxGapMeters:12,maxCandidates:1});
+ assert.equal(result.candidateCount,2);
+ assert.equal(result.truncated,true);
+ assert.equal(result.candidates.length,1);
+ assert.deepEqual([result.candidates[0].fromNodeId,result.candidates[0].toNodeId],["b","c"]);
+});
