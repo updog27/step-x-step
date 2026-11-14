@@ -293,6 +293,22 @@ test("splitting an identified edge gives each sub-edge a stable distinct identit
 });
 
 
+test("splitting an edge divides retained geometry at the projected position",async()=>{
+ const {splitPedestrianEdgeAtProjection}=await import("./pedestrian-graph.mjs");
+ const geometry=[{lat:27,lon:-82},{lat:27,lon:-81.999}];
+ const graph=new Map([[1,[{to:2,meters:100,wayId:701,edgeId:"f",geometry}]],
+  [2,[{to:1,meters:100,wayId:701,edgeId:"b",geometry:[...geometry].reverse()}]]]);
+ const split=splitPedestrianEdgeAtProjection(graph,
+  {from:1,to:2,wayId:701,meters:100,edgeIndex:0,fraction:0.25},"virtual");
+ const first=split.get(1)[0],second=split.get("virtual")[0];
+ assert.equal(first.geometry.length,2);assert.equal(second.geometry.length,2);
+ assert.ok(Math.abs(first.geometry[1].lon-(-81.99975))<1e-9);
+ assert.equal(second.geometry[0].lon,first.geometry[1].lon);
+ const reverseFirst=split.get(2)[0],reverseSecond=split.get("virtual")[1];
+ assert.equal(reverseFirst.geometry[1].lon,first.geometry[1].lon);
+ assert.equal(reverseSecond.geometry[0].lon,first.geometry[1].lon);
+});
+ 
 test("origin snap inserts a virtual node on an interior directed edge", () => {
   const graph=new Map([[1,[{to:2,meters:100,wayId:10,edgeId:"10:1:f"}]]]);
   const result=snapOriginToPedestrianGraph(nodes,graph,{lat:27.0001,lon:-81.9995},30);
