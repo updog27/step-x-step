@@ -7,7 +7,7 @@ import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
   isEligiblePedestrianWay, pedestrianDirections, reconstructNodePath,
   directedPathOverlap, selectDiversePaths, kShortestPaths,
-  corridorPathOverlap, selectCorridorDiversePaths, snapOriginToPedestrianGraph, pedestrianCrossingEvidence, crossingEvidenceForNode, auditPedestrianConnectivity, buildRouteFeatureInventory
+  corridorPathOverlap, selectCorridorDiversePaths, roundTripCorridorOverlap, selectRoundTripCorridorDiversePaths, snapOriginToPedestrianGraph, pedestrianCrossingEvidence, crossingEvidenceForNode, auditPedestrianConnectivity, buildRouteFeatureInventory
 } from "./pedestrian-graph.mjs";
 
 const nodes = new Map([
@@ -830,4 +830,44 @@ test("round-trip distance reports geometry and graph edge totals separately",asy
  assert.equal(result.distance.totalMeters,result.route.properties.totalDistanceMeters);
  assert.ok(result.distance.totalMeters>200);
  assert.equal(result.distance.outboundMeters,result.route.properties.outboundDistanceMeters);
+});
+
+
+test("round-trip corridor diversity detects shared return streets", () => {
+  const graph=new Map([
+    ["S",[{to:"A",meters:10,wayId:1},{to:"D",meters:10,wayId:2}]],
+    ["A",[{to:"T",meters:10,wayId:3}]],
+    ["D",[{to:"T",meters:10,wayId:4}]],
+    ["T",[{to:"R",meters:10,wayId:5}]],
+    ["R",[{to:"S",meters:10,wayId:6}]],
+    ["S2",[]]
+  ]);
+  const routes=[
+    {outboundPath:{nodes:["S","A","T"],edges:[{to:"A",meters:10,wayId:1},{to:"T",meters:10,wayId:3}]},
+     returnPath:{nodes:["T","R","S"],edges:[{to:"R",meters:10,wayId:5},{to:"S",meters:10,wayId:6}]},distanceErrorMeters:1},
+    {outboundPath:{nodes:["S","D","T"],edges:[{to:"D",meters:10,wayId:2},{to:"T",meters:10,wayId:4}]},
+     returnPath:{nodes:["T","R","S"],edges:[{to:"R",meters:10,wayId:5},{to:"S",meters:10,wayId:6}]},distanceErrorMeters:2},
+    {outboundPath:{nodes:["S","A","T"],edges:[{to:"A",meters:10,wayId:1},{to:"T",meters:10,wayId:3}]},
+     returnPath:{nodes:["T","R","S"],edges:[{to:"R",meters:10,wayId:5},{to:"S",meters:10,wayId:6}]},distanceErrorMeters:3}
+  ];
+  assert.ok(roundTripCorridorOverlap(graph,routes[0],routes[1])>0.55);
+  const selected=selectRoundTripCorridorDiversePaths(graph,routes,3,0.55);
+  assert.equal(selected.length,1);
+  assert.equal(selected[0].distanceErrorMeters,1);
+});
+
+test("round-trip corridor diversity preserves genuinely distinct outbound and return corridors", () => {
+  const graph=new Map([
+    ["S",[{to:"A",meters:10,wayId:1},{to:"D",meters:10,wayId:2}]],
+    ["A",[{to:"T",meters:10,wayId:3}]],["D",[{to:"T",meters:10,wayId:4}]],
+    ["T",[{to:"R",meters:10,wayId:5},{to:"U",meters:10,wayId:7}]],
+    ["R",[{to:"S",meters:10,wayId:6}]],["U",[{to:"S",meters:10,wayId:8}]]
+  ]);
+  const routes=[
+    {outboundPath:{nodes:["S","A","T"],edges:[{to:"A",meters:10,wayId:1},{to:"T",meters:10,wayId:3}]},
+     returnPath:{nodes:["T","R","S"],edges:[{to:"R",meters:10,wayId:5},{to:"S",meters:10,wayId:6}]},distanceErrorMeters:1},
+    {outboundPath:{nodes:["S","D","T"],edges:[{to:"D",meters:10,wayId:2},{to:"T",meters:10,wayId:4}]},
+     returnPath:{nodes:["T","U","S"],edges:[{to:"U",meters:10,wayId:7},{to:"S",meters:10,wayId:8}]},distanceErrorMeters:2}
+  ];
+  assert.equal(selectRoundTripCorridorDiversePaths(graph,routes,3,0.55).length,2);
 });
