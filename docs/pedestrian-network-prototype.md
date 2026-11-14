@@ -164,3 +164,18 @@ Added directed-edge overlap scoring and a diversity selector to the graph module
 This is a first structural diversity filter, not a visual-route or safety guarantee. Paths can still share the same street corridor while using different OSM node segmentation, and paths with low edge overlap can still look similar on a map. The next refinement should collapse consecutive edges by OSM way/corridor identity and score shared corridor length, then diversify turnaround nodes as well as paths to a fixed endpoint.
 
 The candidate turnaround nodes themselves still come from one Dijkstra shortest-path tree. This stage therefore produces diverse path variants per candidate endpoint, not a globally optimized set of three independent out-and-back routes. No live Overpass execution or Node test run has been performed in this environment.
+
+
+### Corridor-level diversity and turnaround selection (2026-11-13)
+
+The graph module now includes weighted corridor-overlap scoring based on OSM way IDs:
+
+- `corridorPathOverlap` compares the length traveled on each OSM way and calculates weighted Jaccard overlap. It catches alternatives that use different node segmentation along the same mapped way.
+- `selectCorridorDiversePaths` greedily selects short path variants while enforcing a maximum shared-corridor overlap.
+- For each requested distance, candidate generation now screens turnaround nodes against one another using the same corridor metric, retaining up to 12 candidate endpoints with no more than 0.75 overlap against already selected endpoints.
+- For each selected endpoint, it searches up to eight Yen path variants and retains up to three with no more than 0.55 corridor overlap.
+- Output reports maximum corridor overlap for each selected path variant.
+
+These thresholds are initial engineering heuristics, not empirically calibrated quality scores. OSM way IDs are a better corridor proxy than raw node-edge overlap, but distinct OSM ways can still represent the same physical street, sidewalk, or adjacent parallel facilities. Geometry-based corridor clustering and map visualization are still needed.
+
+The turnaround candidates remain drawn from the Dijkstra shortest-path tree. This is now a diverse subset of reachable endpoints, not a global search over all possible outbound paths. No live Overpass request or Node test execution has been performed in this environment. The earlier directed-edge-only diversity description above is superseded for candidate generation by this corridor-level approach; the directed-edge utilities remain available for diagnostics.
