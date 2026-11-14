@@ -84,3 +84,33 @@ The comparison harness must:
 
 ### Current execution limitation
 This environment can inspect and update repository files but cannot presently execute external routing requests from the runtime. No Valhalla, GraphHopper, or ORS route results have been obtained in this session. The implementation/test harness must not be described as validated until it is run with working network access and credentials where required.
+
+
+## First executable prototype utility (2026-11-13)
+
+Added `tools/pedestrian-candidates.mjs` on this branch. It is a deliberately narrow first implementation of the graph-extraction/candidate-generation stage:
+
+- Reads the private origin from local `STEPX_TEST_LAT` and `STEPX_TEST_LON` environment variables; refuses to run without them.
+- Queries a bounded Overpass area and builds an undirected graph from selected pedestrian-tagged OSM ways.
+- Uses Dijkstra shortest-path distances from the nearest eligible graph node.
+- Finds up to 12 graph-node candidates near half of each requested out-and-back distance (default test distances: 0.5, 1, and 2 miles).
+- Omits origin coordinates and route geometry from its output so the output can be retained without disclosing the private test location.
+- Supports a local Overpass endpoint override and configurable search radius/snap limit.
+
+Example local invocation (substitute the private values locally; do not paste them into repository files or shared logs):
+
+```bash
+STEPX_TEST_LAT=<private-latitude> STEPX_TEST_LON=<private-longitude> node tools/pedestrian-candidates.mjs --miles 0.5,1,2
+```
+
+### Known limitations — not acceptance-ready
+
+This is graph candidate generation, not a route engine comparison and not a complete safety validator. The current graph pass:
+- treats eligible OSM ways as undirected;
+- does not yet enforce one-way directionality, crossing legality, polygon/parcel exclusions, field-observation overlays, or side-specific sidewalk geometry;
+- only includes road centerlines where OSM explicitly tags a sidewalk, but still cannot establish which side is represented;
+- excludes service and parking-aisle ways, but does not yet spatially test route geometry against parking or commercial property polygons;
+- snaps to the nearest eligible graph node within a configurable limit; a nearest-node snap is not proof that the user's actual location connects to that graph edge;
+- uses public Overpass by default, so execution should remain low-volume and best-effort.
+
+The script has been committed but has not been executed in this environment: outbound network access is unavailable here. Its output must be reviewed and its limitations addressed before connecting candidate nodes to Valhalla, GraphHopper, or the app.
