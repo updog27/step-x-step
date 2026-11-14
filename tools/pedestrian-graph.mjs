@@ -466,6 +466,32 @@ function segmentAngleDegrees(a,b,c,d) {
  const cosine=Math.max(-1,Math.min(1,Math.abs((ux*vx+uy*vy)/denom)));
  return Math.acos(cosine)*180/Math.PI;
 }
+// Prefer paths with fewer mapped roadway-centerline intersections, then
+// shorter distance, while preserving a corridor-diversity ceiling. This is a
+// crossing-count heuristic, not a safety score or guarantee of a safe route.
+export function selectCrossingAwarePaths(nodes,ways,paths,maxPaths=3,maxCorridorOverlap=0.55,options={}) {
+ if(!Number.isInteger(maxPaths)||maxPaths<1||maxPaths>10)throw new RangeError("maxPaths must be 1–10");
+ if(!Number.isFinite(maxCorridorOverlap)||maxCorridorOverlap<0||maxCorridorOverlap>1)throw new RangeError("maxCorridorOverlap must be 0–1");
+ const scored=paths.map(path=>({...path,
+  crossingAssessment:detectRoadwayCrossingsForPath(nodes,ways,path,options)}))
+ .sort((a,b)=>a.crossingAssessment.crossingCount-b.crossingAssessment.crossingCount||
+  a.distanceMeters-b.distanceMeters||
+  JSON.stringify(a.nodes).localeCompare(JSON.stringify(b.nodes)));
+ const selected=[];
+ for(const candidate of scored){
+  if(selected.every(existing=>corridorPathOverlap(new Map(),existing,candidate)<=maxCorridorOverlap)){
+   selected.push(candidate);
+   if(selected.length>=maxPaths)break;
+  }
+ }
+ return selected.map(path=>({...path,
+  detectedRoadwayCrossingCount:path.crossingAssessment.crossingCount,
+  crossingGeometry:path.crossingAssessment.crossings,
+  maxCorridorOverlapWithSelected:selected.length===1?0:
+   Math.max(...selected.filter(other=>other!==path).map(other=>corridorPathOverlap(new Map(),path,other)))
+ }));
+}
+
 export function detectRoadwayCrossingsForPath(nodes,ways,path,options={}) {
  const nodeIds=Array.isArray(path)?path:path?.nodes;
  if(!Array.isArray(nodeIds)||nodeIds.length<2)throw new TypeError("Path must contain at least two node IDs");
