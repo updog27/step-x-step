@@ -329,3 +329,10 @@ The ranking is intentionally narrow:
 - The existing fail-closed origin connector gate remains in place; no candidate is exposed as a usable route.
 
 Added a regression test proving a mapped-crossing-free detour is ranked ahead of a shorter path that intersects a mapped roadway. The complete graph, field-observation, route-acceptance, and candidate syntax CI workflow passed for commit `f29b6336d582e1ed7bd5bf5d1f44b1eddfef2bd6`.
+
+
+### Directed out-and-back GeoJSON assembly (2026-11-14)
+
+Added `buildOutAndBackRoute(nodes, outboundPath, returnPath)` as the first route-geometry assembly primitive. It requires two explicit directed paths: outbound from origin to turnaround, and return from that same turnaround to the original origin. It rejects disconnected legs and missing/invalid node coordinates rather than fabricating a return line. Successful output is a GeoJSON Feature with a LineString, outbound/return/total measured geometry distances, and node counts.
+
+This is not yet wired into the live candidate generator. The current candidate search still finds outbound turnaround paths from a single Dijkstra tree; it does not yet compute independent directed return paths or run route acceptance on a complete loop. The helper also does not trim a route to an exact user-requested distance, prove the requested distance tolerance, or establish pedestrian safety/access. Those remain explicit next integration tasks. Added tests for valid assembly, disconnected return rejection, and missing coordinate rejection. CI validation is in progress for the new route-assembly tests.
