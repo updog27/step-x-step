@@ -722,6 +722,61 @@ export function inspectPathCrossingEvidence(nodes, path) {
 // Structural audit only: identify isolated nodes, terminal ends, and junctions
 // where crossing evidence is absent. It does not infer that a crossing is
 // required or safe; callers must inspect geometry and street context.
+
+// Identify nearby terminal nodes belonging to different weak components.
+// These are possible mapping/continuity gaps for review only; proximity never
+// creates an edge or proves that a sidewalk physically connects.
+export function findPedestrianNetworkGapCandidates(nodes, adjacency, options = {}) {
+  const maxGapMeters=options.maxGapMeters ?? 12;
+  const maxCandidates=options.maxCandidates ?? 50;
+  const maxEndpoints=options.maxEndpoints ?? 3000;
+  if(!Number.isFinite(maxGapMeters)||maxGapMeters<=0||maxGapMeters>100)
+    throw new RangeError("maxGapMeters must be greater than 0 and no more than 100");
+  if(!Number.isInteger(maxCandidates)||maxCandidates<1||maxCandidates>500)
+    throw new RangeError("maxCandidates must be an integer from 1 to 500");
+  if(!Number.isInteger(maxEndpoints)||maxEndpoints<2||maxEndpoints>10000)
+    throw new RangeError("maxEndpoints must be an integer from 2 to 10000");
+  const weak=new Map(),degree=new Map();
+  for(const id of nodes.keys()){weak.set(id,new Set());degree.set(id,0);}
+  for(const [from,edges] of adjacency) for(const edge of edges){
+    weak.get(from)?.add(edge.to); weak.get(edge.to)?.add(from);
+  }
+  const component=new Map();let componentId=0;
+  for(const id of nodes.keys()){
+    if(component.has(id))continue;
+    componentId++;const queue=[id];component.set(id,componentId);
+    while(queue.length){const current=queue.shift();for(const next of weak.get(current)||[]){
+      if(!component.has(next)){component.set(next,componentId);queue.push(next);}
+    }}
+  }
+  for(const [id,neighbors] of weak)degree.set(id,neighbors.size);
+  const endpoints=[...nodes.entries()].filter(([id,node])=>degree.get(id)===1&&
+    Number.isFinite(node.lat)&&Number.isFinite(node.lon));
+  if(endpoints.length>maxEndpoints)
+    throw new RangeError("Too many terminal nodes for bounded gap analysis");
+  const candidates=[];
+  for(let i=0;i<endpoints.length;i++){
+    const [aId,a]=endpoints[i];
+    for(let j=i+1;j<endpoints.length;j++){
+      const [bId,b]=endpoints[j];
+      if(component.get(aId)===component.get(bId))continue;
+      const distanceMeters=haversineMeters(a,b);
+      if(distanceMeters<=maxGapMeters)candidates.push({
+        fromNodeId:aId,toNodeId:bId,
+        fromComponentId:component.get(aId),toComponentId:component.get(bId),
+        distanceMeters:+distanceMeters.toFixed(2),
+        status:"unverified_gap_candidate",
+        warning:"Spatial proximity does not establish sidewalk continuity or authorize graph connection."
+      });
+    }
+  }
+  candidates.sort((a,b)=>a.distanceMeters-b.distanceMeters||
+    String(a.fromNodeId).localeCompare(String(b.fromNodeId))||
+    String(a.toNodeId).localeCompare(String(b.toNodeId)));
+  return {terminalNodeCount:endpoints.length,candidateCount:candidates.length,
+    truncated:candidates.length>maxCandidates,candidates:candidates.slice(0,maxCandidates)};
+}
+
 export function auditPedestrianConnectivity(nodes, adjacency, startNode = undefined) {
   const incident = new Map();
   const incomingCounts = new Map();
