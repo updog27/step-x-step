@@ -665,8 +665,8 @@ test("finds nearby endpoints across disconnected components without connecting t
   ["island",{id:"island",lat:27.01,lon:-82}]
  ]);
  const graph=new Map([
-  ["a",[{to:"b",meters:111}]],["b",[]],
-  ["c",[{to:"d",meters:111}]],["d",[]],["island",[]]
+  ["a",[{to:"b",meters:111,wayId:1,tags:{highway:"footway",footway:"sidewalk"}}]],["b",[]],
+  ["c",[{to:"d",meters:111,wayId:2,tags:{highway:"footway",footway:"sidewalk"}}]],["d",[]],["island",[]]
  ]);
  const result=findPedestrianNetworkGapCandidates(fixture,graph,{maxGapMeters:12});
  assert.equal(result.terminalNodeCount,4);
