@@ -10,7 +10,7 @@ import {
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
   snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath,
   detectOriginConnectorRoadwayIntersections,
-  selectCrossingAwarePaths, buildDirectedOutAndBackCandidate, buildRouteFeatureInventory
+  selectCrossingAwarePaths, selectRoundTripCorridorDiversePaths, buildDirectedOutAndBackCandidate, buildRouteFeatureInventory
 } from "./pedestrian-graph.mjs";
 import {evaluateRouteAcceptance} from "./route-acceptance.mjs";
 
@@ -107,6 +107,9 @@ const results = miles.map(requestedMiles => {
           connections:inventory.connections.concat(inventory.crossings)
         }):null;
         return {
+          outboundPath:variant,
+          returnPath:assembled.ok?assembled.returnPath:null,
+          distanceErrorMeters:assembled.ok?assembled.distance.errorMeters:Infinity,
           distanceMeters:+variant.distanceMeters.toFixed(1),
           distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
           maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3),
@@ -136,9 +139,16 @@ const results = miles.map(requestedMiles => {
           _rank:{complete:assembled.ok,distanceError:assembled.ok?assembled.distance.errorMeters:Infinity}
         };
       });
+      // First diversify the complete outbound-plus-return corridors. A pair
+      // of different outbound paths that share the same return streets is not
+      // a genuinely distinct round-trip option.
+      const diverseCompletedVariants=selectRoundTripCorridorDiversePaths(
+        adjacency,completedVariants.filter(variant=>variant._rank.complete),3,0.55);
+      const selectedVariants=[...diverseCompletedVariants,
+        ...completedVariants.filter(variant=>!variant._rank.complete)];
       // Rank only after each outbound path has an independently routed return.
       // A half-distance match is not enough: the full geometry must be close.
-      completedVariants.sort((a,b)=>
+      selectedVariants.sort((a,b)=>
         Number(b._rank.complete)-Number(a._rank.complete)||
         (a.roundTripRoadwayCrossingCount ?? Infinity)-(b.roundTripRoadwayCrossingCount ?? Infinity)||
         a._rank.distanceError-b._rank.distanceError||
@@ -159,7 +169,7 @@ const results = miles.map(requestedMiles => {
           crossings:best.roundTripRoadwayCrossingCount ?? Infinity,
           distanceError:best._rank.distanceError
         }:{complete:false,crossings:Infinity,distanceError:Infinity},
-        pathVariants:completedVariants.slice(0,3).map(({_rank,...variant},index)=>({...variant,rank:index+1}))};
+        pathVariants:selectedVariants.slice(0,3).map(({_rank,outboundPath,returnPath,distanceErrorMeters,maxRoundTripCorridorOverlapWithSelected,...variant},index)=>({...variant,...(Number.isFinite(maxRoundTripCorridorOverlapWithSelected)?{maxRoundTripCorridorOverlapWithSelected:+maxRoundTripCorridorOverlapWithSelected.toFixed(3)}:{}),rank:index+1}))};
     });
   // Turnaround nodes are initially discovered from the shortest-path tree,
   // but final ordering is based on complete outbound-plus-return candidates.
