@@ -14,12 +14,17 @@ export function isEligiblePedestrianWay(tags = {}) {
   const excluded = ["proposed", "construction", "abandoned", "raceway", "bus_guideway",
     "motorway", "motorway_link", "trunk", "trunk_link", "service", "parking_aisle"];
   if (!highway || excluded.includes(highway)) return false;
-  if (["no", "private", "customers", "delivery"].includes(tags.access) ||
+  // Fail closed on access restrictions. "destination" is not suitable
+  // for through-routing, even where a pedestrian might legally reach a site.
+  if (["no", "private", "customers", "delivery", "destination",
+       "agricultural", "forestry", "restricted"].includes(tags.access) ||
       ["no", "private"].includes(tags.foot)) return false;
+  // Only dedicated pedestrian geometry is routable here. A road tagged
+  // sidewalk=left/right/both still supplies a carriageway centerline, not
+  // the sidewalk's actual side or geometry; do not route along that centerline.
   if (["footway", "path", "pedestrian", "steps"].includes(highway)) return true;
   if (highway === "cycleway" && tags.foot === "yes") return true;
-  return ["residential", "living_street", "tertiary", "tertiary_link", "secondary", "secondary_link"].includes(highway)
-    && ["both", "left", "right", "yes"].includes(tags.sidewalk);
+  return false;
 }
 
 export function pedestrianDirections(tags = {}) {
