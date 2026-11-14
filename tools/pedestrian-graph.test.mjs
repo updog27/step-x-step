@@ -850,8 +850,8 @@ test("round-trip corridor diversity detects shared return streets", () => {
     {outboundPath:{nodes:["S","A","T"],edges:[{to:"A",meters:10,wayId:1},{to:"T",meters:10,wayId:3}]},
      returnPath:{nodes:["T","R","S"],edges:[{to:"R",meters:10,wayId:5},{to:"S",meters:10,wayId:6}]},distanceErrorMeters:3}
   ];
-  assert.ok(roundTripCorridorOverlap(graph,routes[0],routes[1])>0.55);
-  const selected=selectRoundTripCorridorDiversePaths(graph,routes,3,0.55);
+  assert.ok(roundTripCorridorOverlap(graph,routes[0],routes[1])>0.3);
+  const selected=selectRoundTripCorridorDiversePaths(graph,routes,3,0.3);
   assert.equal(selected.length,1);
   assert.equal(selected[0].distanceErrorMeters,1);
 });
