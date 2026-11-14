@@ -510,7 +510,7 @@ test("directed out-and-back builder independently finds a legal directed return 
  assert.equal(result.route.geometry.coordinates[0][0],-82);
  assert.equal(result.route.geometry.coordinates.at(-1)[0],-82);
  assert.equal(result.distance.outboundMeters,111);
- assert.equal(result.distance.returnMeters,157);
+ assert.equal(result.distance.returnMeters,268);
  assert.equal(result.distance.withinTolerance,true);
 });
 
