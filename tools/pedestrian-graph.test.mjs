@@ -489,3 +489,55 @@ test("rejects missing route coordinates rather than emitting invalid GeoJSON", (
  const fixture=new Map([["a",{id:"a",lat:27,lon:-82}]]);
  assert.throws(()=>buildOutAndBackRoute(fixture,{nodes:["a","missing"]},{nodes:["missing","a"]}),/missing or invalid coordinate/);
 });
+
+
+test("directed out-and-back builder independently finds a legal directed return leg", async () => {
+ const {buildDirectedOutAndBackCandidate}=await import("./pedestrian-graph.mjs");
+ const fixtureNodes=new Map([
+  ["o",{id:"o",lat:27,lon:-82}],["t",{id:"t",lat:27.001,lon:-82}],
+  ["x",{id:"x",lat:27.001,lon:-81.999}]
+ ]);
+ const graph=new Map([
+  ["o",[{to:"t",meters:111,edgeId:"out"}]],
+  ["t",[{to:"x",meters:111,edgeId:"return-a"}]],
+  ["x",[{to:"o",meters:157,edgeId:"return-b"}]]
+ ]);
+ const outbound={nodes:["o","t"],edges:[graph.get("o")[0]],distanceMeters:111};
+ const result=buildDirectedOutAndBackCandidate(graph,fixtureNodes,outbound,{requestedDistanceMeters:379,toleranceMeters:20});
+ assert.equal(result.ok,true);
+ assert.deepEqual(result.returnPath.nodes,["t","x","o"]);
+ assert.deepEqual(result.returnPath.edges.map(edge=>edge.edgeId),["return-a","return-b"]);
+ assert.equal(result.route.geometry.coordinates[0][0],-82);
+ assert.equal(result.route.geometry.coordinates.at(-1)[0],-82);
+ assert.equal(result.distance.outboundMeters,111);
+ assert.equal(result.distance.returnMeters,157);
+ assert.equal(result.distance.withinTolerance,true);
+});
+
+test("directed out-and-back builder refuses to invent a reverse for a one-way path", async () => {
+ const {buildDirectedOutAndBackCandidate}=await import("./pedestrian-graph.mjs");
+ const fixtureNodes=new Map([
+  ["o",{id:"o",lat:27,lon:-82}],["t",{id:"t",lat:27.001,lon:-82}]
+ ]);
+ const graph=new Map([["o",[{to:"t",meters:111}]],["t",[]]]);
+ const outbound={nodes:["o","t"],edges:graph.get("o"),distanceMeters:111};
+ const result=buildDirectedOutAndBackCandidate(graph,fixtureNodes,outbound);
+ assert.deepEqual(result,{ok:false,reason:"no_directed_return_path",originNode:"o",turnaroundNode:"t"});
+});
+
+test("directed out-and-back builder reports distance outside tolerance without trimming", async () => {
+ const {buildDirectedOutAndBackCandidate}=await import("./pedestrian-graph.mjs");
+ const fixtureNodes=new Map([
+  ["o",{id:"o",lat:27,lon:-82}],["t",{id:"t",lat:27.001,lon:-82}]
+ ]);
+ const graph=new Map([
+  ["o",[{to:"t",meters:111}]],
+  ["t",[{to:"o",meters:111}]]
+ ]);
+ const outbound={nodes:["o","t"],edges:graph.get("o"),distanceMeters:111};
+ const result=buildDirectedOutAndBackCandidate(graph,fixtureNodes,outbound,{requestedDistanceMeters:500,toleranceMeters:15});
+ assert.equal(result.ok,true);
+ assert.equal(result.distance.withinTolerance,false);
+ assert.ok(result.distance.errorMeters>15);
+ assert.equal(result.route.geometry.coordinates.at(-1)[0],-82);
+});
