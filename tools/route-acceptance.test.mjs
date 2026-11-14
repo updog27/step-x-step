@@ -18,3 +18,16 @@ test("distance outside tolerance prevents acceptance",()=>assert.equal(evaluateR
 test("missing connection evidence fails closed",()=>assert.equal(evaluateRouteAcceptance({...base,connections:[]},{now}).status,"needs_field_review"));
 test("stale origin observation cannot pass",()=>assert.equal(evaluateRouteAcceptance({...base,originConnector:{status:"verified",fieldObservation:{...connectorObs,observedAt:"2026-01-01T00:00:00Z"}}},{now}).status,"needs_field_review"));
 test("invalid distances and tolerance controls throw",()=>{assert.throws(()=>evaluateRouteAcceptance({...base,pathDistanceMeters:0}),TypeError);assert.throws(()=>evaluateRouteAcceptance(base,{distanceToleranceRatio:0.2}),RangeError)});
+
+test("short routes do not inherit an overly generous 15 metre default tolerance",()=>{
+ const short={...base,requestedDistanceMeters:100,pathDistanceMeters:110};
+ const result=evaluateRouteAcceptance(short,{now});
+ assert.equal(result.distance.toleranceMeters,5);
+ assert.equal(result.distance.withinTolerance,false);
+ assert.equal(result.status,"needs_field_review");
+});
+test("distance tolerance remains configurable for GPS and routing calibration",()=>{
+ const result=evaluateRouteAcceptance({...base,requestedDistanceMeters:100,pathDistanceMeters:108},{now,minimumDistanceToleranceMeters:10,distanceToleranceRatio:0.02});
+ assert.equal(result.distance.toleranceMeters,10);
+ assert.equal(result.distance.withinTolerance,true);
+});
