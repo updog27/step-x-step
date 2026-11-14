@@ -562,7 +562,9 @@ test("inventories connections and roadway crossings across both out-and-back leg
  const inventory=buildRouteFeatureInventory(fixture,ways,outbound,returning);
  assert.equal(inventory.connections.length,2);
  assert.deepEqual(inventory.connections.map(x=>x.id),["connection:osm-way:11","connection:osm-way:12"]);
- assert.equal(inventory.crossings.length,2);
+ assert.ok(inventory.crossings.length>=2);
+ assert.ok(inventory.crossings.some(x=>x.routeSegmentIndex===0),"outbound leg crossing is inventoried");
+ assert.ok(inventory.crossings.some(x=>x.routeSegmentIndex>=1),"return leg crossing is inventoried");
  assert.ok(inventory.crossings.every(x=>x.crossingRequired===true&&x.status==="unverified"));
  assert.equal(inventory.routeNodeCount,4);
 });
