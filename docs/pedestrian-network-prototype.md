@@ -192,3 +192,10 @@ Added reusable offline graph utilities for the next snap stage:
 These are geometry/topology primitives, not a verified GPS connector. The candidate generator still uses nearest-node snapping and has not been switched over. A short straight line from the device location to the projected point may cross a road, driveway, fence, private parcel, or building; proximity alone is not proof of walkable access. Before integration, the virtual node must be added to the node-coordinate map, the selected segment must be split consistently, and a connector must be independently validated or rejected. The next test pass should also address parallel edges sharing the same endpoint pair and OSM way ID, and preserve edge identity through shortest-path algorithms rather than reconstructing it from node sequences.
 
 Four additional offline tests cover projection, snap-limit rejection, bidirectional splitting, and one-way preservation. They are committed but have not been executed in a Node.js runtime in this session.
+
+
+### Parallel-edge identity safeguard (2026-11-13)
+
+The edge-projection result now carries the selected adjacency-list edge index, and the splitter verifies that the indexed arc still matches the projected endpoints, OSM way ID, and length before changing the graph. This avoids accidentally splitting the first of several parallel arcs that share endpoints and a way ID. Reverse travel is split only when there is exactly one matching reverse arc with the same way ID and length; when parallel reverse arcs are ambiguous, the utility deliberately leaves reverse travel disconnected rather than guessing. An offline regression test covers selection among parallel arcs.
+
+A remaining graph-model limitation is that shortest-path results are still represented primarily as node sequences. Parallel arcs between the same node pair can therefore lose their exact edge identity in path reconstruction, corridor scoring, and Yen spur-edge exclusion. This needs a separate edge-aware path representation before the graph can be relied on for final route scoring.
