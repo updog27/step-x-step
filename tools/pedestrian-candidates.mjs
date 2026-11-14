@@ -59,7 +59,7 @@ const start = snapped.startNode;
 if (snapped.virtualNode) nodes.set(start,snapped.virtualNode);
 const snap = snapped.projection;
 const connectorStatus = "unverified";
-const connectivityAudit = auditPedestrianConnectivity(nodes,adjacency);
+const connectivityAudit = auditPedestrianConnectivity(nodes,adjacency,start);
 const maxOutbound = Math.max(...miles) * MILE / 2 + 100;
 const {distances, previous} = dijkstra(adjacency, start, maxOutbound);
 const results = miles.map(requestedMiles => {
