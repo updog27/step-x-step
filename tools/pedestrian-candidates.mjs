@@ -7,7 +7,7 @@ import process from "node:process";
 import {
   buildDirectedPedestrianGraph, dijkstra, isEligiblePedestrianWay,
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
-  snapOriginToPedestrianGraph
+  snapOriginToPedestrianGraph, auditPedestrianConnectivity
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -57,6 +57,7 @@ const start = snapped.startNode;
 if (snapped.virtualNode) nodes.set(start,snapped.virtualNode);
 const snap = snapped.projection;
 const connectorStatus = "unverified";
+const connectivityAudit = auditPedestrianConnectivity(nodes,adjacency);
 const maxOutbound = Math.max(...miles) * MILE / 2 + 100;
 const {distances, previous} = dijkstra(adjacency, start, maxOutbound);
 const results = miles.map(requestedMiles => {
@@ -95,6 +96,10 @@ console.log(JSON.stringify({
   source:"OpenStreetMap pedestrian-tagged ways via Overpass",
   radiusMeters:radius,eligibleWayCount:ways.filter(w => isEligiblePedestrianWay(w.tags)).length,
   graphNodeCount:adjacency.size,
+  connectivityDiagnostics:{isolatedNodeCount:connectivityAudit.isolated.length,
+    terminalNodeCount:connectivityAudit.terminals.length,
+    junctionCount:connectivityAudit.junctions.length,
+    junctionsWithoutMappedCrossingCount:connectivityAudit.junctionsWithoutMappedCrossing.length},
   originSnap:{method:"nearest eligible directed edge projection",offsetMeters:+snap.offsetMeters.toFixed(1),
     fraction:+snap.fraction.toFixed(4),connectorStatus},
   results:results.map(result=>({...result,candidates:[],diagnosticCandidateCount:result.candidates.length,
@@ -106,6 +111,7 @@ console.log(JSON.stringify({
     "The GPS origin is projected onto a nearby eligible directed edge and that edge is split at a virtual graph node.",
     "The origin-to-network connector remains unverified; all candidate paths are withheld and must not be presented as usable routes.",
     "A close geometric snap does not prove that the user is on the correct sidewalk side or has a legal, walkable connection to it.",
+    "Connectivity diagnostics identify isolated nodes, terminal ends, and junctions without mapped crossing evidence; these are review flags only, not route acceptance decisions.",
     "Mapped crossing evidence is not yet used as a route acceptance gate; crossing legality, polygon/parcel exclusions, field overlays, and side-specific sidewalk geometry are not enforced.",
     "Road centerlines are excluded even when sidewalk presence is tagged; dedicated sidewalk geometry and side-specific connectivity must be mapped and validated.",
     "Unknown access and incomplete tags are not proof of legal public access or safe pedestrian conditions.",
