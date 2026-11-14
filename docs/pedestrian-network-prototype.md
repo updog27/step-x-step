@@ -299,3 +299,19 @@ Offline CI now runs the graph, field-observation, and route-acceptance suites to
 ### Remaining integration boundary
 
 The candidate generator still withholds all user-facing routes because its GPS-origin connector is unverified. The new observation and crossing-inspection modules establish validation primitives, but no live Overpass run, real-world field observation, geometry-based road-crossing inference, or app/UI integration has been completed. Do not mark any route accepted until the app supplies complete per-feature observations and the separate geometry/context review has classified crossing necessity.
+
+
+### Geometric roadway-intersection diagnostics (2026-11-14)
+
+Added `detectRoadwayCrossingsForPath(nodes, ways, path, options)` to the graph module. It compares each segment in a candidate pedestrian path with mapped OSM roadway centerline segments for configured roadway classes. It reports proper geometric intersections, road class, path/road segment indexes, intersection angle, and whether crossing-specific evidence is present at either endpoint of the pedestrian segment. Near-parallel geometry is filtered using a configurable minimum intersection angle, and duplicate hits on the same mapped road are collapsed within a configurable distance.
+
+The candidate generator now runs this inspection on each retained corridor-diverse path variant and includes aggregate roadway-intersection counts in its diagnostic output. It does not expose path geometry or coordinates. These diagnostics do not change the existing release gate: all candidates remain withheld while the GPS-origin connector is unverified.
+
+Interpretation and limits:
+- A detected intersection means the selected mapped pedestrian geometry geometrically intersects a mapped roadway centerline. It is a strong review signal, not proof that a person must cross the carriageway at grade.
+- No detected intersection does not prove a route is roadway-crossing-free. Incomplete mapping, bridges/tunnels, grade separation, centerline offsets, complex junctions, and missing geometry can create false negatives or positives.
+- Crossing-specific OSM tags remain evidence only. A geometric intersection without mapped crossing evidence must be treated as an unknown crossing location requiring review, not as a safe crossing.
+- The detector does not yet select or rank a detour that avoids a detected crossing. It also does not infer same-side sidewalk continuity, road-side connectivity, or legal public access.
+- Current route acceptance still requires feature-matched, current field observations for any required crossing and a separately established origin connector.
+
+Added synthetic tests for a perpendicular roadway intersection, parallel pedestrian/road geometry, exclusion of footways from roadway classes, malformed path input, and multiple roadway intersections. GitHub Actions passed for candidate-generator commit `3db6734e2b54e6dacce2033cbc78517f8caa2352`.
