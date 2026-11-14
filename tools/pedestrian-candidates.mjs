@@ -70,8 +70,13 @@ const maxOutbound = Math.max(...miles) * MILE / 2 + 100;
 const {distances, previous} = dijkstra(adjacency, start, maxOutbound);
 const results = miles.map(requestedMiles => {
   const target = requestedMiles * MILE / 2;
+  // Search a wider turnaround band than the final distance tolerance. A
+  // slightly shorter/longer outbound leg may produce a better complete
+  // round trip once the independently routed return leg is measured.
+  const turnaroundSearchBandMeters = Math.max(60,target*0.12);
   const candidatePool = [...distances.entries()]
-    .filter(([id, meters]) => id !== start && Math.abs(meters-target) <= Math.max(20,target*0.035))
+    .filter(([id, meters]) => id !== start &&
+      Math.abs(meters-target) <= turnaroundSearchBandMeters)
     .sort((a,b) => Math.abs(a[1]-target)-Math.abs(b[1]-target));
   const selectedTurnarounds = [];
   for (const candidate of candidatePool) {
@@ -84,7 +89,7 @@ const results = miles.map(requestedMiles => {
       corridorPathOverlap(adjacency,existing.path,candidatePath) <= 0.75)) {
       selectedTurnarounds.push({candidate,path:candidatePath});
     }
-    if (selectedTurnarounds.length >= 12) break;
+    if (selectedTurnarounds.length >= 24) break;
   }
   const candidates = selectedTurnarounds.map(({candidate:[id,meters],path:shortestPath}) => {
       const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});
@@ -189,7 +194,7 @@ console.log(JSON.stringify({
     status:"withheld_unverified_origin_connector"})),
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
-    "Candidate turnaround nodes are initially drawn from one shortest-path tree and remain a search-space limitation. Path variants to each node are independently searched with Yen k-shortest paths; complete directed round trips are evaluated first, then turnaround nodes are ranked globally by return availability, detected roadway intersections, and full-route distance error. The top three variants per turnaround are retained for diagnostics.",
+    "Candidate turnaround nodes are drawn from one bounded shortest-path tree and remain a search-space limitation. The candidate search band is wider than the final distance tolerance (maximum of 60m or 12% of the outbound target), and up to 24 corridor-distinct turnarounds are evaluated. Path variants to each node are independently searched with Yen k-shortest paths; complete directed round trips are evaluated first, then turnaround nodes are ranked globally by return availability, detected roadway intersections, and full-route distance error. The top three variants per turnaround are retained for diagnostics.",
     "Path diversity is screened by weighted shared OSM-way length (maximum 0.55); turnaround candidates are also screened against each other (maximum 0.75). OSM way IDs are only a corridor proxy, not a guarantee of visually distinct or safer routes.",
     "The GPS origin is projected onto a nearby eligible directed edge and that edge is split at a virtual graph node.",
     "The origin-to-network connector remains unverified; all candidate paths are withheld and must not be presented as usable routes. The acceptance engine is run on assembled round trips, and candidates remain in field-review status until origin and every connection/crossing have current feature-matched observations.",
