@@ -1,6 +1,6 @@
 import test from "node:test";
 import { inspectPathCrossingEvidence } from "./pedestrian-graph.mjs";
-import { detectRoadwayCrossingsForPath } from "./pedestrian-graph.mjs";
+import { detectRoadwayCrossingsForPath, selectCrossingAwarePaths } from "./pedestrian-graph.mjs";
 import assert from "node:assert/strict";
 import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
@@ -438,4 +438,24 @@ test("detects crossings on multiple road segments and reports unknown crossing s
  const result=detectRoadwayCrossingsForPath(fixtureNodes,ways,["a","b"]);
  assert.equal(result.crossingCount,2);
  assert.ok(result.crossings.every(item=>item.mappedCrossingEvidence===false));
+});
+
+
+test("crossing-aware selector prefers a mapped-crossing-free path before a shorter crossing path", () => {
+ const fixtureNodes=new Map([
+  ["s",{id:"s",lat:27,lon:-82}],
+  ["t",{id:"t",lat:27.002,lon:-82}],
+  ["x",{id:"x",lat:27.001,lon:-82.001}],
+  ["y",{id:"y",lat:27.001,lon:-81.999}],
+  ["r1",{id:"r1",lat:27.001,lon:-82.001}],
+  ["r2",{id:"r2",lat:27.001,lon:-81.999}]
+ ]);
+ const roads=[{id:800,nodes:["r1","r2"],tags:{highway:"residential"}}];
+ const crossingPath={nodes:["s","t"],edges:[{wayId:1,meters:220}],distanceMeters:220};
+ const detourPath={nodes:["s","x","y","t"],edges:[
+  {wayId:2,meters:120},{wayId:3,meters:120},{wayId:4,meters:120}
+ ],distanceMeters:360};
+ const selected=selectCrossingAwarePaths(fixtureNodes,roads,[crossingPath,detourPath],2,1);
+ assert.equal(selected[0].detectedRoadwayCrossingCount,0);
+ assert.equal(selected[1].detectedRoadwayCrossingCount,1);
 });
