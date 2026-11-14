@@ -502,6 +502,38 @@ export function buildOutAndBackRoute(nodes,outboundPath,returnPath) {
  };
 }
 
+// Build a complete out-and-back candidate by independently routing the return
+// leg over directed pedestrian arcs. A reverse of the outbound path is never
+// assumed: one-way foot restrictions remain in force.
+export function buildDirectedOutAndBackCandidate(adjacency,nodes,outboundPath,options={}) {
+ if(!(adjacency instanceof Map)||!(nodes instanceof Map)||
+    !outboundPath||!Array.isArray(outboundPath.nodes)||outboundPath.nodes.length<2)
+  throw new TypeError("Directed graph, node coordinates, and outbound path are required");
+ const origin=outboundPath.nodes[0],turnaround=outboundPath.nodes.at(-1);
+ const maxReturnDistanceMeters=options.maxReturnDistanceMeters??Infinity;
+ if(!(maxReturnDistanceMeters>0))throw new RangeError("Return distance limit must be positive");
+ const returnPath=shortestPath(adjacency,turnaround,origin,{maxDistanceMeters:maxReturnDistanceMeters});
+ if(!returnPath)return {ok:false,reason:"no_directed_return_path",originNode:origin,turnaroundNode:turnaround};
+ const route=buildOutAndBackRoute(nodes,outboundPath,returnPath);
+ const requestedDistanceMeters=options.requestedDistanceMeters;
+ const toleranceMeters=options.distanceToleranceMeters??15;
+ if(requestedDistanceMeters!==undefined&&(!Number.isFinite(requestedDistanceMeters)||requestedDistanceMeters<=0))
+  throw new RangeError("Requested route distance must be positive and finite");
+ if(!Number.isFinite(toleranceMeters)||toleranceMeters<0)throw new RangeError("Distance tolerance must be non-negative");
+ const errorMeters=requestedDistanceMeters===undefined?null:
+  Math.abs(route.properties.totalDistanceMeters-requestedDistanceMeters);
+ return {ok:true,route,returnPath,
+  distance:{outboundMeters:+outboundPath.distanceMeters.toFixed(2),
+   returnMeters:+returnPath.distanceMeters.toFixed(2),
+   totalMeters:route.properties.totalDistanceMeters,
+   requestedMeters:requestedDistanceMeters??null,errorMeters,
+   toleranceMeters:requestedDistanceMeters===undefined?null:toleranceMeters,
+   withinTolerance:requestedDistanceMeters===undefined?null:errorMeters<=toleranceMeters},
+  limitations:["Return leg is independently searched over directed mapped pedestrian edges.",
+   "A valid graph return does not verify the GPS-origin connector, public access, crossings, accessibility, or real-world safety.",
+   "Distance tolerance is measured on mapped graph edge lengths; it does not authorize arbitrary off-network trimming."]};
+}
+
 export function selectCrossingAwarePaths(nodes,ways,paths,maxPaths=3,maxCorridorOverlap=0.55,options={}) {
  if(!Number.isInteger(maxPaths)||maxPaths<1||maxPaths>10)throw new RangeError("maxPaths must be 1–10");
  if(!Number.isFinite(maxCorridorOverlap)||maxCorridorOverlap<0||maxCorridorOverlap>1)throw new RangeError("maxCorridorOverlap must be 0–1");
