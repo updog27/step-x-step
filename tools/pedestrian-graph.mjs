@@ -469,6 +469,39 @@ function segmentAngleDegrees(a,b,c,d) {
 // Prefer paths with fewer mapped roadway-centerline intersections, then
 // shorter distance, while preserving a corridor-diversity ceiling. This is a
 // crossing-count heuristic, not a safety score or guarantee of a safe route.
+// Build a GeoJSON LineString for a complete out-and-back only when both
+// directed legs are supplied and connect at the same turnaround and origin.
+// The helper measures the actual supplied geometry; it does not claim exact
+// requested-distance compliance or validate field safety/access.
+export function buildOutAndBackRoute(nodes,outboundPath,returnPath) {
+ const validPath=p=>p&&Array.isArray(p.nodes)&&p.nodes.length>=2;
+ if(!(nodes instanceof Map)||!validPath(outboundPath)||!validPath(returnPath))
+  throw new TypeError("Node coordinates and two non-empty directed paths are required");
+ const outboundStart=outboundPath.nodes[0],turnaround=outboundPath.nodes.at(-1);
+ if(returnPath.nodes[0]!==turnaround||returnPath.nodes.at(-1)!==outboundStart)
+  throw new Error("Return path must connect the outbound turnaround to the original start");
+ const sequence=outboundPath.nodes.concat(returnPath.nodes.slice(1));
+ const coordinates=sequence.map(id=>{
+  const n=nodes.get(id);
+  if(!n||!Number.isFinite(n.lon)||!Number.isFinite(n.lat)||Math.abs(n.lon)>180||Math.abs(n.lat)>90)
+   throw new Error("Route contains a missing or invalid coordinate");
+  return [n.lon,n.lat];
+ });
+ let distanceMeters=0;
+ for(let i=1;i<sequence.length;i++)distanceMeters+=haversineMeters(nodes.get(sequence[i-1]),nodes.get(sequence[i]));
+ return {
+  type:"Feature",
+  properties:{routeType:"out_and_back",outboundNodeCount:outboundPath.nodes.length,
+   returnNodeCount:returnPath.nodes.length,totalNodeCount:sequence.length,
+   outboundDistanceMeters:+outboundPath.nodes.slice(1).reduce((sum,id,i)=>
+    sum+haversineMeters(nodes.get(outboundPath.nodes[i]),nodes.get(id)),0).toFixed(2),
+   returnDistanceMeters:+returnPath.nodes.slice(1).reduce((sum,id,i)=>
+    sum+haversineMeters(nodes.get(returnPath.nodes[i]),nodes.get(id)),0).toFixed(2),
+   totalDistanceMeters:+distanceMeters.toFixed(2)},
+  geometry:{type:"LineString",coordinates}
+ };
+}
+
 export function selectCrossingAwarePaths(nodes,ways,paths,maxPaths=3,maxCorridorOverlap=0.55,options={}) {
  if(!Number.isInteger(maxPaths)||maxPaths<1||maxPaths>10)throw new RangeError("maxPaths must be 1–10");
  if(!Number.isFinite(maxCorridorOverlap)||maxCorridorOverlap<0||maxCorridorOverlap>1)throw new RangeError("maxCorridorOverlap must be 0–1");
