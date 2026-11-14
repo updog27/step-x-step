@@ -150,3 +150,17 @@ Important interpretation:
 - The candidate generator has not been executed against live Overpass data in this environment. The unit tests are committed but must be run in a Node.js environment before this branch is treated as verified.
 
 The earlier description of the graph as undirected is superseded by the explicit directed-way implementation described above.
+
+
+### Route-overlap filtering (2026-11-13)
+
+Added directed-edge overlap scoring and a diversity selector to the graph module:
+
+- `directedPathOverlap` computes Jaccard overlap across directed edges. Reversing an edge is treated as a different traversal, which matters on explicitly one-way pedestrian links.
+- `selectDiversePaths` sorts candidate paths by network length and greedily keeps paths whose overlap with every already-selected path is at or below a configurable ceiling.
+- Candidate generation now asks Yen's algorithm for a pool of up to eight paths to each candidate turnaround, then retains up to three with a maximum directed-edge Jaccard overlap of 0.65.
+- Output reports each retained variant's maximum overlap with another retained variant.
+
+This is a first structural diversity filter, not a visual-route or safety guarantee. Paths can still share the same street corridor while using different OSM node segmentation, and paths with low edge overlap can still look similar on a map. The next refinement should collapse consecutive edges by OSM way/corridor identity and score shared corridor length, then diversify turnaround nodes as well as paths to a fixed endpoint.
+
+The candidate turnaround nodes themselves still come from one Dijkstra shortest-path tree. This stage therefore produces diverse path variants per candidate endpoint, not a globally optimized set of three independent out-and-back routes. No live Overpass execution or Node test run has been performed in this environment.
