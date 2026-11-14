@@ -54,17 +54,45 @@ export function buildDirectedPedestrianGraph(nodes, ways, maxEdgeMeters = 250) {
 export function dijkstra(adjacency, start, maxDistanceMeters = Infinity) {
   const distances = new Map([[start, 0]]);
   const previous = new Map();
-  const queue = [[0, start]];
+  const queue = [];
+  const push = item => {
+    queue.push(item);
+    let index = queue.length - 1;
+    while (index > 0) {
+      const parent = (index - 1) >> 1;
+      if (queue[parent][0] <= item[0]) break;
+      queue[index] = queue[parent];
+      index = parent;
+    }
+    queue[index] = item;
+  };
+  const pop = () => {
+    if (!queue.length) return null;
+    const root = queue[0], last = queue.pop();
+    if (queue.length) {
+      let index = 0;
+      while (true) {
+        let child = index * 2 + 1;
+        if (child >= queue.length) break;
+        if (child + 1 < queue.length && queue[child + 1][0] < queue[child][0]) child++;
+        if (queue[child][0] >= last[0]) break;
+        queue[index] = queue[child];
+        index = child;
+      }
+      queue[index] = last;
+    }
+    return root;
+  };
+  push([0, start]);
   while (queue.length) {
-    queue.sort((a, b) => b[0] - a[0]);
-    const [cost, id] = queue.pop();
+    const [cost, id] = pop();
     if (cost !== distances.get(id) || cost > maxDistanceMeters) continue;
     for (const edge of adjacency.get(id) || []) {
       const next = cost + edge.meters;
       if (next < (distances.get(edge.to) ?? Infinity) && next <= maxDistanceMeters) {
         distances.set(edge.to, next);
         previous.set(edge.to, id);
-        queue.push([next, edge.to]);
+        push([next, edge.to]);
       }
     }
   }
