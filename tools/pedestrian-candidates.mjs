@@ -137,12 +137,35 @@ const results = miles.map(requestedMiles => {
         a.detectedRoadwayCrossingCount-b.detectedRoadwayCrossingCount||
         a._rank.distanceError-b._rank.distanceError||
         a.distanceMeters-b.distanceMeters);
+      const best=completedVariants[0];
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
         networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.nodes.length ?? 0,
+        bestRoundTrip:best?{
+          complete:best._rank.complete,
+          detectedRoadwayCrossingCount:best.detectedRoadwayCrossingCount,
+          totalRouteDistanceMeters:best.returnLeg.totalRouteDistanceMeters??null,
+          distanceErrorMeters:Number.isFinite(best._rank.distanceError)?+best._rank.distanceError.toFixed(1):null,
+          distanceWithinTolerance:best.returnLeg.distanceWithinTolerance??false
+        }:null,
+        _rank:best?{
+          complete:best._rank.complete,
+          crossings:best.detectedRoadwayCrossingCount,
+          distanceError:best._rank.distanceError
+        }:{complete:false,crossings:Infinity,distanceError:Infinity},
         pathVariants:completedVariants.slice(0,3).map(({_rank,...variant},index)=>({...variant,rank:index+1}))};
     });
+  // Turnaround nodes are initially discovered from the shortest-path tree,
+  // but final ordering is based on complete outbound-plus-return candidates.
+  // This prevents a good half-distance match from outranking a better loop
+  // whose return leg produces a closer requested total.
+  candidates.sort((a,b)=>
+    Number(b._rank.complete)-Number(a._rank.complete)||
+    a._rank.crossings-b._rank.crossings||
+    a._rank.distanceError-b._rank.distanceError||
+    a.networkDistanceMeters-b.networkDistanceMeters);
   return {requestedOutAndBackMiles:requestedMiles,
-    targetOutboundMiles:+(requestedMiles/2).toFixed(4),candidates};
+    targetOutboundMiles:+(requestedMiles/2).toFixed(4),
+    candidates:candidates.map(({_rank,...candidate},index)=>({...candidate,turnaroundRank:index+1}))};
 });
 console.log(JSON.stringify({
   source:"OpenStreetMap pedestrian-tagged ways via Overpass",
@@ -166,7 +189,7 @@ console.log(JSON.stringify({
     status:"withheld_unverified_origin_connector"})),
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
-    "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by corridor overlap. Each variant now gets an independently searched directed return leg and a complete out-and-back geometry distance check.",
+    "Candidate turnaround nodes are initially drawn from one shortest-path tree and remain a search-space limitation. Path variants to each node are independently searched with Yen k-shortest paths; complete directed round trips are evaluated first, then turnaround nodes are ranked globally by return availability, detected roadway intersections, and full-route distance error. The top three variants per turnaround are retained for diagnostics.",
     "Path diversity is screened by weighted shared OSM-way length (maximum 0.55); turnaround candidates are also screened against each other (maximum 0.75). OSM way IDs are only a corridor proxy, not a guarantee of visually distinct or safer routes.",
     "The GPS origin is projected onto a nearby eligible directed edge and that edge is split at a virtual graph node.",
     "The origin-to-network connector remains unverified; all candidate paths are withheld and must not be presented as usable routes. The acceptance engine is run on assembled round trips, and candidates remain in field-review status until origin and every connection/crossing have current feature-matched observations.",
