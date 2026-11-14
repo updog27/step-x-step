@@ -429,3 +429,8 @@ Corrected candidate quality ranking to use the roadway-crossing inventory for th
 Alternative selection now compares the combined outbound and return edge inventory, rather than treating outbound paths as the complete alternative. This reduces duplicate options where two outbound paths diverge but converge onto the same return streets. Corridor overlap is measured by shared mapped OSM way length across the complete journey; candidates exceeding the configured overlap threshold are not treated as distinct alternatives. Among the eligible alternatives, the selector prioritizes fewer mapped roadway intersections across both legs, then lower full-route distance error. The displayed best-round-trip summary follows the same crossing-aware ordering.
 
 This remains a bounded heuristic: OSM way IDs are corridor proxies, not sidewalk-side identifiers; different IDs can describe physically adjacent or equivalent facilities, and a shared ID may represent long or complex mapped geometry. The selection does not prove route quality, safety, or accessibility. Candidates remain withheld pending origin-connector and feature-level field verification.
+
+
+### Bounded disconnected-endpoint gap search (2026-11-13)
+
+Disconnected terminal endpoints are now spatially bucketed before exact gap-distance checks. This avoids scanning every possible endpoint pair when most endpoints are geographically distant. The local projection is used only to identify neighboring buckets; candidate inclusion and reported distances still use haversine calculations. Component separation, endpoint metadata, candidate limits, and the unverified-only status are unchanged. No nearby endpoints are connected automatically.
