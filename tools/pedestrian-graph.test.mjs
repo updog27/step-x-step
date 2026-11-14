@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
-  isEligiblePedestrianWay, pedestrianDirections, reconstructNodePath
+  isEligiblePedestrianWay, pedestrianDirections, reconstructNodePath,
+  directedPathOverlap, selectDiversePaths, kShortestPaths
 } from "./pedestrian-graph.mjs";
 
 const nodes = new Map([
@@ -93,4 +94,30 @@ test("Yen k-shortest paths respect directed edges and return no fake alternative
   assert.equal(paths.length,1);
   assert.deepEqual(paths[0].nodes,[1,2,3]);
   assert.deepEqual(kShortestPaths(graph,3,1,2),[]);
+});
+
+
+test("directed path overlap measures shared directed edges", () => {
+  assert.equal(directedPathOverlap(["S","A","T"],["S","B","T"]),0);
+  assert.equal(directedPathOverlap(["S","A","T"],["S","A","T"]),1);
+  assert.equal(directedPathOverlap(["S","A","T"],["T","A","S"]),0);
+});
+
+test("diversity selector rejects near-duplicate paths but retains distinct corridors", () => {
+  const paths = [
+    {nodes:["S","A","B","T"],distanceMeters:3},
+    {nodes:["S","A","C","T"],distanceMeters:3.1},
+    {nodes:["S","D","E","T"],distanceMeters:4}
+  ];
+  const selected = selectDiversePaths(paths,3,0.5);
+  assert.equal(selected.length,2);
+  assert.deepEqual(selected.map(path=>path.nodes),[
+    ["S","A","B","T"],["S","D","E","T"]
+  ]);
+  assert.ok(selected.every(path=>path.maxOverlapWithSelected===0));
+});
+
+test("diversity selector validates its controls", () => {
+  assert.throws(()=>selectDiversePaths([],0),RangeError);
+  assert.throws(()=>selectDiversePaths([],3,1.1),RangeError);
 });
