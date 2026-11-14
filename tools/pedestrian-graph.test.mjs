@@ -856,6 +856,25 @@ test("round-trip corridor diversity detects shared return streets", () => {
   assert.equal(selected[0].distanceErrorMeters,1);
 });
 
+test("round-trip corridor selection prioritizes complete-route crossing exposure before distance error", () => {
+  const graph=new Map([
+    ["S",[{to:"A",meters:10,wayId:1},{to:"D",meters:10,wayId:2}]],
+    ["A",[{to:"T",meters:10,wayId:3}]],["D",[{to:"T",meters:10,wayId:4}]],
+    ["T",[{to:"R",meters:10,wayId:5},{to:"U",meters:10,wayId:7}]],
+    ["R",[{to:"S",meters:10,wayId:6}]],["U",[{to:"S",meters:10,wayId:8}]]
+  ]);
+  const make=(out,back,ways,error,crossings)=>({
+    outboundPath:{nodes:out,edges:ways.slice(0,2).map((wayId,i)=>({to:out[i+1],meters:10,wayId}))},
+    returnPath:{nodes:back,edges:ways.slice(2).map((wayId,i)=>({to:back[i+1],meters:10,wayId}))},
+    distanceErrorMeters:error,roundTripRoadwayCrossingCount:crossings
+  });
+  const higherCrossing=make(["S","A","T"],["T","R","S"],[1,3,5,6],1,4);
+  const lowerCrossing=make(["S","D","T"],["T","U","S"],[2,4,7,8],8,1);
+  const selected=selectRoundTripCorridorDiversePaths(graph,[higherCrossing,lowerCrossing],2,0.55);
+  assert.equal(selected[0].roundTripRoadwayCrossingCount,1);
+  assert.equal(selected[0].distanceErrorMeters,8);
+});
+
 test("round-trip corridor diversity preserves genuinely distinct outbound and return corridors", () => {
   const graph=new Map([
     ["S",[{to:"A",meters:10,wayId:1},{to:"D",meters:10,wayId:2}]],
