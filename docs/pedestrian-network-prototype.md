@@ -229,3 +229,15 @@ Extracted the GPS-origin attachment into the pure graph module as `snapOriginToP
 - Every successful snap still reports `connectorStatus: "unverified"`; this helper does not establish a safe or legal connection from GPS to the mapped path.
 
 The candidate script now uses this shared helper. Its adjacency binding was changed to mutable because interior snapping replaces the graph with a split copy. Offline regression tests cover interior, endpoint, one-way, bidirectional, distant-origin, and ID-collision cases. The latest CI run is pending; no live Overpass request has been performed.
+
+
+### Conservative sidewalk-geometry eligibility (2026-11-14)
+
+Tightened the graph's eligibility policy to avoid a misleading representation of sidewalks:
+
+- Dedicated pedestrian ways (`footway`, `path`, `pedestrian`, and `steps`) remain eligible subject to access tags.
+- A cycleway is eligible only when foot access is explicitly allowed.
+- Road centerlines are now excluded even when tagged `sidewalk=left`, `right`, or `both`. Those tags indicate sidewalk presence but do not provide the sidewalk's actual geometry or establish which side is safely connected to the user's position.
+- Through-routing excludes destination-only and restricted access values, including `destination`, `agricultural`, `forestry`, and `restricted`, as well as private/customer/delivery access.
+
+This intentionally reduces graph coverage in exchange for avoiding false sidewalk geometry. Separate sidewalk ways mapped in OSM may still be eligible, but their connectivity, crossings, and access must be validated independently. It does not resolve the Grady Avenue side-of-street question by itself. Added regression tests for the stricter eligibility policy. No live map or routing data was queried.
