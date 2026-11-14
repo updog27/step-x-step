@@ -363,3 +363,8 @@ The graph builder now classifies each OSM way as `eligible`, `excluded`, or `nee
 ## Graph connectivity and origin reachability audit
 
 The offline graph audit now reports weakly connected components and, when given the snapped origin node, directed reachability from that origin. This distinguishes disconnected mapped islands from one-way or direction-restricted segments that are connected in the undirected sense but cannot actually be reached by following permitted pedestrian directions. Candidate diagnostics include the origin-reachable node count and IDs outside that directed reachable set. These are graph diagnostics only; they do not verify physical sidewalk continuity, public access, curb ramps, or safe crossings.
+
+
+## Nearby disconnected pedestrian-network gap candidates
+
+The offline graph audit now compares terminal nodes (weak degree one) across separate weakly connected components. Pairs within a configurable short distance are reported as possible mapping/continuity gaps, with component IDs and measured separation. The candidate generator reports up to 50 pairs within 12 metres. This is a review queue only: proximity does not prove that two sidewalk segments physically connect, that a legal crossing exists, or that a connection is publicly accessible. The graph is never modified or auto-bridged by this analysis. Gap candidates are bounded by a maximum endpoint count to avoid unbounded pairwise work.
