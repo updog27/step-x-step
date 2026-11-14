@@ -434,3 +434,8 @@ This remains a bounded heuristic: OSM way IDs are corridor proxies, not sidewalk
 ### Bounded disconnected-endpoint gap search (2026-11-13)
 
 Disconnected terminal endpoints are now spatially bucketed before exact gap-distance checks. This avoids scanning every possible endpoint pair when most endpoints are geographically distant. The local projection is used only to identify neighboring buckets; candidate inclusion and reported distances still use haversine calculations. Component separation, endpoint metadata, candidate limits, and the unverified-only status are unchanged. No nearby endpoints are connected automatically.
+
+
+### Alternate-corridor turnaround discovery (2026-11-14)
+
+Candidate generation now expands beyond the single shortest-path tree in a bounded way. It selects up to eight near-target anchor destinations, requests up to three Yen k-shortest paths to each anchor, and inspects cumulative path prefixes for nodes inside the existing turnaround search band. A prefix node can therefore be considered as a turnaround even when its shortest-tree distance falls outside that band. The expanded pool is deduplicated by node, ordered by target-distance error, screened by corridor overlap, and capped at 24 selected turnarounds. This is a bounded discovery improvement, not an exhaustive search or a route-safety guarantee. Full round-trip distance and feature review gates remain unchanged.
