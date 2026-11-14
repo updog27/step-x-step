@@ -722,7 +722,7 @@ export function inspectPathCrossingEvidence(nodes, path) {
 // Structural audit only: identify isolated nodes, terminal ends, and junctions
 // where crossing evidence is absent. It does not infer that a crossing is
 // required or safe; callers must inspect geometry and street context.
-export function auditPedestrianConnectivity(nodes, adjacency) {
+export function auditPedestrianConnectivity(nodes, adjacency, startNode = undefined) {
   const incident = new Map();
   const incomingCounts = new Map();
   let crossingTaggedEdges=0;
@@ -732,6 +732,7 @@ export function auditPedestrianConnectivity(nodes, adjacency) {
     if (!neighbors.has(neighbor)) neighbors.set(neighbor,new Set());
     neighbors.get(neighbor).add(String(edge.wayId ?? "unknown"));
   };
+  for (const id of nodes.keys()) incident.set(id,new Map());
   for (const [from,edges] of adjacency) {
     for (const edge of edges) {
       if (edge.tags?.highway==="crossing" || edge.tags?.footway==="crossing") crossingTaggedEdges++;
@@ -739,6 +740,34 @@ export function auditPedestrianConnectivity(nodes, adjacency) {
       add(edge.to,from,edge);
       incomingCounts.set(edge.to,(incomingCounts.get(edge.to)||0)+1);
     }
+  }
+  // Weak components reveal disconnected mapped islands; directed reachability
+  // separately reveals nodes that cannot be reached from the selected origin.
+  const visited=new Set(), components=[];
+  for (const id of nodes.keys()) {
+    if (visited.has(id)) continue;
+    const queue=[id], members=[];
+    visited.add(id);
+    while(queue.length) {
+      const current=queue.shift(); members.push(current);
+      for(const neighbor of (incident.get(current)||new Map()).keys()) {
+        if(!visited.has(neighbor)) {visited.add(neighbor);queue.push(neighbor);}
+      }
+    }
+    components.push({componentId:components.length+1,nodeCount:members.length,
+      nodeIds:members});
+  }
+  let reachableFromStart=null, unreachableFromStart=[];
+  if(startNode!==undefined) {
+    const reachable=new Set([startNode]), queue=[startNode];
+    while(queue.length) {
+      const current=queue.shift();
+      for(const edge of adjacency.get(current)||[]) {
+        if(!reachable.has(edge.to)) {reachable.add(edge.to);queue.push(edge.to);}
+      }
+    }
+    reachableFromStart=reachable.size;
+    unreachableFromStart=[...nodes.keys()].filter(id=>!reachable.has(id));
   }
   const isolated=[], terminals=[], junctions=[];
   for (const [id,node] of nodes) {
@@ -755,6 +784,8 @@ export function auditPedestrianConnectivity(nodes, adjacency) {
     else if (degree>=3) junctions.push({...item,crossingEvidence:evidence});
   }
   return {nodeCount:nodes.size,connectedNodeCount:incident.size,
+    componentCount:components.length,components,
+    ...(startNode!==undefined?{startNode,reachableFromStart,unreachableFromStart}:{}),
     crossingTaggedEdges,isolated,terminals,junctions,
     junctionsWithoutMappedCrossing:junctions.filter(item=>!item.crossingMapped)};
 }
