@@ -227,3 +227,27 @@ test("Yen search preserves distinct parallel-edge alternatives with identical no
   assert.deepEqual(paths.map(path=>path.edges[0].edgeId),["walkway-a","walkway-b"]);
   assert.notEqual(paths[0].edgeKeys[0],paths[1].edgeKeys[0]);
 });
+
+
+test("edge-aware corridor overlap distinguishes parallel ways with identical nodes", () => {
+  const graph=new Map([["S",[
+    {to:"T",meters:10,wayId:501,edgeId:"sidewalk-east"},
+    {to:"T",meters:10,wayId:502,edgeId:"sidewalk-west"}
+  ]],["T",[]]]);
+  const paths=kShortestPaths(graph,"S","T",2);
+  assert.equal(paths.length,2);
+  assert.equal(corridorPathOverlap(graph,paths[0],paths[1]),0);
+  const selected=selectCorridorDiversePaths(graph,paths,3,0.55);
+  assert.equal(selected.length,2);
+});
+
+test("splitting an identified edge gives each sub-edge a stable distinct identity", async () => {
+  const {splitPedestrianEdgeAtProjection}=await import("./pedestrian-graph.mjs");
+  const graph=new Map([[1,[{to:2,meters:100,wayId:700,edgeId:"700:1:f"}]],[2,[]]]);
+  const split=splitPedestrianEdgeAtProjection(graph,
+    {from:1,to:2,wayId:700,meters:100,edgeIndex:0,fraction:0.4},"virtual");
+  const first=split.get(1)[0], second=split.get("virtual")[0];
+  assert.equal(first.edgeId,"700:1:f:a");
+  assert.equal(second.edgeId,"700:1:f:b");
+  assert.notEqual(first.edgeId,second.edgeId);
+});
