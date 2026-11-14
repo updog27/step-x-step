@@ -1,5 +1,6 @@
 import test from "node:test";
 import { inspectPathCrossingEvidence } from "./pedestrian-graph.mjs";
+import { buildOutAndBackRoute } from "./pedestrian-graph.mjs";
 import { detectRoadwayCrossingsForPath, selectCrossingAwarePaths } from "./pedestrian-graph.mjs";
 import assert from "node:assert/strict";
 import {
@@ -457,4 +458,34 @@ test("crossing-aware selector prefers a mapped-crossing-free path before a short
  const selected=selectCrossingAwarePaths(fixtureNodes,roads,[crossingPath,detourPath],2,1);
  assert.equal(selected[0].detectedRoadwayCrossingCount,0);
  assert.equal(selected[1].detectedRoadwayCrossingCount,1);
+});
+
+
+test("builds a connected GeoJSON out-and-back route and measures both legs", () => {
+ const fixture=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],
+  ["b",{id:"b",lat:27.001,lon:-82}],
+  ["c",{id:"c",lat:27.001,lon:-81.999}]
+ ]);
+ const route=buildOutAndBackRoute(fixture,{nodes:["a","b"]},{nodes:["b","c","a"]});
+ assert.equal(route.type,"Feature");
+ assert.equal(route.geometry.type,"LineString");
+ assert.deepEqual(route.geometry.coordinates[0],[-82,27]);
+ assert.deepEqual(route.geometry.coordinates.at(-1),[-82,27]);
+ assert.equal(route.properties.routeType,"out_and_back");
+ assert.ok(route.properties.totalDistanceMeters>0);
+ assert.equal(route.properties.totalNodeCount,4);
+});
+
+test("rejects out-and-back paths that do not return to the origin", () => {
+ const fixture=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],["b",{id:"b",lat:27.001,lon:-82}],
+  ["c",{id:"c",lat:27.002,lon:-82}]
+ ]);
+ assert.throws(()=>buildOutAndBackRoute(fixture,{nodes:["a","b"]},{nodes:["b","c"]}),/original start/);
+});
+
+test("rejects missing route coordinates rather than emitting invalid GeoJSON", () => {
+ const fixture=new Map([["a",{id:"a",lat:27,lon:-82}]]);
+ assert.throws(()=>buildOutAndBackRoute(fixture,{nodes:["a","missing"]},{nodes:["missing","a"]}),/missing or invalid coordinate/);
 });
