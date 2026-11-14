@@ -377,3 +377,8 @@ Origin snapping now reports a separate connector-review diagnostic: straight-lin
 ## Origin connector roadway-intersection diagnostic
 
 The candidate generator now checks the straight GPS-origin-to-projection segment against mapped OSM roadway centerlines. A detected intersection is reported as `connector_crosses_mapped_roadway` for review. No detected intersection is not proof of same-side access or walkability: mapping gaps, grade separation, centerline offsets, private parcels, fences, curbs, and inaccessible surfaces remain unresolved. This diagnostic never changes the connector's `unverified` status or releases a route. Synthetic tests cover detected and absent mapped roadway intersections.
+
+
+## Explicit layer-aware roadway-intersection filtering
+
+Path-crossing diagnostics now suppress a geometric roadway intersection only when both the pedestrian edge and roadway segment carry explicit, valid numeric OSM layer tags and those values differ. Same-layer intersections remain flagged; missing or nonnumeric layer information is treated as unknown and remains flagged. This reduces obvious bridge/tunnel grade-separation false positives without assuming that absent tags establish elevation. Synthetic regression coverage checks different layers, matching layers, and missing pedestrian layer metadata. The detector remains a geometry review aid, not a safety or crossing-legality determination.
