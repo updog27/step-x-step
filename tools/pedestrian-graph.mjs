@@ -37,9 +37,9 @@ export function pedestrianDirections(tags = {}) {
 // nodes: Map(id -> {id,lat,lon}); ways: [{id,nodes:[...],tags:{...}}]
 export function buildDirectedPedestrianGraph(nodes, ways, maxEdgeMeters = 250) {
   const adjacency = new Map();
-  const add = (from, to, meters, wayId, edgeId) => {
+  const add = (from, to, meters, wayId, edgeId, tags = {}) => {
     if (!adjacency.has(from)) adjacency.set(from, []);
-    adjacency.get(from).push({ to, meters, wayId, edgeId });
+    adjacency.get(from).push({ to, meters, wayId, edgeId, tags: {...tags} });
   };
   for (const way of ways) {
     if (!isEligiblePedestrianWay(way.tags)) continue;
@@ -49,8 +49,8 @@ export function buildDirectedPedestrianGraph(nodes, ways, maxEdgeMeters = 250) {
       if (!from || !to) continue;
       const meters = haversineMeters(from, to);
       if (!(meters > 0 && meters < maxEdgeMeters)) continue;
-      if (direction.forward) add(from.id, to.id, meters, way.id, String(way.id)+":"+i+":f");
-      if (direction.backward) add(to.id, from.id, meters, way.id, String(way.id)+":"+i+":b");
+      if (direction.forward) add(from.id, to.id, meters, way.id, String(way.id)+":"+i+":f", way.tags);
+      if (direction.backward) add(to.id, from.id, meters, way.id, String(way.id)+":"+i+":b", way.tags);
     }
   }
   return adjacency;
@@ -405,4 +405,28 @@ export function snapOriginToPedestrianGraph(nodes, adjacency, origin, maxSnapMet
       fraction:projection.fraction,offsetMeters:projection.offsetMeters,
       isVirtual:startNode===virtualNodeId},
     virtualNode:startNode===virtualNodeId ? {id:virtualNodeId,...projection.point} : null};
+}
+
+
+// Return explicit crossing evidence at an OSM node. This is evidence metadata,
+// not a judgment that a crossing is safe, accessible, or legally usable.
+export function pedestrianCrossingEvidence(nodeTags = {}) {
+  if (nodeTags.highway !== "crossing" && nodeTags.crossing === undefined &&
+      nodeTags["crossing:markings"] === undefined) {
+    return {mapped:false,type:"unknown",controlled:false,signals:false};
+  }
+  const type = nodeTags.crossing || nodeTags.highway || "crossing";
+  const signals = nodeTags.crossing === "traffic_signals" ||
+    nodeTags.highway === "traffic_signals" ||
+    nodeTags["crossing:signals"] === "yes";
+  const controlled = signals || ["marked","zebra","pelican","puffin","toucan","traffic_signals"].includes(type) ||
+    nodeTags["crossing:markings"] === "yes";
+  return {mapped:true,type,controlled,signals};
+}
+
+// Summarize mapped crossing evidence for a graph node without treating an
+// untagged intersection as a crossing.
+export function crossingEvidenceForNode(nodes, nodeId) {
+  const node = nodes.get(nodeId);
+  return pedestrianCrossingEvidence(node?.tags || {});
 }
