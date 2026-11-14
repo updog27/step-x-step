@@ -7,7 +7,7 @@ import process from "node:process";
 import {
   buildDirectedPedestrianGraph, dijkstra, isEligiblePedestrianWay,
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
-  findNearestPedestrianEdge, splitPedestrianEdgeAtProjection
+  snapOriginToPedestrianGraph
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -47,20 +47,15 @@ for (const element of data.elements || []) {
   if (element.type === "node") nodes.set(element.id, {id:element.id,lat:element.lat,lon:element.lon});
   if (element.type === "way") ways.push(element);
 }
-const adjacency = buildDirectedPedestrianGraph(nodes, ways);
+let adjacency = buildDirectedPedestrianGraph(nodes, ways);
 if (!adjacency.size) throw new Error("No eligible directed pedestrian edges found.");
 
-const snap = findNearestPedestrianEdge(nodes,adjacency,{lat,lon},snapLimit);
-if (!snap) throw new Error("No eligible pedestrian edge found within snap limit; no candidates generated.");
-
-let start;
-if (snap.fraction > 0.000001 && snap.fraction < 0.999999) {
-  start = "__stepx_private_origin_snap__";
-  adjacency = splitPedestrianEdgeAtProjection(adjacency,snap,start);
-  nodes.set(start,{id:start,...snap.point});
-} else {
-  start = snap.fraction <= 0.000001 ? snap.from : snap.to;
-}
+const snapped = snapOriginToPedestrianGraph(nodes,adjacency,{lat,lon},snapLimit);
+if (!snapped.ok) throw new Error("Origin snap rejected: " + snapped.reason);
+adjacency = snapped.graph;
+const start = snapped.startNode;
+if (snapped.virtualNode) nodes.set(start,snapped.virtualNode);
+const snap = snapped.projection;
 const connectorStatus = "unverified";
 const maxOutbound = Math.max(...miles) * MILE / 2 + 100;
 const {distances, previous} = dijkstra(adjacency, start, maxOutbound);
