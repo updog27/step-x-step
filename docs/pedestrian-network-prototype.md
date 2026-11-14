@@ -382,3 +382,8 @@ The candidate generator now checks the straight GPS-origin-to-projection segment
 ## Explicit layer-aware roadway-intersection filtering
 
 Path-crossing diagnostics now suppress a geometric roadway intersection only when both the pedestrian edge and roadway segment carry explicit, valid numeric OSM layer tags and those values differ. Same-layer intersections remain flagged; missing or nonnumeric layer information is treated as unknown and remains flagged. This reduces obvious bridge/tunnel grade-separation false positives without assuming that absent tags establish elevation. Synthetic regression coverage checks different layers, matching layers, and missing pedestrian layer metadata. The detector remains a geometry review aid, not a safety or crossing-legality determination.
+
+
+## Endpoint metadata for disconnected-network gap review
+
+Nearby terminal-node gap candidates now retain the incident OSM way IDs, highway classes, and any sidewalk tags on each side. The diagnostic identifies a possible same-way mapping gap when both endpoints share a mapped way ID; otherwise it classifies the pair for cross-way continuity review. Matching highway classes are reported as a prioritization hint only. No candidate is auto-connected, and these tags do not establish same-side access, physical continuity, accessibility, or public right of way.
