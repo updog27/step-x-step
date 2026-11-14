@@ -59,9 +59,10 @@ export function pedestrianDirections(tags = {}) {
 // nodes: Map(id -> {id,lat,lon}); ways: [{id,nodes:[...],tags:{...}}]
 export function buildDirectedPedestrianGraph(nodes, ways, maxEdgeMeters = 250) {
   const adjacency = new Map();
-  const add = (from, to, meters, wayId, edgeId, tags = {}) => {
+  const add = (from, to, meters, wayId, edgeId, tags = {}, geometry = null) => {
     if (!adjacency.has(from)) adjacency.set(from, []);
-    adjacency.get(from).push({ to, meters, wayId, edgeId, tags: {...tags} });
+    adjacency.get(from).push({ to, meters, wayId, edgeId, tags: {...tags},
+      geometry: geometry ? geometry.map(point=>({lat:point.lat,lon:point.lon})) : null });
   };
   for (const way of ways) {
     if (!isEligiblePedestrianWay(way.tags)) continue;
@@ -71,8 +72,8 @@ export function buildDirectedPedestrianGraph(nodes, ways, maxEdgeMeters = 250) {
       if (!from || !to) continue;
       const meters = haversineMeters(from, to);
       if (!(meters > 0 && meters < maxEdgeMeters)) continue;
-      if (direction.forward) add(from.id, to.id, meters, way.id, String(way.id)+":"+i+":f", way.tags);
-      if (direction.backward) add(to.id, from.id, meters, way.id, String(way.id)+":"+i+":b", way.tags);
+      if (direction.forward) add(from.id, to.id, meters, way.id, String(way.id)+":"+i+":f", way.tags, [from,to]);
+      if (direction.backward) add(to.id, from.id, meters, way.id, String(way.id)+":"+i+":b", way.tags, [to,from]);
     }
   }
   return adjacency;
@@ -264,37 +265,73 @@ export function selectDiversePaths(paths, maxPaths = 3, maxOverlap = 0.65) {
 // street-name/reference tags. Way IDs remain the primary identity; names/refs
 // catch split or separately mapped segments of the same named street. Generic
 // unnamed ways are never grouped by geometry or endpoint coincidence.
-export function corridorPathOverlap(adjacency, pathA, pathB) {
-  const weightsFor = input => {
-    const path = Array.isArray(input) ? {nodes:input} : input;
-    const wayWeights = new Map(), streetWeights = new Map();
-    for (let i=1;i<path.nodes.length;i++) {
-      const edge=Array.isArray(path.edges)?path.edges[i-1]:
-        (adjacency.get(path.nodes[i-1])||[]).filter(item=>item.to===path.nodes[i])
-          .sort((a,b)=>a.meters-b.meters)[0];
+// Corridor overlap combines OSM identity with a conservative geometric
+// proximity check. Geometry is sampled along edge polylines; the 2.5m default
+// tolerance is intentionally narrow so nearby parallel sidewalks are not
+// automatically collapsed into one corridor.
+export function corridorPathOverlap(adjacency,pathA,pathB,options={}) {
+  const tolerance=options.geometricToleranceMeters??2.5;
+  if(!Number.isFinite(tolerance)||tolerance<0||tolerance>20)throw new RangeError("geometricToleranceMeters must be between 0 and 20");
+  const extract=input=>{
+    const path=Array.isArray(input)?{nodes:input}:input;
+    const ways=new Map(),labels=new Map(),segments=[];
+    for(let i=1;i<path.nodes.length;i++){
+      const from=path.nodes[i-1],to=path.nodes[i];
+      const edge=Array.isArray(path.edges)?path.edges[i-1]:(adjacency.get(from)||[]).filter(item=>item.to===to).sort((x,y)=>x.meters-y.meters)[0];
       if(!edge)continue;
-      const meters=Number(edge.meters)||0;
-      const wayKey=String(edge.wayId??directedEdgeKey(path.nodes[i-1],path.nodes[i]));
-      wayWeights.set(wayKey,(wayWeights.get(wayKey)||0)+meters);
-      const tags=edge.tags||{};
-      const norm=value=>String(value||"").normalize("NFKC").trim().toLocaleLowerCase("en-US").replace(/\\s+/g," ");
-      const ref=norm(tags.ref), name=norm(tags.name);
-      if(ref)streetWeights.set("ref:"+ref,(streetWeights.get("ref:"+ref)||0)+meters);
-      if(name)streetWeights.set("name:"+name,(streetWeights.get("name:"+name)||0)+meters);
+      const meters=Number(edge.meters)||0,way=String(edge.wayId??directedEdgeKey(from,to));
+      ways.set(way,(ways.get(way)||0)+meters);
+      const tags=edge.tags||{},norm=v=>String(v||"").normalize("NFKC").trim().toLocaleLowerCase("en-US").replace(/\s+/g," ");
+      for(const [kind,value] of [["ref",norm(tags.ref)],["name",norm(tags.name)]])if(value)labels.set(kind+":"+value,(labels.get(kind+":"+value)||0)+meters);
+      let geometry=edge.geometry;
+      if(!Array.isArray(geometry)||geometry.length<2){
+        const fromNode=adjacency.get(from)?.find(item=>item===edge);
+        geometry=edge.geometry;
+      }
+      if(Array.isArray(geometry)&&geometry.length>=2)segments.push({geometry,meters});
     }
-    return {wayWeights,streetWeights};
+    return {ways,labels,segments,total:segments.reduce((sum,s)=>sum+s.meters,0)};
   };
-  const overlap=(a,b)=>{
-    const keys=new Set([...a.keys(),...b.keys()]);
-    if(!keys.size)return 0;
-    let intersection=0,union=0;
-    for(const key of keys){intersection+=Math.min(a.get(key)||0,b.get(key)||0);union+=Math.max(a.get(key)||0,b.get(key)||0);}
-    return union?intersection/union:0;
+  const weighted=(a,b)=>{
+    const keys=new Set([...a.keys(),...b.keys()]);let inter=0,union=0;
+    for(const key of keys){inter+=Math.min(a.get(key)||0,b.get(key)||0);union+=Math.max(a.get(key)||0,b.get(key)||0);}
+    return union?inter/union:0;
   };
-  const a=weightsFor(pathA),b=weightsFor(pathB);
-  const wayOverlap=overlap(a.wayWeights,b.wayWeights);
-  const streetOverlap=overlap(a.streetWeights,b.streetWeights);
-  return Math.max(wayOverlap,streetOverlap);
+  const a=extract(pathA),b=extract(pathB);
+  const identity=Math.max(weighted(a.ways,b.ways),weighted(a.labels,b.labels));
+  const xy=(p,origin)=>({x:(p.lon-origin.lon)*111320*Math.cos(origin.lat*Math.PI/180),y:(p.lat-origin.lat)*111320});
+  const pointSegmentDistance=(p,a,b)=>{
+    const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;
+    const t=l?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l)):0;
+    return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));
+  };
+  const geometryCoverage=(source,target)=>{
+    if(!source.length||!target.length)return 0;
+    let matched=0,total=0;
+    for(const segment of source){
+      const points=segment.geometry;
+      const count=Math.max(1,Math.ceil(segment.meters/5));
+      let samples=0;
+      for(let k=0;k<=count;k++){
+        const fraction=k/count,idx=fraction*(points.length-1),part=Math.min(points.length-2,Math.floor(idx)),local=idx-part;
+        const p0=points[part],p1=points[part+1],origin=p0;
+        const p={lat:p0.lat+(p1.lat-p0.lat)*local,lon:p0.lon+(p1.lon-p0.lon)*local};
+        const q=xy(p,origin);
+        let nearest=Infinity;
+        for(const candidate of target){
+          for(let j=1;j<candidate.geometry.length;j++){
+            const c0=candidate.geometry[j-1],c1=candidate.geometry[j];
+            nearest=Math.min(nearest,pointSegmentDistance(q,xy(c0,origin),xy(c1,origin)));
+          }
+        }
+        if(nearest<=tolerance)samples++;
+      }
+      matched+=segment.meters*samples/(count+1);total+=segment.meters;
+    }
+    return total?matched/total:0;
+  };
+  const geometric=a.total&&b.total?(geometryCoverage(a.segments,b.segments)*a.total+geometryCoverage(b.segments,a.segments)*b.total)/(a.total+b.total):0;
+  return Math.max(identity,geometric);
 }
 
 export function selectCorridorDiversePaths(adjacency, paths, maxPaths = 3, maxOverlap = 0.55) {
