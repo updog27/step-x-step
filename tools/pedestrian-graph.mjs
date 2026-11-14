@@ -266,3 +266,57 @@ export function selectDiversePaths(paths, maxPaths = 3, maxOverlap = 0.65) {
         .map(other => directedPathOverlap(path.nodes,other.nodes)))
   }));
 }
+
+
+// Weighted Jaccard overlap by OSM way ID. This treats differently segmented
+// edges on the same mapped way as one corridor. It is a corridor proxy:
+// separate OSM ways can still describe the same physical street.
+export function corridorPathOverlap(adjacency, pathA, pathB) {
+  const weightsFor = path => {
+    const weights = new Map();
+    for (let i = 1; i < path.length; i++) {
+      const edge = (adjacency.get(path[i - 1]) || [])
+        .filter(item => item.to === path[i])
+        .sort((a,b) => a.meters - b.meters)[0];
+      if (!edge) continue;
+      const key = String(edge.wayId ?? directedEdgeKey(path[i - 1],path[i]));
+      weights.set(key,(weights.get(key) || 0) + edge.meters);
+    }
+    return weights;
+  };
+  const a = weightsFor(pathA), b = weightsFor(pathB);
+  const keys = new Set([...a.keys(),...b.keys()]);
+  if (!keys.size) return 1;
+  let intersection = 0, union = 0;
+  for (const key of keys) {
+    intersection += Math.min(a.get(key) || 0,b.get(key) || 0);
+    union += Math.max(a.get(key) || 0,b.get(key) || 0);
+  }
+  return union ? intersection / union : 1;
+}
+
+export function selectCorridorDiversePaths(adjacency, paths, maxPaths = 3, maxOverlap = 0.55) {
+  if (!Number.isInteger(maxPaths) || maxPaths < 1 || maxPaths > 10) {
+    throw new RangeError("maxPaths must be an integer from 1 to 10");
+  }
+  if (!Number.isFinite(maxOverlap) || maxOverlap < 0 || maxOverlap > 1) {
+    throw new RangeError("maxOverlap must be between 0 and 1");
+  }
+  const ordered = [...paths].sort((a,b) =>
+    a.distanceMeters - b.distanceMeters ||
+    JSON.stringify(a.nodes).localeCompare(JSON.stringify(b.nodes)));
+  const selected = [];
+  for (const candidate of ordered) {
+    if (selected.every(existing =>
+      corridorPathOverlap(adjacency,existing.nodes,candidate.nodes) <= maxOverlap)) {
+      selected.push(candidate);
+      if (selected.length >= maxPaths) break;
+    }
+  }
+  return selected.map(path => ({
+    ...path,
+    maxCorridorOverlapWithSelected: selected.length === 1 ? 0 :
+      Math.max(...selected.filter(other => other !== path)
+        .map(other => corridorPathOverlap(adjacency,path.nodes,other.nodes)))
+  }));
+}
