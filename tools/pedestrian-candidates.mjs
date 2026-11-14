@@ -5,7 +5,7 @@
 // not finished routes; engine routing and safety validation remain separate steps.
 import process from "node:process";
 import {
-  buildDirectedPedestrianGraph, dijkstra, haversineMeters, isEligiblePedestrianWay, reconstructNodePath
+  buildDirectedPedestrianGraph, dijkstra, haversineMeters, isEligiblePedestrianWay, kShortestPaths, reconstructNodePath
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -66,8 +66,13 @@ const results = miles.map(requestedMiles => {
     .slice(0,12)
     .map(([id, meters]) => {
       const path = reconstructNodePath(previous,start,id);
+      const alternatives = kShortestPaths(adjacency,start,id,3,{maxDistanceMeters:target+Math.max(20,target*0.035)});
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
-        networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:path?.length ?? 0};
+        networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:path?.length ?? 0,
+        pathVariants:alternatives.map((variant,index)=>({
+          rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
+          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length
+        }))};
     });
   return {requestedOutAndBackMiles:requestedMiles,
     targetOutboundMiles:+(requestedMiles/2).toFixed(4),candidates};
