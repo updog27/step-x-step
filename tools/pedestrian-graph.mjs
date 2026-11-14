@@ -641,7 +641,24 @@ export function detectRoadwayCrossingsForPath(nodes,ways,path,options={}) {
 }
 
 
- // Feature-level inventory for the complete out-and-back geometry. Connections
+ 
+ // Inspect the straight GPS-origin-to-projection segment against mapped road
+ // centerlines. This is a review flag only; it never validates the connector.
+ export function detectOriginConnectorRoadwayIntersections(nodes,ways,origin,projection,options={}) {
+  if(!origin||!projection||![origin.lat,origin.lon,projection.lat,projection.lon].every(Number.isFinite))
+   throw new TypeError("Valid origin and projected coordinates are required");
+  const connectorNodes=new Map(nodes);
+  const fromId="__stepx_connector_origin__",toId="__stepx_connector_projection__";
+  connectorNodes.set(fromId,{id:fromId,lat:origin.lat,lon:origin.lon,tags:{}});
+  connectorNodes.set(toId,{id:toId,lat:projection.lat,lon:projection.lon,tags:{}});
+  const inspection=detectRoadwayCrossingsForPath(connectorNodes,ways,[fromId,toId],options);
+  return {...inspection,
+   status:inspection.crossingCount?"connector_crosses_mapped_roadway":"no_mapped_roadway_intersection_detected",
+   connectorStatus:"unverified",
+   warning:"A mapped roadway intersection on the straight connector requires field review; no detected intersection does not prove a walkable or same-side connection."};
+ }
+
+// Feature-level inventory for the complete out-and-back geometry. Connections
  // are grouped by OSM way; geometric road intersections are distinct crossings.
  export function buildRouteFeatureInventory(nodes,ways,outboundPath,returnPath,options={}) {
   const valid=p=>p&&Array.isArray(p.nodes)&&Array.isArray(p.edges)&&p.edges.length===p.nodes.length-1;
