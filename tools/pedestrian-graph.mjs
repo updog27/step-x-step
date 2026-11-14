@@ -430,3 +430,40 @@ export function crossingEvidenceForNode(nodes, nodeId) {
   const node = nodes.get(nodeId);
   return pedestrianCrossingEvidence(node?.tags || {});
 }
+
+
+// Structural audit only: identify isolated nodes, terminal ends, and junctions
+// where crossing evidence is absent. It does not infer that a crossing is
+// required or safe; callers must inspect geometry and street context.
+export function auditPedestrianConnectivity(nodes, adjacency) {
+  const incident = new Map();
+  const add = (id, neighbor, edge) => {
+    if (!incident.has(id)) incident.set(id,new Map());
+    const neighbors=incident.get(id);
+    if (!neighbors.has(neighbor)) neighbors.set(neighbor,new Set());
+    neighbors.get(neighbor).add(String(edge.wayId ?? "unknown"));
+  };
+  for (const [from,edges] of adjacency) {
+    for (const edge of edges) {
+      add(from,edge.to,edge);
+      add(edge.to,from,edge);
+    }
+  }
+  const isolated=[], terminals=[], junctions=[];
+  for (const [id,node] of nodes) {
+    const neighbors=incident.get(id);
+    const degree=neighbors?.size || 0;
+    const incoming=[...adjacency.values()].flat().filter(edge=>edge.to===id).length;
+    const outgoing=(adjacency.get(id)||[]).length;
+    const evidence=pedestrianCrossingEvidence(node.tags||{});
+    const item={nodeId:id,degree,incoming,outgoing,wayCount:new Set(
+      [...(neighbors?.values()||[])].flatMap(set=>[...set])).size,
+      crossingMapped:evidence.mapped,crossingType:evidence.type};
+    if (degree===0) isolated.push(item);
+    else if (degree===1) terminals.push(item);
+    else if (degree>=3) junctions.push({...item,crossingEvidence:evidence});
+  }
+  return {nodeCount:nodes.size,connectedNodeCount:incident.size,
+    isolated,terminals,junctions,
+    junctionsWithoutMappedCrossing:junctions.filter(item=>!item.crossingMapped)};
+}
