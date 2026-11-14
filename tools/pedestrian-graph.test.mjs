@@ -312,6 +312,15 @@ test("crossing evidence distinguishes mapped, controlled, and unknown crossings"
     mapped:true,type:"traffic_signals",controlled:true,signals:true
   });
   assert.equal(pedestrianCrossingEvidence({crossing:"unmarked"}).controlled,false);
+  assert.deepEqual(pedestrianCrossingEvidence({highway:"traffic_signals"}),{
+    mapped:false,type:"unknown",controlled:false,signals:true
+  });
+  assert.deepEqual(pedestrianCrossingEvidence({highway:"crossing","crossing:markings":"no"}),{
+    mapped:true,type:"no",controlled:false,signals:false
+  });
+  assert.deepEqual(pedestrianCrossingEvidence({crossing:"traffic_signals"}),{
+    mapped:true,type:"traffic_signals",controlled:true,signals:true
+  });
 });
 
 test("crossing evidence reads tags retained on OSM node records", () => {
