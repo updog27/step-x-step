@@ -7,7 +7,7 @@ import process from "node:process";
 import {
   buildDirectedPedestrianGraph, dijkstra, isEligiblePedestrianWay,
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
-  snapOriginToPedestrianGraph, auditPedestrianConnectivity
+  snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -86,7 +86,13 @@ const results = miles.map(requestedMiles => {
         pathVariants:alternatives.map((variant,index)=>({
           rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
           distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
-          maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3)
+          maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3),
+          crossingGeometry:detectRoadwayCrossingsForPath(nodes,ways,variant).crossings.map(crossing=>({
+            roadClass:crossing.roadClass,
+            intersectionAngleDegrees:crossing.intersectionAngleDegrees,
+            mappedCrossingEvidence:crossing.mappedCrossingEvidence
+          })),
+          detectedRoadwayCrossingCount:detectRoadwayCrossingsForPath(nodes,ways,variant).crossingCount
         }))};
     });
   return {requestedOutAndBackMiles:requestedMiles,
@@ -104,6 +110,8 @@ console.log(JSON.stringify({
   originSnap:{method:"nearest eligible directed edge projection",offsetMeters:+snap.offsetMeters.toFixed(1),
     fraction:+snap.fraction.toFixed(4),connectorStatus},
   results:results.map(result=>({...result,candidates:[],diagnosticCandidateCount:result.candidates.length,
+    diagnosticRoadwayCrossingCount:result.candidates.reduce((sum,candidate)=>
+      sum+candidate.pathVariants.reduce((count,variant)=>count+variant.detectedRoadwayCrossingCount,0),0),
     status:"withheld_unverified_origin_connector"})),
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
