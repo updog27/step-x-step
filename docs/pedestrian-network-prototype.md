@@ -439,3 +439,10 @@ Disconnected terminal endpoints are now spatially bucketed before exact gap-dist
 ### Alternate-corridor turnaround discovery (2026-11-14)
 
 Candidate generation now expands beyond the single shortest-path tree in a bounded way. It selects up to eight near-target anchor destinations, requests up to three Yen k-shortest paths to each anchor, and inspects cumulative path prefixes for nodes inside the existing turnaround search band. A prefix node can therefore be considered as a turnaround even when its shortest-tree distance falls outside that band. The expanded pool is deduplicated by node, ordered by target-distance error, screened by corridor overlap, and capped at 24 selected turnarounds. This is a bounded discovery improvement, not an exhaustive search or a route-safety guarantee. Full round-trip distance and feature review gates remain unchanged.
+
+
+### Shared-segment corridor-overlap review (2026-11-14)
+
+Corridor overlap now considers two independent identity signals: weighted shared OSM way length (which tolerates different node segmentation along the same mapped way) and weighted shared graph-segment length (which catches duplicate OSM way records that reuse the same graph endpoints but carry different way IDs). The larger overlap estimate is used conservatively when screening alternatives. A regression test covers distinct way IDs on a shared graph segment.
+
+This still cannot reliably identify physically coincident or parallel facilities when their OSM ways use entirely separate node geometry, nor can it distinguish sidewalk sides from IDs alone. OSM way and graph-segment identities remain topology proxies. No route is marked safe, accessible, field-verified, or user-ready by this calculation.
