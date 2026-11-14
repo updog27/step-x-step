@@ -1,4 +1,5 @@
 import test from "node:test";
+import { inspectPathCrossingEvidence } from "./pedestrian-graph.mjs";
 import assert from "node:assert/strict";
 import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
@@ -357,4 +358,29 @@ test("connectivity audit identifies isolated nodes, terminals, and ambiguous jun
   assert.ok(result.junctions.some(x=>x.nodeId===2));
   assert.ok(result.junctionsWithoutMappedCrossing.some(x=>x.nodeId===2));
   assert.equal(result.junctions.find(x=>x.nodeId===2).degree,4);
+});
+
+test("path crossing inspection reports mapped crossings and separates signal-only nodes", () => {
+  const nodes = new Map([
+    ["a",{id:"a",lat:0,lon:0,tags:{}}],
+    ["b",{id:"b",lat:0,lon:0,tags:{crossing:"zebra"}}],
+    ["c",{id:"c",lat:0,lon:0,tags:{highway:"traffic_signals"}}]
+  ]);
+  const result = inspectPathCrossingEvidence(nodes, {
+    nodes:["a","b","c"],
+    edges:[{wayId:99,tags:{highway:"crossing"}}]
+  });
+  assert.equal(result.mappedCrossingNodeCount,1);
+  assert.equal(result.unknownNodeCount,2);
+  assert.equal(result.signalOnlyNodeCount,1);
+  assert.equal(result.crossingWayEdgeCount,1);
+  assert.equal(result.observations[0].type,"zebra");
+});
+
+test("path crossing inspection does not infer crossing requirement from unknown nodes", () => {
+  const nodes = new Map([["x",{id:"x",lat:0,lon:0,tags:{}}]]);
+  const result = inspectPathCrossingEvidence(nodes,["x"]);
+  assert.equal(result.mappedCrossingNodeCount,0);
+  assert.equal(result.unknownNodeCount,1);
+  assert.equal(result.crossingWayEdgeCount,0);
 });
