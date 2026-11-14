@@ -452,12 +452,14 @@ export function auditPedestrianConnectivity(nodes, adjacency) {
   };
   for (const [from,edges] of adjacency) {
     for (const edge of edges) {
+      if (edge.tags?.highway==="crossing" || edge.tags?.footway==="crossing") crossingTaggedEdges++;
       add(from,edge.to,edge);
       add(edge.to,from,edge);
       incomingCounts.set(edge.to,(incomingCounts.get(edge.to)||0)+1);
     }
   }
   const isolated=[], terminals=[], junctions=[];
+  let crossingTaggedEdges=0;
   for (const [id,node] of nodes) {
     const neighbors=incident.get(id);
     const degree=neighbors?.size || 0;
@@ -472,6 +474,6 @@ export function auditPedestrianConnectivity(nodes, adjacency) {
     else if (degree>=3) junctions.push({...item,crossingEvidence:evidence});
   }
   return {nodeCount:nodes.size,connectedNodeCount:incident.size,
-    isolated,terminals,junctions,
+    crossingTaggedEdges,isolated,terminals,junctions,
     junctionsWithoutMappedCrossing:junctions.filter(item=>!item.crossingMapped)};
 }
