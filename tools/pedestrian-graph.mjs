@@ -225,3 +225,44 @@ export function kShortestPaths(adjacency, start, end, k = 3, options = {}) {
   }
   return accepted;
 }
+
+
+// Directed-edge Jaccard overlap: 0 means no shared directed edges, 1 means identical.
+export function directedPathOverlap(pathA, pathB) {
+  const edges = path => new Set(path.slice(1).map((node,index) =>
+    directedEdgeKey(path[index],node)));
+  const a = edges(pathA), b = edges(pathB);
+  if (!a.size && !b.size) return 1;
+  let shared = 0;
+  for (const edge of a) if (b.has(edge)) shared++;
+  return shared / (a.size + b.size - shared);
+}
+
+// Greedily retain short paths that add meaningful new directed-edge coverage.
+// The first (shortest) path is always retained; later paths must meet the
+// configured overlap ceiling against every already-selected path.
+export function selectDiversePaths(paths, maxPaths = 3, maxOverlap = 0.65) {
+  if (!Number.isInteger(maxPaths) || maxPaths < 1 || maxPaths > 10) {
+    throw new RangeError("maxPaths must be an integer from 1 to 10");
+  }
+  if (!Number.isFinite(maxOverlap) || maxOverlap < 0 || maxOverlap > 1) {
+    throw new RangeError("maxOverlap must be between 0 and 1");
+  }
+  const ordered = [...paths].sort((a,b) =>
+    a.distanceMeters - b.distanceMeters ||
+    JSON.stringify(a.nodes).localeCompare(JSON.stringify(b.nodes)));
+  const selected = [];
+  for (const candidate of ordered) {
+    if (selected.every(existing =>
+      directedPathOverlap(existing.nodes,candidate.nodes) <= maxOverlap)) {
+      selected.push(candidate);
+      if (selected.length >= maxPaths) break;
+    }
+  }
+  return selected.map(path => ({
+    ...path,
+    maxOverlapWithSelected: selected.length === 1 ? 0 :
+      Math.max(...selected.filter(other => other !== path)
+        .map(other => directedPathOverlap(path.nodes,other.nodes)))
+  }));
+}
