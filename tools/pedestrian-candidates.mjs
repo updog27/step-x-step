@@ -44,7 +44,7 @@ if (!response.ok) throw new Error("Overpass HTTP " + response.status);
 const data = await response.json();
 const nodes = new Map(), ways = [];
 for (const element of data.elements || []) {
-  if (element.type === "node") nodes.set(element.id, {id:element.id,lat:element.lat,lon:element.lon});
+  if (element.type === "node") nodes.set(element.id, {id:element.id,lat:element.lat,lon:element.lon,tags:element.tags || {}});
   if (element.type === "way") ways.push(element);
 }
 let adjacency = buildDirectedPedestrianGraph(nodes, ways);
@@ -106,8 +106,8 @@ console.log(JSON.stringify({
     "The GPS origin is projected onto a nearby eligible directed edge and that edge is split at a virtual graph node.",
     "The origin-to-network connector remains unverified; all candidate paths are withheld and must not be presented as usable routes.",
     "A close geometric snap does not prove that the user is on the correct sidewalk side or has a legal, walkable connection to it.",
-    "Crossing legality, polygon/parcel exclusions, field overlays, and side-specific sidewalk geometry are not enforced.",
-    "Road centerlines are included only when OSM explicitly tags a sidewalk; side-specific geometry still needs validation.",
+    "Mapped crossing evidence is not yet used as a route acceptance gate; crossing legality, polygon/parcel exclusions, field overlays, and side-specific sidewalk geometry are not enforced.",
+    "Road centerlines are excluded even when sidewalk presence is tagged; dedicated sidewalk geometry and side-specific connectivity must be mapped and validated.",
     "Unknown access and incomplete tags are not proof of legal public access or safe pedestrian conditions.",
     "Coordinates and route geometry are intentionally omitted from output."
   ]
