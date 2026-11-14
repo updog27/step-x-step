@@ -417,3 +417,8 @@ The candidate generator now searches a wider outbound-distance band before ranki
 - Up to 24 corridor-distinct turnaround nodes are evaluated (previously 12).
 - This is intentionally a candidate-discovery band, not a relaxation of route acceptance. Completed geometry must still pass the configured full-route distance tolerance, and origin/connectivity/crossing observations remain unverified.
 - The wider band increases the chance of finding a return leg that brings the total route closer to target, but increases computation and does not remove the bounded shortest-path-tree search-space limitation.
+
+
+### Complete-route crossing exposure ranking (2026-11-13)
+
+Corrected candidate quality ranking to use the roadway-crossing inventory for the assembled outbound **and** return geometry. Previously, the crossing count used for ranking described only the outbound variant even though the feature inventory already covered both legs. The generator now reports outbound and round-trip crossing counts separately and ranks completed variants and turnaround nodes using the full round-trip count. This remains a mapped-centerline intersection heuristic, not a determination that a crossing is unsafe or that a route is safe.
