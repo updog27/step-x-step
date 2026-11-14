@@ -88,48 +88,58 @@ const results = miles.map(requestedMiles => {
   }
   const candidates = selectedTurnarounds.map(({candidate:[id,meters],path:shortestPath}) => {
       const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});
-      const alternatives = selectCrossingAwarePaths(nodes,ways,pathPool,3,0.55);
+      const alternatives = selectCrossingAwarePaths(nodes,ways,pathPool,8,0.55);
+      const completedVariants=alternatives.map(variant=>{
+        const assembled=buildDirectedOutAndBackCandidate(adjacency,nodes,variant,{
+          requestedDistanceMeters:requestedMiles*MILE,
+          distanceToleranceMeters:Math.max(5,requestedMiles*MILE*0.02)
+        });
+        const inventory=assembled.ok?buildRouteFeatureInventory(nodes,ways,variant,assembled.returnPath):null;
+        const acceptance=assembled.ok?evaluateRouteAcceptance({
+          requestedDistanceMeters:requestedMiles*MILE,
+          pathDistanceMeters:assembled.route.properties.totalDistanceMeters,
+          originConnector:{status:"unverified"},
+          connections:inventory.connections.concat(inventory.crossings)
+        }):null;
+        return {
+          distanceMeters:+variant.distanceMeters.toFixed(1),
+          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
+          maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3),
+          crossingGeometry:variant.crossingGeometry.map(crossing=>({
+            roadClass:crossing.roadClass,
+            intersectionAngleDegrees:crossing.intersectionAngleDegrees,
+            mappedCrossingEvidence:crossing.mappedCrossingEvidence
+          })),
+          detectedRoadwayCrossingCount:variant.detectedRoadwayCrossingCount,
+          routeFeatureInventory:inventory?{
+            connectionFeatureCount:inventory.connections.length,
+            roadwayCrossingFeatureCount:inventory.crossings.length,
+            mappedCrossingNodeCount:inventory.mappedNodeCrossings.length,
+            crossingGeometryStatus:inventory.crossingGeometryStatus
+          }:null,
+          returnLeg:assembled.ok?{
+            status:"directed_return_found",
+            returnDistanceMeters:+assembled.distance.returnMeters.toFixed(1),
+            totalRouteDistanceMeters:assembled.route.properties.totalDistanceMeters,
+            distanceErrorMeters:+assembled.distance.errorMeters.toFixed(1),
+            distanceWithinTolerance:acceptance.distance.withinTolerance,
+            acceptanceStatus:acceptance.status,
+            reviewReasonCodes:acceptance.reviewItems.map(item=>item.code),
+            routeGeometryPrepared:true
+          }:{status:"withheld",reason:assembled.reason},
+          _rank:{complete:assembled.ok,distanceError:assembled.ok?assembled.distance.errorMeters:Infinity}
+        };
+      });
+      // Rank only after each outbound path has an independently routed return.
+      // A half-distance match is not enough: the full geometry must be close.
+      completedVariants.sort((a,b)=>
+        Number(b._rank.complete)-Number(a._rank.complete)||
+        a.detectedRoadwayCrossingCount-b.detectedRoadwayCrossingCount||
+        a._rank.distanceError-b._rank.distanceError||
+        a.distanceMeters-b.distanceMeters);
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
         networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.nodes.length ?? 0,
-        pathVariants:alternatives.map((variant,index)=>{
-          const assembled=buildDirectedOutAndBackCandidate(adjacency,nodes,variant,{
-            requestedDistanceMeters:requestedMiles*MILE,
-            distanceToleranceMeters:Math.max(15,requestedMiles*MILE*0.02)
-          });
-          const inventory=assembled.ok?buildRouteFeatureInventory(nodes,ways,variant,assembled.returnPath):null;
-          const acceptance=assembled.ok?evaluateRouteAcceptance({
-            requestedDistanceMeters:requestedMiles*MILE,
-            pathDistanceMeters:assembled.route.properties.totalDistanceMeters,
-            originConnector:{status:"unverified"},
-            connections:inventory.connections.concat(inventory.crossings)
-          }):null;
-          return {
-            rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
-            distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
-            maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3),
-            crossingGeometry:variant.crossingGeometry.map(crossing=>({
-              roadClass:crossing.roadClass,
-              intersectionAngleDegrees:crossing.intersectionAngleDegrees,
-              mappedCrossingEvidence:crossing.mappedCrossingEvidence
-            })),
-            detectedRoadwayCrossingCount:variant.detectedRoadwayCrossingCount,
-            routeFeatureInventory:inventory?{
-              connectionFeatureCount:inventory.connections.length,
-              roadwayCrossingFeatureCount:inventory.crossings.length,
-              mappedCrossingNodeCount:inventory.mappedNodeCrossings.length,
-              crossingGeometryStatus:inventory.crossingGeometryStatus
-            }:null,
-            returnLeg:assembled.ok?{
-              status:"directed_return_found",
-              returnDistanceMeters:+assembled.distance.returnMeters.toFixed(1),
-              totalRouteDistanceMeters:assembled.route.properties.totalDistanceMeters,
-              distanceWithinTolerance:acceptance.distance.withinTolerance,
-              acceptanceStatus:acceptance.status,
-              reviewReasonCodes:acceptance.reviewItems.map(item=>item.code),
-              routeGeometryPrepared:true
-            }:{status:"withheld",reason:assembled.reason}
-          };
-        })};
+        pathVariants:completedVariants.slice(0,3).map(({_rank,...variant},index)=>({...variant,rank:index+1}))};
     });
   return {requestedOutAndBackMiles:requestedMiles,
     targetOutboundMiles:+(requestedMiles/2).toFixed(4),candidates};
