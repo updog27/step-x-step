@@ -114,3 +114,16 @@ This is graph candidate generation, not a route engine comparison and not a comp
 - uses public Overpass by default, so execution should remain low-volume and best-effort.
 
 The script has been committed but has not been executed in this environment: outbound network access is unavailable here. Its output must be reviewed and its limitations addressed before connecting candidate nodes to Valhalla, GraphHopper, or the app.
+
+
+### Follow-up graph correctness pass (2026-11-13)
+
+The candidate utility now honors explicit pedestrian direction tags when constructing directed graph arcs:
+- `foot:forward=no` removes forward travel along the OSM way.
+- `foot:backward=no` removes backward travel.
+- `oneway:foot=yes` and `oneway:foot=-1` apply the corresponding pedestrian direction.
+- A vehicle `oneway=yes` tag by itself is deliberately not treated as a pedestrian one-way restriction.
+
+The utility also validates its configured search radius and start-snap limit before making a request.
+
+This improves graph semantics but does not solve the remaining topology and safety gaps. In particular, the nearest-node snap is only a proximity check: it does not yet build a verified connector from the exact GPS origin to the graph. The current Dijkstra tree produces candidate nodes on shortest paths from the selected snap node; those candidates are not yet three distinct route alternatives. Candidate node IDs are diagnostic identifiers, not route coordinates or a guarantee of legal access. No live Overpass execution has been performed from this environment.
