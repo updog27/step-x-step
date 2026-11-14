@@ -332,6 +332,7 @@ export function selectRoundTripCorridorDiversePaths(adjacency, routes, maxPaths=
     throw new RangeError("maxOverlap must be between 0 and 1");
   }
   const ordered=[...routes].sort((a,b)=>
+    (a.roundTripRoadwayCrossingCount ?? Infinity)-(b.roundTripRoadwayCrossingCount ?? Infinity)||
     (a.distanceErrorMeters ?? Infinity)-(b.distanceErrorMeters ?? Infinity));
   const selected=[];
   for (const candidate of ordered) {
