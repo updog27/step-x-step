@@ -436,6 +436,48 @@ export function crossingEvidenceForNode(nodes, nodeId) {
   const node = nodes.get(nodeId);
   return pedestrianCrossingEvidence(node?.tags || {});
 }
+ 
+// Report only mapped crossing evidence encountered by a supplied graph path.
+// This does not decide whether a roadway crossing is required or safe.
+export function inspectPathCrossingEvidence(nodes, path) {
+  const nodeIds = Array.isArray(path) ? path : path?.nodes;
+  if (!Array.isArray(nodeIds) || nodeIds.length < 1) {
+    throw new TypeError("A non-empty path node sequence is required");
+  }
+  const observations = [];
+  let unknownNodeCount = 0, signalOnlyNodeCount = 0;
+  for (const nodeId of nodeIds) {
+    const tags = nodes.get(nodeId)?.tags || {};
+    const evidence = pedestrianCrossingEvidence(tags);
+    if (evidence.mapped) observations.push({nodeId, ...evidence});
+    else {
+      unknownNodeCount++;
+      if (evidence.signals) signalOnlyNodeCount++;
+    }
+  }
+  const pathEdges = Array.isArray(path?.edges) ? path.edges : [];
+  const crossingWayEdges = pathEdges.filter(edge =>
+    edge?.tags?.highway === "crossing" || edge?.tags?.footway === "crossing"
+  ).map(edge => ({
+    wayId: edge.wayId ?? null,
+    type: edge.tags?.crossing || edge.tags?.highway || edge.tags?.footway || "crossing"
+  }));
+  return {
+    nodeCount: nodeIds.length,
+    mappedCrossingNodeCount: observations.length,
+    unknownNodeCount,
+    signalOnlyNodeCount,
+    crossingWayEdgeCount: crossingWayEdges.length,
+    observations,
+    crossingWayEdges,
+    limitations: [
+      "Only explicit OSM crossing tags are reported; an untagged node is unknown, not proof that no crossing exists.",
+      "Signal-only nodes are not classified as pedestrian crossings without crossing-specific tags.",
+      "This inspection does not infer whether a roadway crossing is required and does not establish legality, accessibility, signal operation, or safety."
+    ]
+  };
+}
+
 
 
 // Structural audit only: identify isolated nodes, terminal ends, and junctions
