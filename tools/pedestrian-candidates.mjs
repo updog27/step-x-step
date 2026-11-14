@@ -98,6 +98,7 @@ const results = miles.map(requestedMiles => {
         if (!existing || cumulativeMeters<existing.meters) {
           turnaroundById.set(id,{id,meters:cumulativeMeters,path:{
             nodes:path.nodes.slice(0,index+1),edges:path.edges.slice(0,index),
+            edgeKeys:path.edgeKeys?.slice(0,index) ?? [],
             distanceMeters:cumulativeMeters
           }});
         }
@@ -119,9 +120,21 @@ const results = miles.map(requestedMiles => {
     }
     if (selectedTurnarounds.length >= 24) break;
   }
-  const candidates = selectedTurnarounds.map(({candidate:[id,meters],path:shortestPath}) => {
-      const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});
-      const alternatives = selectCrossingAwarePaths(nodes,ways,pathPool,8,0.55);
+  const candidates = selectedTurnarounds.map(({candidate:[id,meters],path:discoveryPath}) => {
+      // Preserve the exact alternate-corridor prefix that caused this
+      // turnaround to be discovered. Re-running only the shortest-path
+      // search here can silently discard the newly discovered corridor.
+      const pathPool = kShortestPaths(adjacency,start,id,8,
+        {maxDistanceMeters:target+turnaroundSearchBandMeters});
+      const seededPool = discoveryPath
+        ? [discoveryPath,...pathPool]
+        : pathPool;
+      const uniquePaths = [...new Map(seededPool.map(path => [
+        JSON.stringify(path.edgeKeys?.length ? path.edgeKeys :
+          path.edges.map((edge,index)=>edge.edgeId ?? edge.wayId ?? `${path.nodes[index]}>${edge.to}`)),
+        path
+      ])).values()];
+      const alternatives = selectCrossingAwarePaths(nodes,ways,uniquePaths,8,0.55);
       const completedVariants=alternatives.map(variant=>{
         const assembled=buildDirectedOutAndBackCandidate(adjacency,nodes,variant,{
           requestedDistanceMeters:requestedMiles*MILE,
@@ -185,7 +198,7 @@ const results = miles.map(requestedMiles => {
         (a.roundTripRoadwayCrossingCount ?? Infinity)-(b.roundTripRoadwayCrossingCount ?? Infinity)||
         a._rank.distanceError-b._rank.distanceError||a.distanceMeters-b.distanceMeters)[0];
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
-        networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.nodes.length ?? 0,
+        networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:discoveryPath?.nodes.length ?? 0,
         bestRoundTrip:best?{
           complete:best._rank.complete,
           detectedRoadwayCrossingCount:best.detectedRoadwayCrossingCount,
