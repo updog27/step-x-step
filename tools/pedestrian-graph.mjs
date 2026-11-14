@@ -607,6 +607,49 @@ export function detectRoadwayCrossingsForPath(nodes,ways,path,options={}) {
   ]};
 }
 
+
+ // Feature-level inventory for the complete out-and-back geometry. Connections
+ // are grouped by OSM way; geometric road intersections are distinct crossings.
+ export function buildRouteFeatureInventory(nodes,ways,outboundPath,returnPath,options={}) {
+  const valid=p=>p&&Array.isArray(p.nodes)&&Array.isArray(p.edges)&&p.edges.length===p.nodes.length-1;
+  if(!(nodes instanceof Map)||!Array.isArray(ways)||!valid(outboundPath)||!valid(returnPath))
+   throw new TypeError("Node map, OSM ways, and complete directed outbound/return paths are required");
+  const origin=outboundPath.nodes[0],turnaround=outboundPath.nodes.at(-1);
+  if(returnPath.nodes[0]!==turnaround||returnPath.nodes.at(-1)!==origin)
+   throw new Error("Route legs do not form a complete out-and-back");
+  const routeNodes=outboundPath.nodes.concat(returnPath.nodes.slice(1));
+  const routeEdges=outboundPath.edges.concat(returnPath.edges),connections=new Map();
+  for(let i=0;i<routeEdges.length;i++){
+   const edge=routeEdges[i],wayId=edge.wayId;
+   if(wayId===undefined||wayId===null)continue;
+   const id="connection:osm-way:"+String(wayId);
+   if(!connections.has(id))connections.set(id,{id,featureType:"connection",status:"unverified",
+    crossingRequired:false,routeSegmentIndexes:[],osmWayId:wayId});
+   connections.get(id).routeSegmentIndexes.push(i);
+  }
+  const assessment=detectRoadwayCrossingsForPath(nodes,ways,{nodes:routeNodes},options);
+  const crossings=assessment.crossings.map(c=>{
+   const id="crossing:osm-way:"+String(c.wayId)+":route-segment:"+c.pathSegmentIndex;
+   const a=nodes.get(routeNodes[c.pathSegmentIndex])?.tags||{},b=nodes.get(routeNodes[c.pathSegmentIndex+1])?.tags||{};
+   const road=ways.find(w=>w.id===c.wayId);
+   return {id,featureType:"crossing",status:"unverified",crossingRequired:true,
+    crossingEvidence:{mapped:Boolean(a.crossing||b.crossing),controlled:road?.tags?.crossing==="traffic_signals"},
+    osmWayId:c.wayId,roadClass:c.roadClass,routeSegmentIndex:c.pathSegmentIndex,
+    intersectionAngleDegrees:c.intersectionAngleDegrees};
+  });
+  const mappedNodeCrossings=[];
+  for(let i=0;i<routeNodes.length;i++){
+   const e=pedestrianCrossingEvidence(nodes.get(routeNodes[i])?.tags||{});
+   if(e.mapped)mappedNodeCrossings.push({nodeId:routeNodes[i],routeNodeIndex:i,type:e.type});
+  }
+  return {connections:[...connections.values()],crossings,mappedNodeCrossings,
+   routeNodeCount:routeNodes.length,routeEdgeCount:routeEdges.length,
+   crossingGeometryStatus:assessment.status,
+   limitations:[...assessment.limitations,
+    "Connections are grouped by OSM way and require current field verification.",
+    "Mapped crossing tags are reported separately and are not assumed to match each geometric road intersection."]};
+ }
+
 // Report only mapped crossing evidence encountered by a supplied graph path.
 // This does not decide whether a roadway crossing is required or safe.
 export function inspectPathCrossingEvidence(nodes, path) {
