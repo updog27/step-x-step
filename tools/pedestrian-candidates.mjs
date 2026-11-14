@@ -116,6 +116,7 @@ const results = miles.map(requestedMiles => {
             mappedCrossingEvidence:crossing.mappedCrossingEvidence
           })),
           detectedRoadwayCrossingCount:variant.detectedRoadwayCrossingCount,
+          roundTripRoadwayCrossingCount:inventory?.crossings.length ?? null,
           routeFeatureInventory:inventory?{
             connectionFeatureCount:inventory.connections.length,
             roadwayCrossingFeatureCount:inventory.crossings.length,
@@ -139,7 +140,7 @@ const results = miles.map(requestedMiles => {
       // A half-distance match is not enough: the full geometry must be close.
       completedVariants.sort((a,b)=>
         Number(b._rank.complete)-Number(a._rank.complete)||
-        a.detectedRoadwayCrossingCount-b.detectedRoadwayCrossingCount||
+        (a.roundTripRoadwayCrossingCount ?? Infinity)-(b.roundTripRoadwayCrossingCount ?? Infinity)||
         a._rank.distanceError-b._rank.distanceError||
         a.distanceMeters-b.distanceMeters);
       const best=completedVariants[0];
@@ -148,13 +149,14 @@ const results = miles.map(requestedMiles => {
         bestRoundTrip:best?{
           complete:best._rank.complete,
           detectedRoadwayCrossingCount:best.detectedRoadwayCrossingCount,
+          roundTripRoadwayCrossingCount:best.roundTripRoadwayCrossingCount,
           totalRouteDistanceMeters:best.returnLeg.totalRouteDistanceMeters??null,
           distanceErrorMeters:Number.isFinite(best._rank.distanceError)?+best._rank.distanceError.toFixed(1):null,
           distanceWithinTolerance:best.returnLeg.distanceWithinTolerance??false
         }:null,
         _rank:best?{
           complete:best._rank.complete,
-          crossings:best.detectedRoadwayCrossingCount,
+          crossings:best.roundTripRoadwayCrossingCount ?? Infinity,
           distanceError:best._rank.distanceError
         }:{complete:false,crossings:Infinity,distanceError:Infinity},
         pathVariants:completedVariants.slice(0,3).map(({_rank,...variant},index)=>({...variant,rank:index+1}))};
@@ -189,8 +191,10 @@ console.log(JSON.stringify({
     offsetMeters:+snap.offsetMeters.toFixed(1),fraction:+snap.fraction.toFixed(4),connectorStatus,
     connectorReview:snapped.connectorReview,roadwayReview:connectorRoadwayReview},
   results:results.map(result=>({...result,candidates:[],diagnosticCandidateCount:result.candidates.length,
-    diagnosticRoadwayCrossingCount:result.candidates.reduce((sum,candidate)=>
+    diagnosticOutboundRoadwayCrossingCount:result.candidates.reduce((sum,candidate)=>
       sum+candidate.pathVariants.reduce((count,variant)=>count+variant.detectedRoadwayCrossingCount,0),0),
+    diagnosticRoundTripRoadwayCrossingCount:result.candidates.reduce((sum,candidate)=>
+      sum+candidate.pathVariants.reduce((count,variant)=>count+(variant.roundTripRoadwayCrossingCount??0),0),0),
     status:"withheld_unverified_origin_connector"})),
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
