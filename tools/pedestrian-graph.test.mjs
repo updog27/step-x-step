@@ -148,6 +148,20 @@ test("corridor overlap detects shared OSM way despite different node segmentatio
   assert.equal(corridorPathOverlap(graph,["S","A","B","T"],["S","A","B","T"]),1);
 });
 
+test("corridor overlap detects shared graph segments even when OSM way IDs differ",()=>{
+ const graph=new Map([
+  ["S",[{to:"A",meters:10,wayId:100},{to:"A",meters:10,wayId:900}]],
+  ["A",[{to:"B",meters:20,wayId:200},{to:"C",meters:20,wayId:300}]],
+  ["B",[]],["C",[]]
+ ]);
+ const first={nodes:["S","A","B"],edges:[{to:"A",meters:10,wayId:100},{to:"B",meters:20,wayId:200}]};
+ const second={nodes:["S","A","C"],edges:[{to:"A",meters:10,wayId:900},{to:"C",meters:20,wayId:300}]};
+ assert.ok(corridorPathOverlap(graph,first,second)>0.15);
+ const duplicate={nodes:["S","A"],edges:[{to:"A",meters:10,wayId:900}]};
+ const original={nodes:["S","A"],edges:[{to:"A",meters:10,wayId:100}]};
+ assert.equal(corridorPathOverlap(graph,original,duplicate),1);
+});
+ 
 test("corridor diversity selector rejects same-way variants and retains separate ways", () => {
   const graph = new Map([
     ["S",[{to:"A",meters:10,wayId:1},{to:"D",meters:10,wayId:2}]],
