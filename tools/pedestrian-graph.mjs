@@ -348,12 +348,13 @@ export function findNearestPedestrianEdge(nodes, adjacency, origin, maxSnapMeter
   for (const [from,edges] of adjacency) {
     const a=nodes.get(from);
     if (!a) continue;
-    for (const edge of edges) {
+    for (let edgeIndex=0; edgeIndex<edges.length; edgeIndex++) {
+      const edge=edges[edgeIndex];
       const b=nodes.get(edge.to);
       if (!b) continue;
       const projection=projectPointToSegment(origin,a,b);
       if (!best || projection.offsetMeters < best.offsetMeters) {
-        best={from,to:edge.to,wayId:edge.wayId,meters:edge.meters,
+        best={from,to:edge.to,wayId:edge.wayId,meters:edge.meters,edgeIndex,
           fraction:projection.fraction,point:projection.point,
           offsetMeters:projection.offsetMeters};
       }
@@ -378,8 +379,12 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   }
   next.set(virtualNodeId,[]);
   const forward=(next.get(projection.from)||[]);
-  const index=forward.findIndex(edge=>edge.to===projection.to && edge.wayId===projection.wayId);
-  if (index < 0) throw new Error("Projected directed edge no longer exists in graph");
+  const index=Number.isInteger(projection.edgeIndex) ? projection.edgeIndex :
+    forward.findIndex(edge=>edge.to===projection.to && edge.wayId===projection.wayId && edge.meters===projection.meters);
+  if (index < 0 || !forward[index] || forward[index].to!==projection.to ||
+      forward[index].wayId!==projection.wayId || forward[index].meters!==projection.meters) {
+    throw new Error("Projected directed edge no longer exists in graph");
+  }
   const edge=forward[index];
   forward.splice(index,1);
   const firstMeters=edge.meters*projection.fraction;
@@ -390,7 +395,11 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   // If the exact reverse arc exists, split it too, but preserve its own
   // direction. One-way pedestrian edges remain one-way.
   const reverse=(next.get(projection.to)||[]);
-  const reverseIndex=reverse.findIndex(item=>item.to===projection.from && item.wayId===projection.wayId);
+  const reverseMatches=reverse.map((item,index)=>({item,index})).filter(({item})=>
+    item.to===projection.from && item.wayId===projection.wayId && item.meters===edge.meters);
+  // If parallel reverse arcs are indistinguishable, do not guess which one
+  // corresponds to the projected segment; leave reverse travel disconnected.
+  const reverseIndex=reverseMatches.length===1 ? reverseMatches[0].index : -1;
   if (reverseIndex >= 0) {
     const reverseEdge=reverse[reverseIndex];
     reverse.splice(reverseIndex,1);
