@@ -445,7 +445,7 @@ test("crossing-aware selector prefers a mapped-crossing-free path before a short
  const fixtureNodes=new Map([
   ["s",{id:"s",lat:27,lon:-82}],
   ["t",{id:"t",lat:27.002,lon:-82}],
-  ["x",{id:"x",lat:27.001,lon:-82.001}],
+  ["x",{id:"x",lat:27.0005,lon:-82.002}],
   ["r1",{id:"r1",lat:27.001,lon:-82.0003}],
   ["r2",{id:"r2",lat:27.001,lon:-81.9997}]
  ]);
