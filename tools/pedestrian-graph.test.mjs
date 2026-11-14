@@ -789,3 +789,27 @@ test("gap review reports truncation without changing deterministic nearest-first
  assert.equal(result.candidates.length,1);
  assert.deepEqual([result.candidates[0].fromNodeId,result.candidates[0].toNodeId],["b","c"]);
 });
+
+test("directed out-and-back rejects an outbound segment absent from the pedestrian graph",async()=>{
+ const {buildDirectedOutAndBackCandidate}=await import("./pedestrian-graph.mjs");
+ const fixture=new Map([["o",{id:"o",lat:27,lon:-82}],["t",{id:"t",lat:27.001,lon:-82}]]);
+ const graph=new Map([["o",[{to:"t",meters:111,edgeId:"actual"}]],["t",[{to:"o",meters:111,edgeId:"back"}]]]);
+ const forged={nodes:["o","t"],edges:[{to:"t",meters:111,edgeId:"not-in-graph"}],distanceMeters:111};
+ const result=buildDirectedOutAndBackCandidate(graph,fixture,forged);
+ assert.equal(result.ok,false);
+ assert.equal(result.reason,"invalid_outbound_path");
+});
+test("out-and-back geometry validator checks both directions and preserves parallel-edge identity",()=>{
+ const fixture=new Map([["o",{id:"o",lat:27,lon:-82}],["t",{id:"t",lat:27.001,lon:-82}]]);
+ const graph=new Map([
+  ["o",[{to:"t",meters:111,edgeId:"out-a"},{to:"t",meters:111,edgeId:"out-b"}]],
+  ["t",[{to:"o",meters:111,edgeId:"back"}]]
+ ]);
+ const outbound={nodes:["o","t"],edges:[graph.get("o")[0]]};
+ const validReturn={nodes:["t","o"],edges:[graph.get("t")[0]]};
+ assert.doesNotThrow(()=>buildOutAndBackRoute(fixture,outbound,validReturn,graph));
+ const wrongParallel={nodes:["o","t"],edges:[{to:"t",meters:111,edgeId:"not-a-real-parallel-edge"}]};
+ assert.throws(()=>buildOutAndBackRoute(fixture,outbound,wrongParallel,graph),/directed pedestrian graph edges/);
+ const wrongDirection={nodes:["t","o"],edges:[{to:"o",meters:111,edgeId:"out-a"}]};
+ assert.throws(()=>buildOutAndBackRoute(fixture,outbound,wrongDirection,graph),/directed pedestrian graph edges/);
+});
