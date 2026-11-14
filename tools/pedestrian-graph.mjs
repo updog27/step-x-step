@@ -320,3 +320,82 @@ export function selectCorridorDiversePaths(adjacency, paths, maxPaths = 3, maxOv
         .map(other => corridorPathOverlap(adjacency,path.nodes,other.nodes)))
   }));
 }
+
+
+// Project a GPS point onto mapped pedestrian edge geometry using a local
+// equirectangular plane. The result is a geometric snap candidate only;
+// it does not prove that the straight GPS-to-edge connector is walkable.
+export function projectPointToSegment(point, a, b) {
+  const cosLat = Math.cos(radians(point.lat));
+  const x = coord => radians(coord.lon - point.lon) * EARTH_RADIUS_METERS * cosLat;
+  const y = coord => radians(coord.lat - point.lat) * EARTH_RADIUS_METERS;
+  const ax=x(a), ay=y(a), bx=x(b), by=y(b);
+  const dx=bx-ax, dy=by-ay, lengthSquared=dx*dx+dy*dy;
+  const fraction=lengthSquared ? Math.max(0,Math.min(1,-(ax*dx+ay*dy)/lengthSquared)) : 0;
+  const px=ax+fraction*dx, py=ay+fraction*dy;
+  const projected={lat:point.lat+py/EARTH_RADIUS_METERS*180/Math.PI,
+    lon:point.lon+px/(EARTH_RADIUS_METERS*cosLat)*180/Math.PI};
+  return {fraction,point:projected,offsetMeters:Math.hypot(px,py)};
+}
+
+// Finds the closest directed graph edge. Direction is preserved in the
+// returned edge descriptor; callers must still validate an actual connector.
+export function findNearestPedestrianEdge(nodes, adjacency, origin, maxSnapMeters=60) {
+  if (!Number.isFinite(maxSnapMeters) || maxSnapMeters < 0) {
+    throw new RangeError("maxSnapMeters must be a non-negative finite number");
+  }
+  let best=null;
+  for (const [from,edges] of adjacency) {
+    const a=nodes.get(from);
+    if (!a) continue;
+    for (const edge of edges) {
+      const b=nodes.get(edge.to);
+      if (!b) continue;
+      const projection=projectPointToSegment(origin,a,b);
+      if (!best || projection.offsetMeters < best.offsetMeters) {
+        best={from,to:edge.to,wayId:edge.wayId,meters:edge.meters,
+          fraction:projection.fraction,point:projection.point,
+          offsetMeters:projection.offsetMeters};
+      }
+    }
+  }
+  if (!best || best.offsetMeters > maxSnapMeters) return null;
+  return best;
+}
+
+// Split only the selected mapped segment at a virtual point. Existing
+// directed arcs are replaced with direction-preserving sub-arcs; no new
+// reverse direction is invented. Edge metadata (including wayId) is retained.
+export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNodeId) {
+  if (!projection || projection.from === undefined || projection.to === undefined ||
+      !Number.isFinite(projection.fraction) || projection.fraction <= 0 ||
+      projection.fraction >= 1 || virtualNodeId === undefined) {
+    throw new TypeError("A valid interior edge projection and virtual node ID are required");
+  }
+  const next=new Map();
+  for (const [from,edges] of adjacency) {
+    next.set(from,edges.map(edge=>({...edge})));
+  }
+  next.set(virtualNodeId,[]);
+  const forward=(next.get(projection.from)||[]);
+  const index=forward.findIndex(edge=>edge.to===projection.to && edge.wayId===projection.wayId);
+  if (index < 0) throw new Error("Projected directed edge no longer exists in graph");
+  const edge=forward[index];
+  forward.splice(index,1);
+  const firstMeters=edge.meters*projection.fraction;
+  const secondMeters=edge.meters-firstMeters;
+  forward.push({to:virtualNodeId,meters:firstMeters,wayId:edge.wayId});
+  next.get(virtualNodeId).push({to:projection.to,meters:secondMeters,wayId:edge.wayId});
+
+  // If the exact reverse arc exists, split it too, but preserve its own
+  // direction. One-way pedestrian edges remain one-way.
+  const reverse=(next.get(projection.to)||[]);
+  const reverseIndex=reverse.findIndex(item=>item.to===projection.from && item.wayId===projection.wayId);
+  if (reverseIndex >= 0) {
+    const reverseEdge=reverse[reverseIndex];
+    reverse.splice(reverseIndex,1);
+    reverse.push({to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction),wayId:reverseEdge.wayId});
+    next.get(virtualNodeId).push({to:projection.from,meters:reverseEdge.meters*projection.fraction,wayId:reverseEdge.wayId});
+  }
+  return next;
+}
