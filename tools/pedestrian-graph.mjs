@@ -9,22 +9,44 @@ export function haversineMeters(a, b) {
   return EARTH_RADIUS_METERS * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
-export function isEligiblePedestrianWay(tags = {}) {
+// Classify OSM ways conservatively. A positive foot-access tag on a
+// carriageway does not turn its centerline into sidewalk geometry.
+export function classifyPedestrianWay(tags = {}) {
   const highway = tags.highway;
-  const excluded = ["proposed", "construction", "abandoned", "raceway", "bus_guideway",
-    "motorway", "motorway_link", "trunk", "trunk_link", "service", "parking_aisle"];
-  if (!highway || excluded.includes(highway)) return false;
-  // Fail closed on access restrictions. "destination" is not suitable
-  // for through-routing, even where a pedestrian might legally reach a site.
-  if (["no", "private", "customers", "delivery", "destination",
-       "agricultural", "forestry", "restricted"].includes(tags.access) ||
-      ["no", "private"].includes(tags.foot)) return false;
-  // Only dedicated pedestrian geometry is routable here. A road tagged
-  // sidewalk=left/right/both still supplies a carriageway centerline, not
-  // the sidewalk's actual side or geometry; do not route along that centerline.
-  if (["footway", "path", "pedestrian", "steps"].includes(highway)) return true;
-  if (highway === "cycleway" && tags.foot === "yes") return true;
-  return false;
+  if (!highway) return {status:"excluded",reason:"missing_highway"};
+  if (["proposed","construction","abandoned","raceway","bus_guideway",
+       "motorway","motorway_link","trunk","trunk_link","parking_aisle"].includes(highway)) {
+    return {status:"excluded",reason:"non_routable_highway_class"};
+  }
+  if (["no","private","customers","delivery","destination","agricultural",
+       "forestry","restricted"].includes(tags.access) ||
+      ["no","private"].includes(tags.foot)) {
+    return {status:"excluded",reason:"restricted_access"};
+  }
+  if (["footway","path","pedestrian","steps"].includes(highway)) {
+    return {status:"eligible",reason:"dedicated_pedestrian_geometry"};
+  }
+  if (highway==="cycleway" && ["yes","designated","permissive"].includes(tags.foot)) {
+    return {status:"eligible",reason:"cycleway_with_explicit_foot_access"};
+  }
+  if (["service","residential","living_street","unclassified","tertiary",
+       "secondary","primary","road"].includes(highway)) {
+    if (tags.sidewalk && tags.sidewalk!=="no") {
+      return {status:"needs_review",reason:"sidewalk_tag_without_sidewalk_geometry"};
+    }
+    if (["yes","designated","permissive"].includes(tags.foot)) {
+      return {status:"needs_review",reason:"foot_access_on_carriageway_centerline"};
+    }
+    return {status:"excluded",reason:"roadway_centerline_not_sidewalk_geometry"};
+  }
+  if (tags.foot==="yes" || tags.foot==="designated" || tags.foot==="permissive") {
+    return {status:"needs_review",reason:"explicit_foot_access_but_geometry_type_unclear"};
+  }
+  return {status:"excluded",reason:"not_a_supported_pedestrian_way"};
+}
+
+export function isEligiblePedestrianWay(tags = {}) {
+  return classifyPedestrianWay(tags).status === "eligible";
 }
 
 export function pedestrianDirections(tags = {}) {
