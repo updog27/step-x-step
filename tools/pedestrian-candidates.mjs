@@ -9,6 +9,7 @@ import {
   findPedestrianNetworkGapCandidates,
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
   snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath,
+  detectOriginConnectorRoadwayIntersections,
   selectCrossingAwarePaths, buildDirectedOutAndBackCandidate, buildRouteFeatureInventory
 } from "./pedestrian-graph.mjs";
 import {evaluateRouteAcceptance} from "./route-acceptance.mjs";
@@ -59,6 +60,9 @@ adjacency = snapped.graph;
 const start = snapped.startNode;
 if (snapped.virtualNode) nodes.set(start,snapped.virtualNode);
 const snap = snapped.projection;
+const connectorRoadwayReview = detectOriginConnectorRoadwayIntersections(
+  nodes,ways,{lat,lon},snap.point || nodes.get(start)
+);
 const connectorStatus = "unverified";
 const connectivityAudit = auditPedestrianConnectivity(nodes,adjacency,start);
 const networkGaps = findPedestrianNetworkGapCandidates(nodes,adjacency,{maxGapMeters:12,maxCandidates:50});
@@ -145,7 +149,7 @@ console.log(JSON.stringify({
     junctionsWithoutMappedCrossingCount:connectivityAudit.junctionsWithoutMappedCrossing.length},
   originSnap:{method:"nearest eligible directed edge projection",
     offsetMeters:+snap.offsetMeters.toFixed(1),fraction:+snap.fraction.toFixed(4),connectorStatus,
-    connectorReview:snapped.connectorReview},
+    connectorReview:snapped.connectorReview,roadwayReview:connectorRoadwayReview},
   results:results.map(result=>({...result,candidates:[],diagnosticCandidateCount:result.candidates.length,
     diagnosticRoadwayCrossingCount:result.candidates.reduce((sum,candidate)=>
       sum+candidate.pathVariants.reduce((count,variant)=>count+variant.detectedRoadwayCrossingCount,0),0),
