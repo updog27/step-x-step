@@ -603,9 +603,14 @@ export function detectRoadwayCrossingsForPath(nodes,ways,path,options={}) {
   if(!from||!to)continue;
   const originLat=(from.lat+to.lat)/2,originLon=(from.lon+to.lon)/2;
   const a=localXY(from,originLat,originLon),b=localXY(to,originLat,originLon);
+  const pedestrianTags=Array.isArray(path)?{}:(path.edges?.[i-1]?.tags||{});
   for(const way of ways){
    const highway=way.tags?.highway;
    if(!ROADWAY_HIGHWAYS.has(highway)||way.tags?.access==="no"||way.tags?.access==="private")continue;
+   // Suppress a hit only when both ways explicitly declare different numeric layers.
+   const pedestrianLayer=pedestrianTags.layer===undefined?null:Number(pedestrianTags.layer);
+   const roadwayLayer=way.tags?.layer===undefined?null:Number(way.tags.layer);
+   if(pedestrianLayer!==null&&roadwayLayer!==null&&Number.isFinite(pedestrianLayer)&&Number.isFinite(roadwayLayer)&&pedestrianLayer!==roadwayLayer)continue;
    for(let j=1;j<(way.nodes||[]).length;j++){
     const roadA=nodes.get(way.nodes[j-1]),roadB=nodes.get(way.nodes[j]);
     if(!roadA||!roadB)continue;
