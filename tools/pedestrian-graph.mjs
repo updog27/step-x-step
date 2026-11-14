@@ -172,7 +172,7 @@ export function kShortestPaths(adjacency, start, end, k = 3, options = {}) {
       const combinedEdges = previousPath.edges.slice(0,spurIndex).concat(spur.edges);
       const combinedKeys = previousPath.edgeKeys.slice(0,spurIndex).concat(spur.edgeKeys);
       const key = JSON.stringify(combinedKeys);
-      if (accepted.some(path => JSON.stringify(path.nodes) === key) || candidates.has(key)) continue;
+      if (accepted.some(path => JSON.stringify(path.edgeKeys) === key) || candidates.has(key)) continue;
       const distanceMeters = pathDistance(adjacency, {nodes:combinedNodes,edges:combinedEdges});
       if (distanceMeters <= maxDistanceMeters) candidates.set(key, {nodes:combinedNodes,edges:combinedEdges,edgeKeys:combinedKeys,distanceMeters});
     }
@@ -231,14 +231,15 @@ export function selectDiversePaths(paths, maxPaths = 3, maxOverlap = 0.65) {
 // edges on the same mapped way as one corridor. It is a corridor proxy:
 // separate OSM ways can still describe the same physical street.
 export function corridorPathOverlap(adjacency, pathA, pathB) {
-  const weightsFor = path => {
+  const weightsFor = input => {
+    const path = Array.isArray(input) ? {nodes:input} : input;
     const weights = new Map();
-    for (let i = 1; i < path.length; i++) {
+    for (let i = 1; i < path.nodes.length; i++) {
       const edge = Array.isArray(path.edges) ? path.edges[i-1] :
-        (adjacency.get(path[i - 1]) || []).filter(item => item.to === path[i])
+        (adjacency.get(path.nodes[i - 1]) || []).filter(item => item.to === path.nodes[i])
           .sort((a,b) => a.meters - b.meters)[0];
       if (!edge) continue;
-      const key = String(edge.wayId ?? directedEdgeKey(path[i - 1],path[i]));
+      const key = String(edge.wayId ?? directedEdgeKey(path.nodes[i - 1],path.nodes[i]));
       weights.set(key,(weights.get(key) || 0) + edge.meters);
     }
     return weights;
@@ -267,7 +268,7 @@ export function selectCorridorDiversePaths(adjacency, paths, maxPaths = 3, maxOv
   const selected = [];
   for (const candidate of ordered) {
     if (selected.every(existing =>
-      corridorPathOverlap(adjacency,existing.nodes,candidate.nodes) <= maxOverlap)) {
+      corridorPathOverlap(adjacency,existing,candidate) <= maxOverlap)) {
       selected.push(candidate);
       if (selected.length >= maxPaths) break;
     }
@@ -276,7 +277,7 @@ export function selectCorridorDiversePaths(adjacency, paths, maxPaths = 3, maxOv
     ...path,
     maxCorridorOverlapWithSelected: selected.length === 1 ? 0 :
       Math.max(...selected.filter(other => other !== path)
-        .map(other => corridorPathOverlap(adjacency,path.nodes,other.nodes)))
+        .map(other => corridorPathOverlap(adjacency,path,other)))
   }));
 }
 
@@ -348,8 +349,8 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   forward.splice(index,1);
   const firstMeters=edge.meters*projection.fraction;
   const secondMeters=edge.meters-firstMeters;
-  forward.push({...edge,to:virtualNodeId,meters:firstMeters});
-  next.get(virtualNodeId).push({...edge,to:projection.to,meters:secondMeters});
+  forward.push({...edge,to:virtualNodeId,meters:firstMeters,edgeId:edge.edgeId ? edge.edgeId+":a" : undefined});
+  next.get(virtualNodeId).push({...edge,to:projection.to,meters:secondMeters,edgeId:edge.edgeId ? edge.edgeId+":b" : undefined});
 
   // If the exact reverse arc exists, split it too, but preserve its own
   // direction. One-way pedestrian edges remain one-way.
@@ -362,8 +363,8 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   if (reverseIndex >= 0) {
     const reverseEdge=reverse[reverseIndex];
     reverse.splice(reverseIndex,1);
-    reverse.push({...reverseEdge,to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction)});
-    next.get(virtualNodeId).push({...reverseEdge,to:projection.from,meters:reverseEdge.meters*projection.fraction});
+    reverse.push({...reverseEdge,to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction),edgeId:reverseEdge.edgeId ? reverseEdge.edgeId+":a" : undefined});
+    next.get(virtualNodeId).push({...reverseEdge,to:projection.from,meters:reverseEdge.meters*projection.fraction,edgeId:reverseEdge.edgeId ? reverseEdge.edgeId+":b" : undefined});
   }
   return next;
 }
