@@ -6,6 +6,7 @@
 import process from "node:process";
 import {
   buildDirectedPedestrianGraph, dijkstra, isEligiblePedestrianWay,
+  findPedestrianNetworkGapCandidates,
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
   snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath,
   selectCrossingAwarePaths, buildDirectedOutAndBackCandidate, buildRouteFeatureInventory
@@ -60,6 +61,7 @@ if (snapped.virtualNode) nodes.set(start,snapped.virtualNode);
 const snap = snapped.projection;
 const connectorStatus = "unverified";
 const connectivityAudit = auditPedestrianConnectivity(nodes,adjacency,start);
+const networkGaps = findPedestrianNetworkGapCandidates(nodes,adjacency,{maxGapMeters:12,maxCandidates:50});
 const maxOutbound = Math.max(...miles) * MILE / 2 + 100;
 const {distances, previous} = dijkstra(adjacency, start, maxOutbound);
 const results = miles.map(requestedMiles => {
@@ -132,6 +134,10 @@ console.log(JSON.stringify({
   source:"OpenStreetMap pedestrian-tagged ways via Overpass",
   radiusMeters:radius,eligibleWayCount:ways.filter(w => isEligiblePedestrianWay(w.tags)).length,
   graphNodeCount:adjacency.size,
+  networkGapDiagnostics:{terminalNodeCount:networkGaps.terminalNodeCount,
+    candidateCount:networkGaps.candidateCount,truncated:networkGaps.truncated,
+    candidates:networkGaps.candidates.map(({fromNodeId,toNodeId,distanceMeters,status})=>
+      ({fromNodeId,toNodeId,distanceMeters,status}))},
   connectivityDiagnostics:{isolatedNodeCount:connectivityAudit.isolated.length,
     terminalNodeCount:connectivityAudit.terminals.length,
     junctionCount:connectivityAudit.junctions.length,
