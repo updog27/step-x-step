@@ -260,29 +260,43 @@ export function selectDiversePaths(paths, maxPaths = 3, maxOverlap = 0.65) {
 // Weighted Jaccard overlap by OSM way ID. This treats differently segmented
 // edges on the same mapped way as one corridor. It is a corridor proxy:
 // separate OSM ways can still describe the same physical street.
+// Weighted overlap by mapped way identity, supplemented by explicit OSM
+// street-name/reference tags. Way IDs remain the primary identity; names/refs
+// catch split or separately mapped segments of the same named street. Generic
+// unnamed ways are never grouped by geometry or endpoint coincidence.
 export function corridorPathOverlap(adjacency, pathA, pathB) {
   const weightsFor = input => {
     const path = Array.isArray(input) ? {nodes:input} : input;
-    const weights = new Map();
-    for (let i = 1; i < path.nodes.length; i++) {
-      const edge = Array.isArray(path.edges) ? path.edges[i-1] :
-        (adjacency.get(path.nodes[i - 1]) || []).filter(item => item.to === path.nodes[i])
-          .sort((a,b) => a.meters - b.meters)[0];
-      if (!edge) continue;
-      const key = String(edge.wayId ?? directedEdgeKey(path.nodes[i - 1],path.nodes[i]));
-      weights.set(key,(weights.get(key) || 0) + edge.meters);
+    const wayWeights = new Map(), streetWeights = new Map();
+    for (let i=1;i<path.nodes.length;i++) {
+      const edge=Array.isArray(path.edges)?path.edges[i-1]:
+        (adjacency.get(path.nodes[i-1])||[]).filter(item=>item.to===path.nodes[i])
+          .sort((a,b)=>a.meters-b.meters)[0];
+      if(!edge)continue;
+      const meters=Number(edge.meters)||0;
+      const wayKey=String(edge.wayId??directedEdgeKey(path.nodes[i-1],path.nodes[i]));
+      wayWeights.set(wayKey,(wayWeights.get(wayKey)||0)+meters);
+      const tags=edge.tags||{};
+      const norm=value=>String(value||"").normalize("NFKC").trim().toLocaleLowerCase("en-US").replace(/\\s+/g," ");
+      const ref=norm(tags.ref), name=norm(tags.name);
+      if(ref||name){
+        const streetKey=ref?"ref:"+ref:"name:"+name;
+        streetWeights.set(streetKey,(streetWeights.get(streetKey)||0)+meters);
+      }
     }
-    return weights;
+    return {wayWeights,streetWeights};
   };
-  const a = weightsFor(pathA), b = weightsFor(pathB);
-  const keys = new Set([...a.keys(),...b.keys()]);
-  if (!keys.size) return 1;
-  let intersection = 0, union = 0;
-  for (const key of keys) {
-    intersection += Math.min(a.get(key) || 0,b.get(key) || 0);
-    union += Math.max(a.get(key) || 0,b.get(key) || 0);
-  }
-  return union ? intersection / union : 1;
+  const overlap=(a,b)=>{
+    const keys=new Set([...a.keys(),...b.keys()]);
+    if(!keys.size)return 0;
+    let intersection=0,union=0;
+    for(const key of keys){intersection+=Math.min(a.get(key)||0,b.get(key)||0);union+=Math.max(a.get(key)||0,b.get(key)||0);}
+    return union?intersection/union:0;
+  };
+  const a=weightsFor(pathA),b=weightsFor(pathB);
+  const wayOverlap=overlap(a.wayWeights,b.wayWeights);
+  const streetOverlap=overlap(a.streetWeights,b.streetWeights);
+  return Math.max(wayOverlap,streetOverlap);
 }
 
 export function selectCorridorDiversePaths(adjacency, paths, maxPaths = 3, maxOverlap = 0.55) {
