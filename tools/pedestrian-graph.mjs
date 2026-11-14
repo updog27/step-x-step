@@ -411,16 +411,22 @@ export function snapOriginToPedestrianGraph(nodes, adjacency, origin, maxSnapMet
 // Return explicit crossing evidence at an OSM node. This is evidence metadata,
 // not a judgment that a crossing is safe, accessible, or legally usable.
 export function pedestrianCrossingEvidence(nodeTags = {}) {
-  if (nodeTags.highway !== "crossing" && nodeTags.crossing === undefined &&
-      nodeTags["crossing:markings"] === undefined) {
-    return {mapped:false,type:"unknown",controlled:false,signals:false};
-  }
-  const type = nodeTags.crossing || nodeTags.highway || "crossing";
   const signals = nodeTags.crossing === "traffic_signals" ||
-    nodeTags.highway === "traffic_signals" ||
     nodeTags["crossing:signals"] === "yes";
-  const controlled = signals || ["marked","zebra","pelican","puffin","toucan","traffic_signals"].includes(type) ||
-    nodeTags["crossing:markings"] === "yes";
+  // A highway=traffic_signals node alone maps signal control, not necessarily
+  // a pedestrian crossing. Preserve that distinction instead of inferring one.
+  const signalNodeOnly = nodeTags.highway === "traffic_signals" &&
+    nodeTags.crossing === undefined && nodeTags["crossing:markings"] === undefined;
+  const crossingMapped = nodeTags.highway === "crossing" ||
+    nodeTags.crossing !== undefined || nodeTags["crossing:markings"] !== undefined;
+  if (!crossingMapped) {
+    return {mapped:false,type:"unknown",controlled:false,
+      signals:signals || signalNodeOnly};
+  }
+  const type = nodeTags.crossing || nodeTags["crossing:markings"] ||
+    (nodeTags.highway === "crossing" ? "crossing" : "unknown");
+  const controlled = signals ||
+    ["marked","zebra","pelican","puffin","toucan","traffic_signals","yes"].includes(type);
   return {mapped:true,type,controlled,signals};
 }
 
