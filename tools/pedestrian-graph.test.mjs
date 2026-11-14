@@ -686,6 +686,26 @@ test("finds nearby endpoints across disconnected components without connecting t
  assert.equal(graph.get("b").length,0,"gap analysis must not mutate or connect graph");
 });
 
+test("spatial gap index checks neighboring bucket boundaries and preserves truncation", async () => {
+ const {findPedestrianNetworkGapCandidates}=await import("./pedestrian-graph.mjs");
+ const nodes=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],
+  ["b",{id:"b",lat:27.00001,lon:-82.00001}],
+  ["c",{id:"c",lat:27.00002,lon:-82.00002}],
+  ["d",{id:"d",lat:27.00003,lon:-82.00003}]
+ ]);
+ const graph=new Map([
+  ["a",[{to:"b",meters:2,wayId:1}]],["b",[]],
+  ["c",[{to:"d",meters:2,wayId:2}]],["d",[]]
+ ]);
+ const result=findPedestrianNetworkGapCandidates(nodes,graph,{maxGapMeters:2,maxCandidates:1});
+ assert.equal(result.candidateCount,4);
+ assert.equal(result.truncated,true);
+ assert.equal(result.candidates.length,1);
+ assert.equal(result.candidates[0].status,"unverified_gap_candidate");
+ assert.equal(graph.get("b").length,0);
+});
+
 test("gap analysis ignores endpoints in the same weak component and enforces bounds", async () => {
  const {findPedestrianNetworkGapCandidates}=await import("./pedestrian-graph.mjs");
  const fixture=new Map([
