@@ -99,6 +99,7 @@ console.log(JSON.stringify({
   connectivityDiagnostics:{isolatedNodeCount:connectivityAudit.isolated.length,
     terminalNodeCount:connectivityAudit.terminals.length,
     junctionCount:connectivityAudit.junctions.length,
+    crossingTaggedEdgeCount:connectivityAudit.crossingTaggedEdges,
     junctionsWithoutMappedCrossingCount:connectivityAudit.junctionsWithoutMappedCrossing.length},
   originSnap:{method:"nearest eligible directed edge projection",offsetMeters:+snap.offsetMeters.toFixed(1),
     fraction:+snap.fraction.toFixed(4),connectorStatus},
