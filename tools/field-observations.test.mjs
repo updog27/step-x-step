@@ -25,3 +25,15 @@ test("rejects malformed calendar timestamps",()=>{
  const result=validateFieldObservation(good({observedAt:"not-a-date"}),{featureId:"crossing-7",featureType:"crossing"},{now});
  assert.ok(result.failures.includes("observation_timestamp_invalid"));
 });
+
+test("rejects calendar dates and clock times that JavaScript would otherwise normalize",()=>{
+ for(const observedAt of ["2026-02-30T12:00:00Z","2026-13-01T12:00:00Z","2026-11-14T25:00:00Z","2026-11-14T12:60:00Z","2026-11-14T12:00:60Z"]){
+  const result=validateFieldObservation(good({observedAt}),{featureId:"crossing-7",featureType:"crossing"},{now});
+  assert.ok(result.failures.includes("observation_timestamp_invalid"),observedAt);
+  assert.equal(result.verified,false,observedAt);
+ }
+});
+test("accepts valid leap-day and explicit-offset timestamps",()=>{
+ const leap=validateFieldObservation(good({observedAt:"2024-02-29T12:00:00-05:00"}),{featureId:"crossing-7",featureType:"crossing"},{now});
+ assert.equal(leap.verified,true);
+});
