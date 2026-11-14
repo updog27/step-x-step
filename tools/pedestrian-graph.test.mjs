@@ -755,15 +755,15 @@ test("gap review never treats missing way IDs as shared-way continuity evidence"
  const {findPedestrianNetworkGapCandidates}=await import("./pedestrian-graph.mjs");
  const nodes=new Map([
   ["a",{id:"a",lat:27,lon:-82}],
-  ["b",{id:"b",lat:27.00005,lon:-82}],
-  ["c",{id:"c",lat:27.0001,lon:-82}],
-  ["d",{id:"d",lat:27.00015,lon:-82}]
+  ["b",{id:"b",lat:27.00009,lon:-82}],
+  ["c",{id:"c",lat:27.000108,lon:-82}],
+  ["d",{id:"d",lat:27.000198,lon:-82}]
  ]);
  const graph=new Map([
-  ["a",[{to:"b",meters:5,tags:{highway:"footway"}}]],["b",[]],
-  ["c",[{to:"d",meters:5,tags:{highway:"footway"}}]],["d",[]]
+  ["a",[{to:"b",meters:10,tags:{highway:"footway"}}]],["b",[]],
+  ["c",[{to:"d",meters:10,tags:{highway:"footway"}}]],["d",[]]
  ]);
- const result=findPedestrianNetworkGapCandidates(nodes,graph,{maxGapMeters:12});
+ const result=findPedestrianNetworkGapCandidates(nodes,graph,{maxGapMeters:3});
  assert.equal(result.candidateCount,1);
  assert.deepEqual(result.candidates[0].endpointEvidence.sharedWayIds,[]);
  assert.equal(result.candidates[0].reviewClass,"cross_way_continuity_review");
@@ -771,7 +771,6 @@ test("gap review never treats missing way IDs as shared-way continuity evidence"
  assert.deepEqual(result.candidates[0].endpointEvidence.to.wayIds,["unknown"]);
  assert.equal(result.candidates[0].status,"unverified_gap_candidate");
 });
-
 test("gap review reports truncation without changing deterministic nearest-first ordering", async () => {
  const {findPedestrianNetworkGapCandidates}=await import("./pedestrian-graph.mjs");
  const nodes=new Map([
