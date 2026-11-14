@@ -368,3 +368,7 @@ The offline graph audit now reports weakly connected components and, when given 
 ## Nearby disconnected pedestrian-network gap candidates
 
 The offline graph audit now compares terminal nodes (weak degree one) across separate weakly connected components. Pairs within a configurable short distance are reported as possible mapping/continuity gaps, with component IDs and measured separation. The candidate generator reports up to 50 pairs within 12 metres. This is a review queue only: proximity does not prove that two sidewalk segments physically connect, that a legal crossing exists, or that a connection is publicly accessible. The graph is never modified or auto-bridged by this analysis. Gap candidates are bounded by a maximum endpoint count to avoid unbounded pairwise work.
+
+## Origin connector geometric review
+
+Origin snapping now reports a separate connector-review diagnostic: straight-line offset to the selected directed pedestrian edge, whether the projection falls at an endpoint or inside the edge, and the selected directed edge identity. Offsets of 3 metres or less are labelled only as a near-geometry candidate; larger accepted offsets require field review. Both classifications remain unverified. The straight line may cross a curb, roadway, private parcel, fence, grade change, or inaccessible surface. The snap operation does not construct a walkable connector, and the candidate generator continues to withhold routes until origin access is independently verified.
