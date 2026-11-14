@@ -437,6 +437,85 @@ export function crossingEvidenceForNode(nodes, nodeId) {
   return pedestrianCrossingEvidence(node?.tags || {});
 }
  
+// Detect geometric intersections between a candidate pedestrian path and
+// mapped roadway centerlines. This identifies places where the selected
+// geometry appears to cross a road; it does not establish a legal/safe crossing.
+const ROADWAY_HIGHWAYS=new Set([
+ "motorway","motorway_link","trunk","trunk_link","primary","primary_link",
+ "secondary","secondary_link","tertiary","tertiary_link","unclassified",
+ "residential","living_street","service","road"
+]);
+function localXY(point,originLat,originLon) {
+ const cos=Math.cos(radians(originLat));
+ return {x:radians(point.lon-originLon)*EARTH_RADIUS_METERS*cos,
+         y:radians(point.lat-originLat)*EARTH_RADIUS_METERS};
+}
+function segmentIntersection(a,b,c,d,epsilon=1e-7) {
+ const rx=b.x-a.x,ry=b.y-a.y,sx=d.x-c.x,sy=d.y-c.y;
+ const cross=rx*sy-ry*sx;
+ if(Math.abs(cross)<epsilon)return null;
+ const qx=c.x-a.x,qy=c.y-a.y;
+ const t=(qx*sy-qy*sx)/cross,u=(qx*ry-qy*rx)/cross;
+ if(t < -epsilon || t > 1+epsilon || u < -epsilon || u > 1+epsilon)return null;
+ return {t:Math.max(0,Math.min(1,t)),u:Math.max(0,Math.min(1,u))};
+}
+function segmentAngleDegrees(a,b,c,d) {
+ const ux=b.x-a.x,uy=b.y-a.y,vx=d.x-c.x,vy=d.y-c.y;
+ const denom=Math.hypot(ux,uy)*Math.hypot(vx,vy);
+ if(!denom)return 0;
+ const cosine=Math.max(-1,Math.min(1,Math.abs((ux*vx+uy*vy)/denom)));
+ return Math.acos(cosine)*180/Math.PI;
+}
+export function detectRoadwayCrossingsForPath(nodes,ways,path,options={}) {
+ const nodeIds=Array.isArray(path)?path:path?.nodes;
+ if(!Array.isArray(nodeIds)||nodeIds.length<2)throw new TypeError("Path must contain at least two node IDs");
+ if(!(nodes instanceof Map)||!Array.isArray(ways))throw new TypeError("Node map and OSM ways are required");
+ const minAngle=options.minimumCrossingAngleDegrees??25;
+ const dedupeMeters=options.dedupeDistanceMeters??8;
+ if(!Number.isFinite(minAngle)||minAngle<0||minAngle>90||!Number.isFinite(dedupeMeters)||dedupeMeters<0)throw new RangeError("Invalid crossing geometry thresholds");
+ const crossings=[];
+ for(let i=1;i<nodeIds.length;i++){
+  const from=nodes.get(nodeIds[i-1]),to=nodes.get(nodeIds[i]);
+  if(!from||!to)continue;
+  const originLat=(from.lat+to.lat)/2,originLon=(from.lon+to.lon)/2;
+  const a=localXY(from,originLat,originLon),b=localXY(to,originLat,originLon);
+  for(const way of ways){
+   const highway=way.tags?.highway;
+   if(!ROADWAY_HIGHWAYS.has(highway)||way.tags?.access==="no"||way.tags?.access==="private")continue;
+   for(let j=1;j<(way.nodes||[]).length;j++){
+    const roadA=nodes.get(way.nodes[j-1]),roadB=nodes.get(way.nodes[j]);
+    if(!roadA||!roadB)continue;
+    const c=localXY(roadA,originLat,originLon),d=localXY(roadB,originLat,originLon);
+    const hit=segmentIntersection(a,b,c,d);
+    if(!hit)continue;
+    const angle=segmentAngleDegrees(a,b,c,d);
+    if(angle<minAngle)continue;
+    const point={x:a.x+(b.x-a.x)*hit.t,y:a.y+(b.y-a.y)*hit.t};
+    const duplicate=crossings.find(item=>item.wayId===way.id&&
+      Math.hypot(item._x-point.x,item._y-point.y)<=dedupeMeters);
+    if(duplicate)continue;
+    crossings.push({wayId:way.id,roadClass:highway,pathSegmentIndex:i-1,
+      roadSegmentIndex:j-1,intersectionAngleDegrees:+angle.toFixed(1),
+      pathFraction:+hit.t.toFixed(4),roadFraction:+hit.u.toFixed(4),
+      mappedCrossingEvidence:pedestrianCrossingEvidence(
+       (nodes.get(nodeIds[i-1])?.tags?.crossing||nodes.get(nodeIds[i])?.tags?.crossing)
+        ? {crossing:nodes.get(nodeIds[i-1])?.tags?.crossing||nodes.get(nodeIds[i])?.tags?.crossing}
+        : {}).mapped,
+      _x:point.x,_y:point.y});
+   }
+  }
+ }
+ const publicCrossings=crossings.map(({_x,_y,...item})=>item);
+ return {status:publicCrossings.length?"crossing_geometry_detected":"no_roadway_intersection_detected",
+  crossingCount:publicCrossings.length,crossings:publicCrossings,
+  limitations:[
+   "This is a planar intersection heuristic over mapped OSM way segments, not a legal-crossing or safety determination.",
+   "Road centerlines may be offset from the actual carriageway; complex junctions, grade separation, bridges, tunnels, and incomplete OSM geometry can cause false positives or negatives.",
+   "A detected intersection requires crossing evidence review and current field verification before route acceptance.",
+   "No detected intersection does not prove that the route avoids every roadway crossing."
+  ]};
+}
+
 // Report only mapped crossing evidence encountered by a supplied graph path.
 // This does not decide whether a roadway crossing is required or safe.
 export function inspectPathCrossingEvidence(nodes, path) {
