@@ -199,3 +199,10 @@ Four additional offline tests cover projection, snap-limit rejection, bidirectio
 The edge-projection result now carries the selected adjacency-list edge index, and the splitter verifies that the indexed arc still matches the projected endpoints, OSM way ID, and length before changing the graph. This avoids accidentally splitting the first of several parallel arcs that share endpoints and a way ID. Reverse travel is split only when there is exactly one matching reverse arc with the same way ID and length; when parallel reverse arcs are ambiguous, the utility deliberately leaves reverse travel disconnected rather than guessing. An offline regression test covers selection among parallel arcs.
 
 A remaining graph-model limitation is that shortest-path results are still represented primarily as node sequences. Parallel arcs between the same node pair can therefore lose their exact edge identity in path reconstruction, corridor scoring, and Yen spur-edge exclusion. This needs a separate edge-aware path representation before the graph can be relied on for final route scoring.
+
+
+### Edge-aware shortest paths (2026-11-13)
+
+The k-shortest-path implementation now retains the exact directed edge selected at every step, not only the node sequence. Graph edges created from OSM ways receive stable directional segment IDs. Yen's spur search bans the specific directed edge used by an accepted path, and candidate identity is based on edge sequences. Path distance and corridor overlap use the retained edge records. This allows two genuinely distinct parallel mapped ways between the same pair of nodes to remain separate alternatives instead of collapsing into one node-sequence path.
+
+A regression test covers two parallel edges with identical endpoints but different way identity and length. This is still a code-level change only: tests have been added but not executed in a Node runtime during this session. Candidate generator and its corridor-diversity reporting still pass node sequences into parts of the scoring layer; those interfaces should be migrated to edge-aware path objects before treating alternatives as fully audited.
