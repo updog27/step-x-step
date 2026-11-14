@@ -387,3 +387,7 @@ Path-crossing diagnostics now suppress a geometric roadway intersection only whe
 ## Endpoint metadata for disconnected-network gap review
 
 Nearby terminal-node gap candidates now retain the incident OSM way IDs, highway classes, and any sidewalk tags on each side. The diagnostic identifies a possible same-way mapping gap when both endpoints share a mapped way ID; otherwise it classifies the pair for cross-way continuity review. Matching highway classes are reported as a prioritization hint only. No candidate is auto-connected, and these tags do not establish same-side access, physical continuity, accessibility, or public right of way.
+ 
+## Route-distance acceptance tolerance
+
+Route acceptance now uses a 2% requested-distance tolerance with a 5 metre minimum by default. The previous 15 metre minimum could allow proportionally large errors on short routes. The minimum and ratio remain configurable for controlled GPS/routing calibration. Distance acceptance is only one gate; it does not establish that the route geometry is walkable or safe.
