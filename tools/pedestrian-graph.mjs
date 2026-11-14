@@ -340,9 +340,9 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   next.set(virtualNodeId,[]);
   const forward=(next.get(projection.from)||[]);
   const index=Number.isInteger(projection.edgeIndex) ? projection.edgeIndex :
-    forward.findIndex(edge=>edge.to===projection.to && edge.wayId===projection.wayId && edge.meters===projection.meters);
+    forward.findIndex(edge=>edge.to===projection.to && edge.wayId===projection.wayId && (projection.meters===undefined || edge.meters===projection.meters));
   if (index < 0 || !forward[index] || forward[index].to!==projection.to ||
-      forward[index].wayId!==projection.wayId || forward[index].meters!==projection.meters) {
+      forward[index].wayId!==projection.wayId || (projection.meters!==undefined && forward[index].meters!==projection.meters)) {
     throw new Error("Projected directed edge no longer exists in graph");
   }
   const edge=forward[index];
