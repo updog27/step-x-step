@@ -143,8 +143,9 @@ console.log(JSON.stringify({
     junctionCount:connectivityAudit.junctions.length,
     crossingTaggedEdgeCount:connectivityAudit.crossingTaggedEdges,
     junctionsWithoutMappedCrossingCount:connectivityAudit.junctionsWithoutMappedCrossing.length},
-  originSnap:{method:"nearest eligible directed edge projection",offsetMeters:+snap.offsetMeters.toFixed(1),
-    fraction:+snap.fraction.toFixed(4),connectorStatus},
+  originSnap:{method:"nearest eligible directed edge projection",
+    offsetMeters:+snap.offsetMeters.toFixed(1),fraction:+snap.fraction.toFixed(4),connectorStatus,
+    connectorReview:snapped.connectorReview},
   results:results.map(result=>({...result,candidates:[],diagnosticCandidateCount:result.candidates.length,
     diagnosticRoadwayCrossingCount:result.candidates.reduce((sum,candidate)=>
       sum+candidate.pathVariants.reduce((count,variant)=>count+variant.detectedRoadwayCrossingCount,0),0),
