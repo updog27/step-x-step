@@ -506,10 +506,29 @@ function segmentAngleDegrees(a,b,c,d) {
 // directed legs are supplied and connect at the same turnaround and origin.
 // The helper measures the actual supplied geometry; it does not claim exact
 // requested-distance compliance or validate field safety/access.
-export function buildOutAndBackRoute(nodes,outboundPath,returnPath) {
+function isValidDirectedPath(adjacency,path) {
+ if(!path||!Array.isArray(path.nodes)||path.nodes.length<2||
+    !Array.isArray(path.edges)||path.edges.length!==path.nodes.length-1)return false;
+ for(let i=0;i<path.edges.length;i++){
+  const edge=path.edges[i],from=path.nodes[i],to=path.nodes[i+1];
+  if(!edge||edge.to!==to||!Number.isFinite(edge.meters)||edge.meters<=0)return false;
+  const graphEdges=adjacency.get(from)||[];
+  if(!graphEdges.some(candidate=>candidate.to===to&&
+    (edge.edgeId!==undefined?candidate.edgeId===edge.edgeId:
+     candidate.wayId===edge.wayId&&candidate.meters===edge.meters)))return false;
+ }
+ return true;
+}
+
+// When adjacency is supplied, verify every segment is a real directed graph arc.
+// The optional form preserves geometry-only use for offline rendering/tests.
+export function buildOutAndBackRoute(nodes,outboundPath,returnPath,adjacency=undefined) {
  const validPath=p=>p&&Array.isArray(p.nodes)&&p.nodes.length>=2;
  if(!(nodes instanceof Map)||!validPath(outboundPath)||!validPath(returnPath))
   throw new TypeError("Node coordinates and two non-empty directed paths are required");
+ if(adjacency!==undefined&&(!(adjacency instanceof Map)||
+   !isValidDirectedPath(adjacency,outboundPath)||!isValidDirectedPath(adjacency,returnPath)))
+  throw new Error("Both route legs must follow existing directed pedestrian graph edges");
  const outboundStart=outboundPath.nodes[0],turnaround=outboundPath.nodes.at(-1);
  if(returnPath.nodes[0]!==turnaround||returnPath.nodes.at(-1)!==outboundStart)
   throw new Error("Return path must connect the outbound turnaround to the original start");
@@ -547,7 +566,7 @@ export function buildDirectedOutAndBackCandidate(adjacency,nodes,outboundPath,op
  if(!(maxReturnDistanceMeters>0))throw new RangeError("Return distance limit must be positive");
  const returnPath=shortestPath(adjacency,turnaround,origin,{maxDistanceMeters:maxReturnDistanceMeters});
  if(!returnPath)return {ok:false,reason:"no_directed_return_path",originNode:origin,turnaroundNode:turnaround};
- const route=buildOutAndBackRoute(nodes,outboundPath,returnPath);
+ const route=buildOutAndBackRoute(nodes,outboundPath,returnPath,adjacency);
  const requestedDistanceMeters=options.requestedDistanceMeters;
  const toleranceMeters=options.distanceToleranceMeters??15;
  if(requestedDistanceMeters!==undefined&&(!Number.isFinite(requestedDistanceMeters)||requestedDistanceMeters<=0))
