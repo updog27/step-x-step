@@ -241,3 +241,15 @@ Tightened the graph's eligibility policy to avoid a misleading representation of
 - Through-routing excludes destination-only and restricted access values, including `destination`, `agricultural`, `forestry`, and `restricted`, as well as private/customer/delivery access.
 
 This intentionally reduces graph coverage in exchange for avoiding false sidewalk geometry. Separate sidewalk ways mapped in OSM may still be eligible, but their connectivity, crossings, and access must be validated independently. It does not resolve the Grady Avenue side-of-street question by itself. Added regression tests for the stricter eligibility policy. No live map or routing data was queried.
+
+
+### Crossing-evidence primitives (2026-11-14)
+
+The graph now preserves OSM tags on directed edges, and the candidate generator retains tags on OSM node records. Added `pedestrianCrossingEvidence` and `crossingEvidenceForNode` to distinguish:
+- no mapped crossing evidence (unknown);
+- a mapped crossing or marking;
+- an explicitly controlled crossing such as traffic signals.
+
+This is deliberately evidence-only. A mapped zebra marking or signal does not prove current operation, accessibility, legal crossing conditions, or safe timing. An untagged node is not treated as a crossing. The candidate generator does not yet use crossing evidence as a route acceptance gate, so routes remain withheld while origin connection is unverified.
+
+Also corrected the candidate report's limitation text: road centerlines are excluded even when a sidewalk-presence tag exists; dedicated sidewalk geometry and side-specific connectivity must be mapped and validated. Offline regression tests cover mapped, controlled, unmarked, and unknown crossing evidence. No live Overpass request has been performed.
