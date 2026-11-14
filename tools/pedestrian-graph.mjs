@@ -576,10 +576,15 @@ export function buildDirectedOutAndBackCandidate(adjacency,nodes,outboundPath,op
  if(!Number.isFinite(toleranceMeters)||toleranceMeters<0)throw new RangeError("Distance tolerance must be non-negative");
  const errorMeters=requestedDistanceMeters===undefined?null:
   Math.abs(route.properties.totalDistanceMeters-requestedDistanceMeters);
+ const graphOutboundMeters=outboundPath.edges.reduce((sum,edge)=>sum+edge.meters,0);
+ const graphReturnMeters=returnPath.edges.reduce((sum,edge)=>sum+edge.meters,0);
  return {ok:true,route,returnPath,
-  distance:{outboundMeters:+outboundPath.distanceMeters.toFixed(2),
-   returnMeters:+returnPath.distanceMeters.toFixed(2),
+  distance:{outboundMeters:route.properties.outboundDistanceMeters,
+   returnMeters:route.properties.returnDistanceMeters,
    totalMeters:route.properties.totalDistanceMeters,
+   graphOutboundMeters:+graphOutboundMeters.toFixed(2),
+   graphReturnMeters:+graphReturnMeters.toFixed(2),
+   graphTotalMeters:+(graphOutboundMeters+graphReturnMeters).toFixed(2),
    requestedMeters:requestedDistanceMeters??null,errorMeters,
    toleranceMeters:requestedDistanceMeters===undefined?null:toleranceMeters,
    withinTolerance:requestedDistanceMeters===undefined?null:errorMeters<=toleranceMeters},
