@@ -6,7 +6,7 @@
 import process from "node:process";
 import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters, isEligiblePedestrianWay,
-  kShortestPaths, reconstructNodePath, selectDiversePaths
+  kShortestPaths, reconstructNodePath, selectCorridorDiversePaths, corridorPathOverlap
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -61,18 +61,26 @@ const maxOutbound = Math.max(...miles) * MILE / 2 + 100;
 const {distances, previous} = dijkstra(adjacency, start, maxOutbound);
 const results = miles.map(requestedMiles => {
   const target = requestedMiles * MILE / 2;
-  const candidates = [...distances.entries()]
+  const candidatePool = [...distances.entries()]
     .filter(([id, meters]) => id !== start && Math.abs(meters-target) <= Math.max(20,target*0.035))
-    .sort((a,b) => Math.abs(a[1]-target)-Math.abs(b[1]-target))
-    .slice(0,12)
-    .map(([id, meters]) => {
+    .sort((a,b) => Math.abs(a[1]-target)-Math.abs(b[1]-target));
+  const selectedTurnarounds = [];
+  for (const candidate of candidatePool) {
+    const candidatePath = reconstructNodePath(previous,start,candidate[0]);
+    if (selectedTurnarounds.every(existing =>
+      corridorPathOverlap(adjacency,existing.path,candidatePath) <= 0.75)) {
+      selectedTurnarounds.push({candidate,path:candidatePath});
+    }
+    if (selectedTurnarounds.length >= 12) break;
+  }
+  const candidates = selectedTurnarounds.map(({candidate:[id,meters],path}) => {
       const path = reconstructNodePath(previous,start,id);
-      const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});\n      const alternatives = selectDiversePaths(pathPool,3,0.65);
+      const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});\n      const alternatives = selectCorridorDiversePaths(adjacency,pathPool,3,0.55);
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
         networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:path?.length ?? 0,
         pathVariants:alternatives.map((variant,index)=>({
           rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
-          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,\n          maxOverlapWithSelected:+variant.maxOverlapWithSelected.toFixed(3)
+          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,\n          maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3)
         }))};
     });
   return {requestedOutAndBackMiles:requestedMiles,
@@ -84,7 +92,7 @@ console.log(JSON.stringify({
   graphNodeCount:adjacency.size,snappedStartOffsetMeters:+snap.toFixed(1),results,
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
-    "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by directed-edge overlap.",\n    "Diversity is measured by directed-edge Jaccard overlap (maximum 0.65); this is a structural proxy, not a guarantee of visually distinct or safer routes.",
+    "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by directed-edge overlap.",\n    "Path diversity is screened by weighted shared OSM-way length (maximum 0.55); turnaround candidates are also screened against each other (maximum 0.75). OSM way IDs are only a corridor proxy, not a guarantee of visually distinct or safer routes.",
     "The GPS origin is snapped to a nearby graph node by proximity; a verified on-network connector is not yet built.",
     "Crossing legality, polygon/parcel exclusions, field overlays, and side-specific sidewalk geometry are not enforced.",
     "Road centerlines are included only when OSM explicitly tags a sidewalk; side-specific geometry still needs validation.",
