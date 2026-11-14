@@ -179,3 +179,16 @@ The graph module now includes weighted corridor-overlap scoring based on OSM way
 These thresholds are initial engineering heuristics, not empirically calibrated quality scores. OSM way IDs are a better corridor proxy than raw node-edge overlap, but distinct OSM ways can still represent the same physical street, sidewalk, or adjacent parallel facilities. Geometry-based corridor clustering and map visualization are still needed.
 
 The turnaround candidates remain drawn from the Dijkstra shortest-path tree. This is now a diverse subset of reachable endpoints, not a global search over all possible outbound paths. No live Overpass request or Node test execution has been performed in this environment. The earlier directed-edge-only diversity description above is superseded for candidate generation by this corridor-level approach; the directed-edge utilities remain available for diagnostics.
+
+
+### GPS-to-edge projection primitives (2026-11-13)
+
+Added reusable offline graph utilities for the next snap stage:
+
+- `projectPointToSegment` projects a GPS point onto a mapped segment in a local metric plane and reports the along-edge fraction, projected coordinate, and perpendicular offset.
+- `findNearestPedestrianEdge` searches directed eligible graph arcs and returns the nearest segment projection only when it falls within a caller-supplied snap limit.
+- `splitPedestrianEdgeAtProjection` replaces the selected directed arc with two sub-arcs at a virtual node. If the reverse arc exists, it is split independently; if it does not exist, no reverse travel is invented. OSM way identity and edge distance are retained.
+
+These are geometry/topology primitives, not a verified GPS connector. The candidate generator still uses nearest-node snapping and has not been switched over. A short straight line from the device location to the projected point may cross a road, driveway, fence, private parcel, or building; proximity alone is not proof of walkable access. Before integration, the virtual node must be added to the node-coordinate map, the selected segment must be split consistently, and a connector must be independently validated or rejected. The next test pass should also address parallel edges sharing the same endpoint pair and OSM way ID, and preserve edge identity through shortest-path algorithms rather than reconstructing it from node sequences.
+
+Four additional offline tests cover projection, snap-limit rejection, bidirectional splitting, and one-way preservation. They are committed but have not been executed in a Node.js runtime in this session.
