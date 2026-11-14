@@ -13,6 +13,7 @@ import {
   selectCrossingAwarePaths, selectRoundTripCorridorDiversePaths, buildDirectedOutAndBackCandidate, buildRouteFeatureInventory
 } from "./pedestrian-graph.mjs";
 import {evaluateRouteAcceptance} from "./route-acceptance.mjs";
+import {discoverTurnaroundCandidates} from "./turnaround-discovery.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
 if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
@@ -82,44 +83,7 @@ const results = miles.map(requestedMiles => {
   // then inspect a few Yen alternatives to each anchor. Nodes along those
   // alternatives can fall inside the target band even when their shortest
   // tree distance does not, exposing turnarounds on additional corridors.
-  const turnaroundById = new Map(candidatePool.map(([id,meters]) => [id,{id,meters,path:null}]));
-  const anchorCount = Math.min(8,candidatePool.length);
-  for (const [anchorId,anchorMeters] of candidatePool.slice(0,anchorCount)) {
-    const anchorPaths = kShortestPaths(adjacency,start,anchorId,3,
-      {maxDistanceMeters:target+turnaroundSearchBandMeters});
-    for (const path of anchorPaths) {
-      let cumulativeMeters = 0;
-      for (let index=1;index<path.nodes.length;index++) {
-        cumulativeMeters += path.edges[index-1].meters;
-        if (Math.abs(cumulativeMeters-target)>turnaroundSearchBandMeters) continue;
-        const id=path.nodes[index];
-        if (id===start) continue;
-        const existing=turnaroundById.get(id);
-        if (!existing || cumulativeMeters<existing.meters) {
-          turnaroundById.set(id,{id,meters:cumulativeMeters,path:{
-            nodes:path.nodes.slice(0,index+1),edges:path.edges.slice(0,index),
-            edgeKeys:path.edgeKeys?.slice(0,index) ?? [],
-            distanceMeters:cumulativeMeters
-          }});
-        }
-      }
-    }
-  }
-  const expandedPool=[...turnaroundById.values()]
-    .sort((a,b)=>Math.abs(a.meters-target)-Math.abs(b.meters-target)||String(a.id).localeCompare(String(b.id)));
-  const selectedTurnarounds = [];
-  for (const candidate of expandedPool) {
-    // Retain exact edge sequences; node-only paths can choose the wrong
-    // parallel sidewalk/way during corridor scoring.
-    const candidatePath = candidate.path || kShortestPaths(adjacency,start,candidate.id,1,
-      {maxDistanceMeters:candidate.meters + 0.01})[0];
-    if (!candidatePath) continue;
-    if (selectedTurnarounds.every(existing =>
-      corridorPathOverlap(adjacency,existing.path,candidatePath) <= 0.75)) {
-      selectedTurnarounds.push({candidate:[candidate.id,candidate.meters],path:candidatePath});
-    }
-    if (selectedTurnarounds.length >= 24) break;
-  }
+  const selectedTurnarounds = discoverTurnaroundCandidates(adjacency,start,candidatePool,target,turnaroundSearchBandMeters);
   const candidates = selectedTurnarounds.map(({candidate:[id,meters],path:discoveryPath}) => {
       // Preserve the exact alternate-corridor prefix that caused this
       // turnaround to be discovered. Re-running only the shortest-path
