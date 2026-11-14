@@ -73,14 +73,15 @@ const results = miles.map(requestedMiles => {
     }
     if (selectedTurnarounds.length >= 12) break;
   }
-  const candidates = selectedTurnarounds.map(({candidate:[id,meters],path}) => {
-      const path = reconstructNodePath(previous,start,id);
-      const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});\n      const alternatives = selectCorridorDiversePaths(adjacency,pathPool,3,0.55);
+  const candidates = selectedTurnarounds.map(({candidate:[id,meters],path:shortestPath}) => {
+      const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});
+      const alternatives = selectCorridorDiversePaths(adjacency,pathPool,3,0.55);
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
-        networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:path?.length ?? 0,
+        networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.length ?? 0,
         pathVariants:alternatives.map((variant,index)=>({
           rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
-          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,\n          maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3)
+          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
+          maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3)
         }))};
     });
   return {requestedOutAndBackMiles:requestedMiles,
@@ -92,7 +93,8 @@ console.log(JSON.stringify({
   graphNodeCount:adjacency.size,snappedStartOffsetMeters:+snap.toFixed(1),results,
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
-    "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by directed-edge overlap.",\n    "Path diversity is screened by weighted shared OSM-way length (maximum 0.55); turnaround candidates are also screened against each other (maximum 0.75). OSM way IDs are only a corridor proxy, not a guarantee of visually distinct or safer routes.",
+    "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by corridor overlap.",
+    "Path diversity is screened by weighted shared OSM-way length (maximum 0.55); turnaround candidates are also screened against each other (maximum 0.75). OSM way IDs are only a corridor proxy, not a guarantee of visually distinct or safer routes.",
     "The GPS origin is snapped to a nearby graph node by proximity; a verified on-network connector is not yet built.",
     "Crossing legality, polygon/parcel exclusions, field overlays, and side-specific sidewalk geometry are not enforced.",
     "Road centerlines are included only when OSM explicitly tags a sidewalk; side-specific geometry still needs validation.",
