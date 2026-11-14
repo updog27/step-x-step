@@ -353,3 +353,8 @@ The candidate generator now inventories the assembled outbound **and** directed 
 Every inventoried connection and geometric roadway crossing is passed to the acceptance engine as unverified. Current feature-matched field observations are still required; the origin connector also remains unverified. Candidate output exposes only inventory counts and review status, not coordinates or route geometry.
 
 This inventory is conservative but incomplete: OSM-way grouping is a review unit, not proof of continuous accessible sidewalk; geometric crossing detection can miss intersections or flag grade-separated/complex geometry; mapped crossing tags are not necessarily the same physical feature as a detected centerline intersection. It does not make any candidate user-ready.
+
+
+## Conservative OSM pedestrian-way classification
+
+The graph builder now classifies each OSM way as `eligible`, `excluded`, or `needs_review` before adding edges. Dedicated pedestrian geometries (footway, path, pedestrian, steps) are eligible subject to access restrictions; cycleways require explicit pedestrian access. Roadway centerlines are never promoted to sidewalk geometry merely because `sidewalk=left/right/both` or `foot=yes` is present. Those cases are marked for review because the tag does not provide the sidewalk's actual geometry or side-specific connectivity. Restricted-access ways fail closed. This improves graph input quality but does not establish public access, continuity, accessibility, or field safety.
