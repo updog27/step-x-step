@@ -674,6 +674,11 @@ test("finds nearby endpoints across disconnected components without connecting t
  assert.equal(result.candidates[0].status,"unverified_gap_candidate");
  assert.deepEqual([result.candidates[0].fromNodeId,result.candidates[0].toNodeId],["b","c"]);
  assert.equal(result.candidates[0].distanceMeters<12,true);
+ assert.equal(result.candidates[0].reviewClass,"cross_way_continuity_review");
+ assert.deepEqual(result.candidates[0].endpointEvidence.from.wayIds,["1"]);
+ assert.deepEqual(result.candidates[0].endpointEvidence.to.wayIds,["2"]);
+ assert.equal(result.candidates[0].endpointEvidence.highwayClassesMatch,true);
+ assert.match(result.candidates[0].warning,/same-side access/);
  assert.equal(graph.get("b").length,0,"gap analysis must not mutate or connect graph");
 });
 
