@@ -106,10 +106,10 @@ test("directed path overlap measures shared directed edges", () => {
 test("diversity selector rejects near-duplicate paths but retains distinct corridors", () => {
   const paths = [
     {nodes:["S","A","B","T"],distanceMeters:3},
-    {nodes:["S","A","C","T"],distanceMeters:3.1},
+    {nodes:["S","A","B","C","T"],distanceMeters:3.1},
     {nodes:["S","D","E","T"],distanceMeters:4}
   ];
-  const selected = selectDiversePaths(paths,3,0.5);
+  const selected = selectDiversePaths(paths,3,0.3);
   assert.equal(selected.length,2);
   assert.deepEqual(selected.map(path=>path.nodes),[
     ["S","A","B","T"],["S","D","E","T"]
