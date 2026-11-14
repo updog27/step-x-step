@@ -6,7 +6,7 @@ export function evaluateRouteAcceptance(input,options={}) {
  if(!input||typeof input!=="object")throw new TypeError("Route acceptance input is required");
  const requested=input.requestedDistanceMeters,actual=input.pathDistanceMeters;
  if(!Number.isFinite(requested)||requested<=0||!Number.isFinite(actual)||actual<=0)throw new TypeError("Requested and path distances must be positive finite meters");
- const ratio=options.distanceToleranceRatio??0.02,min=options.minimumDistanceToleranceMeters??15;
+ const ratio=options.distanceToleranceRatio??0.02,min=options.minimumDistanceToleranceMeters??5;
  if(!Number.isFinite(ratio)||ratio<0||ratio>0.1||!Number.isFinite(min)||min<0)throw new RangeError("Distance tolerance must be 0–0.1 and minimum non-negative");
  const reasons=[],reviewItems=[],rejectedItems=[],tol=Math.max(min,requested*ratio),err=Math.abs(actual-requested);
  if(err>tol)reasons.push("requested_distance_out_of_tolerance");
