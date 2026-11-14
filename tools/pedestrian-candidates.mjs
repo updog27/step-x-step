@@ -7,8 +7,10 @@ import process from "node:process";
 import {
   buildDirectedPedestrianGraph, dijkstra, isEligiblePedestrianWay,
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
-  snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath, selectCrossingAwarePaths
+  snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath,
+  selectCrossingAwarePaths, buildDirectedOutAndBackCandidate
 } from "./pedestrian-graph.mjs";
+import {evaluateRouteAcceptance} from "./route-acceptance.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
 if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
@@ -83,17 +85,38 @@ const results = miles.map(requestedMiles => {
       const alternatives = selectCrossingAwarePaths(nodes,ways,pathPool,3,0.55);
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
         networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:shortestPath?.nodes.length ?? 0,
-        pathVariants:alternatives.map((variant,index)=>({
-          rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
-          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
-          maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3),
-          crossingGeometry:variant.crossingGeometry.map(crossing=>({
-            roadClass:crossing.roadClass,
-            intersectionAngleDegrees:crossing.intersectionAngleDegrees,
-            mappedCrossingEvidence:crossing.mappedCrossingEvidence
-          })),
-          detectedRoadwayCrossingCount:variant.detectedRoadwayCrossingCount
-        }))};
+        pathVariants:alternatives.map((variant,index)=>{
+          const assembled=buildDirectedOutAndBackCandidate(adjacency,nodes,variant,{
+            requestedDistanceMeters:requestedMiles*MILE,
+            distanceToleranceMeters:Math.max(15,requestedMiles*MILE*0.02)
+          });
+          const acceptance=assembled.ok?evaluateRouteAcceptance({
+            requestedDistanceMeters:requestedMiles*MILE,
+            pathDistanceMeters:assembled.route.properties.totalDistanceMeters,
+            originConnector:{status:"unverified"},
+            connections:[]
+          }):null;
+          return {
+            rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
+            distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,
+            maxCorridorOverlapWithSelected:+variant.maxCorridorOverlapWithSelected.toFixed(3),
+            crossingGeometry:variant.crossingGeometry.map(crossing=>({
+              roadClass:crossing.roadClass,
+              intersectionAngleDegrees:crossing.intersectionAngleDegrees,
+              mappedCrossingEvidence:crossing.mappedCrossingEvidence
+            })),
+            detectedRoadwayCrossingCount:variant.detectedRoadwayCrossingCount,
+            returnLeg:assembled.ok?{
+              status:"directed_return_found",
+              returnDistanceMeters:+assembled.distance.returnMeters.toFixed(1),
+              totalRouteDistanceMeters:assembled.route.properties.totalDistanceMeters,
+              distanceWithinTolerance:acceptance.distance.withinTolerance,
+              acceptanceStatus:acceptance.status,
+              reviewReasonCodes:acceptance.reviewItems.map(item=>item.code),
+              routeGeometryPrepared:true
+            }:{status:"withheld",reason:assembled.reason}
+          };
+        })};
     });
   return {requestedOutAndBackMiles:requestedMiles,
     targetOutboundMiles:+(requestedMiles/2).toFixed(4),candidates};
@@ -115,10 +138,10 @@ console.log(JSON.stringify({
     status:"withheld_unverified_origin_connector"})),
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
-    "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by corridor overlap.",
+    "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by corridor overlap. Each variant now gets an independently searched directed return leg and a complete out-and-back geometry distance check.",
     "Path diversity is screened by weighted shared OSM-way length (maximum 0.55); turnaround candidates are also screened against each other (maximum 0.75). OSM way IDs are only a corridor proxy, not a guarantee of visually distinct or safer routes.",
     "The GPS origin is projected onto a nearby eligible directed edge and that edge is split at a virtual graph node.",
-    "The origin-to-network connector remains unverified; all candidate paths are withheld and must not be presented as usable routes.",
+    "The origin-to-network connector remains unverified; all candidate paths are withheld and must not be presented as usable routes. The acceptance engine is run on assembled round trips, and candidates remain in field-review status until origin and every connection/crossing have current feature-matched observations.",
     "A close geometric snap does not prove that the user is on the correct sidewalk side or has a legal, walkable connection to it.",
     "Connectivity diagnostics identify isolated nodes, terminal ends, and junctions without mapped crossing evidence; these are review flags only, not route acceptance decisions.",
     "Mapped crossing evidence is not yet used as a route acceptance gate; crossing legality, polygon/parcel exclusions, field overlays, and side-specific sidewalk geometry are not enforced.",
