@@ -358,3 +358,8 @@ This inventory is conservative but incomplete: OSM-way grouping is a review unit
 ## Conservative OSM pedestrian-way classification
 
 The graph builder now classifies each OSM way as `eligible`, `excluded`, or `needs_review` before adding edges. Dedicated pedestrian geometries (footway, path, pedestrian, steps) are eligible subject to access restrictions; cycleways require explicit pedestrian access. Roadway centerlines are never promoted to sidewalk geometry merely because `sidewalk=left/right/both` or `foot=yes` is present. Those cases are marked for review because the tag does not provide the sidewalk's actual geometry or side-specific connectivity. Restricted-access ways fail closed. This improves graph input quality but does not establish public access, continuity, accessibility, or field safety.
+
+
+## Graph connectivity and origin reachability audit
+
+The offline graph audit now reports weakly connected components and, when given the snapped origin node, directed reachability from that origin. This distinguishes disconnected mapped islands from one-way or direction-restricted segments that are connected in the undirected sense but cannot actually be reached by following permitted pedestrian directions. Candidate diagnostics include the origin-reachable node count and IDs outside that directed reachable set. These are graph diagnostics only; they do not verify physical sidewalk continuity, public access, curb ramps, or safe crossings.
