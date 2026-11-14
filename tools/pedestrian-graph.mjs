@@ -783,7 +783,7 @@ export function auditPedestrianConnectivity(nodes, adjacency, startNode = undefi
     else if (degree===1) terminals.push(item);
     else if (degree>=3) junctions.push({...item,crossingEvidence:evidence});
   }
-  return {nodeCount:nodes.size,connectedNodeCount:incident.size,
+  return {nodeCount:nodes.size,connectedNodeCount:[...incident.values()].filter(neighbors=>neighbors.size>0).length,
     componentCount:components.length,components,
     ...(startNode!==undefined?{startNode,reachableFromStart,unreachableFromStart}:{}),
     crossingTaggedEdges,isolated,terminals,junctions,
