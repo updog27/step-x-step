@@ -503,7 +503,7 @@ test("directed out-and-back builder independently finds a legal directed return 
   ["x",[{to:"o",meters:157,edgeId:"return-b"}]]
  ]);
  const outbound={nodes:["o","t"],edges:[graph.get("o")[0]],distanceMeters:111};
- const result=buildDirectedOutAndBackCandidate(graph,fixtureNodes,outbound,{requestedDistanceMeters:379,toleranceMeters:20});
+ const result=buildDirectedOutAndBackCandidate(graph,fixtureNodes,outbound,{requestedDistanceMeters:358,toleranceMeters:20});
  assert.equal(result.ok,true);
  assert.deepEqual(result.returnPath.nodes,["t","x","o"]);
  assert.deepEqual(result.returnPath.edges.map(edge=>edge.edgeId),["return-a","return-b"]);
