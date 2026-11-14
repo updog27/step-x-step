@@ -509,8 +509,12 @@ test("directed out-and-back builder independently finds a legal directed return 
  assert.deepEqual(result.returnPath.edges.map(edge=>edge.edgeId),["return-a","return-b"]);
  assert.equal(result.route.geometry.coordinates[0][0],-82);
  assert.equal(result.route.geometry.coordinates.at(-1)[0],-82);
- assert.equal(result.distance.outboundMeters,111);
- assert.equal(result.distance.returnMeters,268);
+ assert.equal(result.distance.outboundMeters,result.route.properties.outboundDistanceMeters);
+ assert.equal(result.distance.returnMeters,result.route.properties.returnDistanceMeters);
+ assert.equal(result.distance.graphOutboundMeters,111);
+ assert.equal(result.distance.graphReturnMeters,268);
+ assert.equal(result.distance.totalMeters,result.route.properties.totalDistanceMeters);
+ assert.notEqual(result.distance.outboundMeters,result.distance.graphOutboundMeters);
  assert.equal(result.distance.withinTolerance,true);
 });
 
@@ -812,4 +816,18 @@ test("out-and-back geometry validator checks both directions and preserves paral
  assert.throws(()=>buildOutAndBackRoute(fixture,outbound,wrongParallel,graph),/directed pedestrian graph edges/);
  const wrongDirection={nodes:["t","o"],edges:[{to:"o",meters:111,edgeId:"out-a"}]};
  assert.throws(()=>buildOutAndBackRoute(fixture,outbound,wrongDirection,graph),/directed pedestrian graph edges/);
+});
+
+test("round-trip distance reports geometry and graph edge totals separately",async()=>{
+ const {buildDirectedOutAndBackCandidate}=await import("./pedestrian-graph.mjs");
+ const fixture=new Map([["o",{id:"o",lat:27,lon:-82}],["t",{id:"t",lat:27.001,lon:-82}]]);
+ const graph=new Map([
+  ["o",[{to:"t",meters:100,edgeId:"out"}]],
+  ["t",[{to:"o",meters:100,edgeId:"back"}]]
+ ]);
+ const result=buildDirectedOutAndBackCandidate(graph,fixture,{nodes:["o","t"],edges:[graph.get("o")[0]],distanceMeters:100});
+ assert.equal(result.distance.graphTotalMeters,200);
+ assert.equal(result.distance.totalMeters,result.route.properties.totalDistanceMeters);
+ assert.ok(result.distance.totalMeters>200);
+ assert.equal(result.distance.outboundMeters,result.route.properties.outboundDistanceMeters);
 });
