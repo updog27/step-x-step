@@ -7,7 +7,7 @@ import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
   isEligiblePedestrianWay, pedestrianDirections, reconstructNodePath,
   directedPathOverlap, selectDiversePaths, kShortestPaths,
-  corridorPathOverlap, selectCorridorDiversePaths, snapOriginToPedestrianGraph, pedestrianCrossingEvidence, crossingEvidenceForNode, auditPedestrianConnectivity
+  corridorPathOverlap, selectCorridorDiversePaths, snapOriginToPedestrianGraph, pedestrianCrossingEvidence, crossingEvidenceForNode, auditPedestrianConnectivity, buildRouteFeatureInventory
 } from "./pedestrian-graph.mjs";
 
 const nodes = new Map([
@@ -540,4 +540,37 @@ test("directed out-and-back builder reports distance outside tolerance without t
  assert.equal(result.distance.withinTolerance,false);
  assert.ok(result.distance.errorMeters>15);
  assert.equal(result.route.geometry.coordinates.at(-1)[0],-82);
+});
+
+
+test("inventories connections and roadway crossings across both out-and-back legs", () => {
+ const fixture=new Map([
+  ["o",{id:"o",lat:27,lon:-82,tags:{}}],
+  ["t",{id:"t",lat:27.002,lon:-82,tags:{}}],
+  ["x",{id:"x",lat:27.002,lon:-81.999,tags:{}}],
+  ["r",{id:"r",lat:27.001,lon:-82.001,tags:{}}],
+  ["s",{id:"s",lat:27.001,lon:-81.999,tags:{}}]
+ ]);
+ const ways=[{id:900,nodes:["r","s"],tags:{highway:"residential"}}];
+ const outbound={nodes:["o","t"],edges:[{wayId:11,meters:222}]};
+ const returning={nodes:["t","x","o"],edges:[{wayId:12,meters:111},{wayId:11,meters:248}]};
+ const inventory=buildRouteFeatureInventory(fixture,ways,outbound,returning);
+ assert.equal(inventory.connections.length,2);
+ assert.deepEqual(inventory.connections.map(x=>x.id),["connection:osm-way:11","connection:osm-way:12"]);
+ assert.equal(inventory.crossings.length,2);
+ assert.ok(inventory.crossings.every(x=>x.crossingRequired===true&&x.status==="unverified"));
+ assert.equal(inventory.routeNodeCount,4);
+});
+
+test("route feature inventory does not classify ordinary pedestrian nodes as crossings", () => {
+ const fixture=new Map([
+  ["o",{id:"o",lat:27,lon:-82,tags:{}}],
+  ["t",{id:"t",lat:27.001,lon:-82,tags:{}}]
+ ]);
+ const outbound={nodes:["o","t"],edges:[{wayId:21,meters:111}]};
+ const returning={nodes:["t","o"],edges:[{wayId:21,meters:111}]};
+ const inventory=buildRouteFeatureInventory(fixture,[],outbound,returning);
+ assert.equal(inventory.crossings.length,0);
+ assert.equal(inventory.connections.length,1);
+ assert.equal(inventory.mappedNodeCrossings.length,0);
 });
