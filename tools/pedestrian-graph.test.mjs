@@ -4,7 +4,7 @@ import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
   isEligiblePedestrianWay, pedestrianDirections, reconstructNodePath,
   directedPathOverlap, selectDiversePaths, kShortestPaths,
-  corridorPathOverlap, selectCorridorDiversePaths, snapOriginToPedestrianGraph, pedestrianCrossingEvidence, crossingEvidenceForNode
+  corridorPathOverlap, selectCorridorDiversePaths, snapOriginToPedestrianGraph, pedestrianCrossingEvidence, crossingEvidenceForNode, auditPedestrianConnectivity
 } from "./pedestrian-graph.mjs";
 
 const nodes = new Map([
@@ -320,4 +320,31 @@ test("crossing evidence reads tags retained on OSM node records", () => {
     mapped:true,type:"zebra",controlled:true,signals:false
   });
   assert.equal(crossingEvidenceForNode(new Map(),99).mapped,false);
+});
+
+
+test("connectivity audit identifies isolated nodes, terminals, and ambiguous junctions", () => {
+  const auditNodes=new Map([
+    [1,{id:1,lat:27,lon:-82,tags:{}}],
+    [2,{id:2,lat:27,lon:-81.999,tags:{}}],
+    [3,{id:3,lat:27.001,lon:-82,tags:{}}],
+    [4,{id:4,lat:27.001,lon:-81.999,tags:{}}],
+    [5,{id:5,lat:27.002,lon:-82,tags:{highway:"crossing",crossing:"zebra"}}],
+    [6,{id:6,lat:27.003,lon:-82,tags:{}}]
+  ]);
+  const auditGraph=new Map([
+    [1,[{to:2,meters:10,wayId:11}]],
+    [2,[{to:3,meters:10,wayId:12},{to:4,meters:10,wayId:13}]],
+    [3,[]],
+    [4,[{to:2,meters:10,wayId:13}]],
+    [5,[{to:2,meters:10,wayId:14}]]
+  ]);
+  const result=auditPedestrianConnectivity(auditNodes,auditGraph);
+  assert.equal(result.nodeCount,6);
+  assert.equal(result.connectedNodeCount,5);
+  assert.deepEqual(result.isolated.map(x=>x.nodeId),[6]);
+  assert.ok(result.terminals.some(x=>x.nodeId===1));
+  assert.ok(result.junctions.some(x=>x.nodeId===2));
+  assert.ok(result.junctionsWithoutMappedCrossing.some(x=>x.nodeId===2));
+  assert.equal(result.junctions.find(x=>x.nodeId===2).degree,4);
 });
