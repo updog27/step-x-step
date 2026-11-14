@@ -344,3 +344,12 @@ The candidate generator now attempts an independent shortest directed pedestrian
 For variants with a return path, the generator assembles a complete out-and-back GeoJSON LineString internally and measures the assembled geometry against the requested round-trip distance. It runs that measured round trip through the route-acceptance policy. Because the origin-to-network connector is still unverified and the generator does not yet supply feature-by-feature field observations for every connection and crossing, the acceptance result remains in field-review status. The CLI output contains return-leg and acceptance diagnostics, not route coordinates or geometry.
 
 This is a prototype integration, not user-facing route availability. It does not yet enumerate and verify every connection/crossing feature, trim routes to a nearby legal pedestrian node, or prove that mapped geometry is walkable in the field. A successful directed return and a distance match are necessary but not sufficient for acceptance.
+
+
+## Complete-route feature inventory (2026-11-14)
+
+The candidate generator now inventories the assembled outbound **and** directed return legs before evaluating acceptance. Pedestrian graph connections are grouped by OSM way into stable connection feature IDs; geometric intersections with mapped roadway centerlines are separately emitted as crossing review features. The inventory reports mapped crossing-tagged route nodes independently rather than treating every node or junction as a crossing.
+
+Every inventoried connection and geometric roadway crossing is passed to the acceptance engine as unverified. Current feature-matched field observations are still required; the origin connector also remains unverified. Candidate output exposes only inventory counts and review status, not coordinates or route geometry.
+
+This inventory is conservative but incomplete: OSM-way grouping is a review unit, not proof of continuous accessible sidewalk; geometric crossing detection can miss intersections or flag grade-separated/complex geometry; mapped crossing tags are not necessarily the same physical feature as a detected centerline intersection. It does not make any candidate user-ready.
