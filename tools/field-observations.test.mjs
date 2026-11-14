@@ -34,6 +34,6 @@ test("rejects calendar dates and clock times that JavaScript would otherwise nor
  }
 });
 test("accepts valid leap-day and explicit-offset timestamps",()=>{
- const leap=validateFieldObservation(good({observedAt:"2024-02-29T12:00:00-05:00"}),{featureId:"crossing-7",featureType:"crossing"},{now});
+ const leap=validateFieldObservation(good({observedAt:"2024-02-29T12:00:00-05:00"}),{featureId:"crossing-7",featureType:"crossing"},{now:"2024-03-01T12:00:00Z"});
  assert.equal(leap.verified,true);
 });
