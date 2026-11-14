@@ -422,3 +422,10 @@ The candidate generator now searches a wider outbound-distance band before ranki
 ### Complete-route crossing exposure ranking (2026-11-13)
 
 Corrected candidate quality ranking to use the roadway-crossing inventory for the assembled outbound **and** return geometry. Previously, the crossing count used for ranking described only the outbound variant even though the feature inventory already covered both legs. The generator now reports outbound and round-trip crossing counts separately and ranks completed variants and turnaround nodes using the full round-trip count. This remains a mapped-centerline intersection heuristic, not a determination that a crossing is unsafe or that a route is safe.
+
+
+### Full round-trip corridor diversity (2026-11-13)
+
+Alternative selection now compares the combined outbound and return edge inventory, rather than treating outbound paths as the complete alternative. This reduces duplicate options where two outbound paths diverge but converge onto the same return streets. Corridor overlap is measured by shared mapped OSM way length across the complete journey; candidates exceeding the configured overlap threshold are not treated as distinct alternatives. Among the eligible alternatives, the selector prioritizes fewer mapped roadway intersections across both legs, then lower full-route distance error. The displayed best-round-trip summary follows the same crossing-aware ordering.
+
+This remains a bounded heuristic: OSM way IDs are corridor proxies, not sidewalk-side identifiers; different IDs can describe physically adjacent or equivalent facilities, and a shared ID may represent long or complex mapped geometry. The selection does not prove route quality, safety, or accessibility. Candidates remain withheld pending origin-connector and feature-level field verification.
