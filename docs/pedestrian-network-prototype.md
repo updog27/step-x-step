@@ -372,3 +372,8 @@ The offline graph audit now compares terminal nodes (weak degree one) across sep
 ## Origin connector geometric review
 
 Origin snapping now reports a separate connector-review diagnostic: straight-line offset to the selected directed pedestrian edge, whether the projection falls at an endpoint or inside the edge, and the selected directed edge identity. Offsets of 3 metres or less are labelled only as a near-geometry candidate; larger accepted offsets require field review. Both classifications remain unverified. The straight line may cross a curb, roadway, private parcel, fence, grade change, or inaccessible surface. The snap operation does not construct a walkable connector, and the candidate generator continues to withhold routes until origin access is independently verified.
+
+
+## Origin connector roadway-intersection diagnostic
+
+The candidate generator now checks the straight GPS-origin-to-projection segment against mapped OSM roadway centerlines. A detected intersection is reported as `connector_crosses_mapped_roadway` for review. No detected intersection is not proof of same-side access or walkability: mapping gaps, grade separation, centerline offsets, private parcels, fences, curbs, and inaccessible surfaces remain unresolved. This diagnostic never changes the connector's `unverified` status or releases a route. Synthetic tests cover detected and absent mapped roadway intersections.
