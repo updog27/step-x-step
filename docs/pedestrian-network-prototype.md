@@ -53,3 +53,34 @@ OSM coverage and tags are incomplete. A route engine cannot establish actual sid
 - The latest branch history includes commits to correct directional alternatives, constrain route backtracking, restore exact-distance out-and-back generation, and test the Palmetto/Grady/Columbus and Harold corridors. These are meaningful iterative improvements, but they do not convert the algorithm into a connected pedestrian graph.
 - Pull request #2 (`route-network-constraints`) remains open and draft. Its own description says Deploy Preview testing against real starting coordinates is still required. It must not be treated as production-ready.
 - Netlify project lookup by the site name returned no accessible project records in this session. Therefore the deployed branch and published deploy cannot be verified from the connected Netlify account yet.
+
+
+## Routing engine API review (2026-11-13)
+
+### Valhalla
+- The official route API accepts JSON requests with `costing: "pedestrian"`, locations, and optional pedestrian costing options.
+- Documented pedestrian controls include `walkway_factor`, `sidewalk_factor`, `alley_factor`, and `driveway_factor`. These can influence preference but are not hard proof that an edge is publicly accessible or that a sidewalk is present on the correct side.
+- Valhalla's pedestrian model excludes roads without pedestrian access according to its OSM-derived access interpretation. This is useful baseline behavior, not a substitute for our explicit exclusion/validation layer.
+- A hosted community server may be useful for a limited prototype, but it must be treated as best-effort/fair-use infrastructure, not a production service with an SLA. A production deployment should use a managed provider with documented limits or self-host a pinned OSM extract and Valhalla build.
+
+### GraphHopper
+- The Directions API supports a `foot` routing profile where available and custom models for modifying route priorities.
+- The hosted Directions API is a commercial service; API key, plan coverage, quotas, and current foot-profile availability must be checked before selecting it for production.
+- Self-hosted GraphHopper requires a configured `foot` profile and its own OSM graph preparation. It is therefore a useful engine comparator, but not a drop-in unauthenticated public endpoint.
+- Custom models can adjust route weighting, but, like Valhalla costing factors, do not independently guarantee exact sidewalk-side compliance or legal public access.
+
+### Comparison decision
+Valhalla remains the first prototype candidate because pedestrian costing exposes explicit walkway, sidewalk, alley, and driveway factors, and the project can be self-hosted. GraphHopper remains the comparator. Neither engine should be accepted solely on its route response: our own graph/edge checks, field-observation overlay, property exclusions, and independently measured geometry are mandatory.
+
+### Test harness contract
+The comparison harness must:
+1. Read the start coordinate only from local environment variables; never commit the Tampa home coordinate or write it to logs.
+2. Accept distance and route type as test inputs and keep those inputs identical across engines.
+3. Store provider, request profile/options, HTTP status, provider-reported distance, independently measured GeoJSON/polyline length, geometry, snap offset, and elapsed time.
+4. Evaluate each returned path against OSM pedestrian edges and the private field-observation overlay.
+5. Report separate hard failures (restricted/private access, parking/service interior, wrong-side sidewalk, disconnected pedestrian edge) and soft quality indicators (major-road exposure, crossing count, detour, route overlap).
+6. Keep engine output separate from acceptance decisions; no engine's own `distance` field or access classification is authoritative.
+7. Avoid high-volume calls to public community endpoints. Use a small, deterministic matrix of test distances and directions and cache responses locally.
+
+### Current execution limitation
+This environment can inspect and update repository files but cannot presently execute external routing requests from the runtime. No Valhalla, GraphHopper, or ORS route results have been obtained in this session. The implementation/test harness must not be described as validated until it is run with working network access and credentials where required.
