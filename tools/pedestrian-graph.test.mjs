@@ -581,3 +581,18 @@ test("route feature inventory does not classify ordinary pedestrian nodes as cro
  assert.equal(inventory.connections.length,1);
  assert.equal(inventory.mappedNodeCrossings.length,0);
 });
+
+
+test("route crossing inventory carries mapped pedestrian signal-control evidence", () => {
+ const fixture=new Map([
+  ["a",{id:"a",lat:27,lon:-82,tags:{highway:"crossing",crossing:"traffic_signals"}}],
+  ["b",{id:"b",lat:27.002,lon:-82,tags:{}}],
+  ["c",{id:"c",lat:27.001,lon:-82.001,tags:{}}],
+  ["d",{id:"d",lat:27.001,lon:-81.999,tags:{}}]
+ ]);
+ const ways=[{id:990,nodes:["c","d"],tags:{highway:"primary"}}];
+ const outbound={nodes:["a","b"],edges:[{wayId:31,meters:222}]};
+ const returning={nodes:["b","a"],edges:[{wayId:31,meters:222}]};
+ const inventory=buildRouteFeatureInventory(fixture,ways,outbound,returning);
+ assert.ok(inventory.crossings.some(x=>x.crossingEvidence.mapped&&x.crossingEvidence.controlled));
+});
