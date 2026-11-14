@@ -19,6 +19,11 @@ if (!miles.length || miles.some(x => !Number.isFinite(x) || x <= 0 || x > 10)) {
 }
 const radius = Number(process.env.OSM_RADIUS_METERS || 1800);
 const snapLimit = Number(process.env.OSM_START_SNAP_METERS || 60);
+if (!Number.isFinite(radius) || radius < 250 || radius > 5000 ||
+    !Number.isFinite(snapLimit) || snapLimit < 5 || snapLimit > 250) {
+  console.error("Set OSM_RADIUS_METERS (250–5000) and OSM_START_SNAP_METERS (5–250) within supported bounds.");
+  process.exit(2);
+}
 const endpoint = process.env.OSM_OVERPASS_URL || "https://overpass-api.de/api/interpreter";
 const MILE = 1609.344, rad = n => n * Math.PI / 180;
 function distance(a,b) {
@@ -35,6 +40,13 @@ function eligible(t={}) {
   return ["residential","living_street","tertiary","tertiary_link","secondary","secondary_link"].includes(h)
     && ["both","left","right","yes"].includes(t.sidewalk);
 }
+// Pedestrian directionality is applied only when explicitly mapped for foot traffic.
+// Vehicle oneway tags alone do not make a street one-way for pedestrians.
+function directions(t={}) {
+  const f=t["foot:forward"]!=="no" && t["oneway:foot"]!=="-1";
+  const b=t["foot:backward"]!=="no" && t["oneway:foot"]!=="yes";
+  return {forward:f,backward:b};
+}
 const dy=radius/111320, dx=radius/(111320*Math.cos(rad(lat)));
 const box=[lat-dy,lon-dx,lat+dy,lon+dx].join(",");
 const q='[out:json][timeout:35];(way["highway"]('+box+'););out body;>;out skel qt;';
@@ -47,15 +59,21 @@ for(const e of data.elements||[]) {
   if(e.type==="way" && eligible(e.tags)) ways.push(e);
 }
 const adj=new Map();
-function edge(a,b,m,w,t) {
-  if(!adj.has(a)) adj.set(a,[]); if(!adj.has(b)) adj.set(b,[]);
-  adj.get(a).push({to:b,m,way:w,t}); adj.get(b).push({to:a,m,way:w,t});
+function addArc(a,b,m,w,t) {
+  if(!adj.has(a)) adj.set(a,[]);
+  adj.get(a).push({to:b,m,way:w});
 }
 for(const w of ways) for(let i=1;i<w.nodes.length;i++) {
   const a=nodes.get(w.nodes[i-1]), b=nodes.get(w.nodes[i]);
-  if(a&&b) { const m=distance(a,b); if(m>0&&m<250) edge(a.id,b.id,m,w.id,w.tags); }
+  if(a&&b) {
+    const m=distance(a,b), dir=directions(w.tags);
+    if(m>0&&m<250) {
+      if(dir.forward) addArc(a.id,b.id,m,w.id,w.tags);
+      if(dir.backward) addArc(b.id,a.id,m,w.id,w.tags);
+    }
+  }
 }
-if(!adj.size) throw new Error("No eligible pedestrian edges found.");
+if(!adj.size) throw new Error("No eligible directed pedestrian edges found.");
 let start=null, snap=Infinity;
 for(const id of adj.keys()) { const n=nodes.get(id), d=distance({lat,lon},n); if(d<snap){snap=d;start=id;} }
 if(snap>snapLimit) throw new Error("Nearest eligible graph node exceeds snap limit; no candidates generated.");
@@ -82,7 +100,8 @@ const results=miles.map(mi=>{
 console.log(JSON.stringify({source:"OpenStreetMap pedestrian-tagged ways via Overpass",radiusMeters:radius,
   eligibleWayCount:ways.length,graphNodeCount:adj.size,snappedStartOffsetMeters:+snap.toFixed(1),results,
   limitations:["Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
-  "This first pass does not enforce one-way directionality, polygon exclusions, field overlays, or sidewalk-side validation.",
+  "Explicit foot direction tags are honored; vehicle oneway tags alone are not applied to pedestrians.",
+  "This pass does not enforce crossing legality, polygon/parcel exclusions, field overlays, or side-specific sidewalk geometry.",
   "Road centerlines are included only when OSM explicitly tags a sidewalk; side-specific geometry still needs validation.",
   "Unknown access and incomplete tags are not proof of legal public access or safe pedestrian conditions.",
   "Coordinates and route geometry are intentionally omitted from output."]},null,2));
