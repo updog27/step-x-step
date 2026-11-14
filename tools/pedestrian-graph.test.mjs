@@ -42,8 +42,9 @@ test("graph creates directed arcs and excludes ineligible ways", () => {
   ];
   const graph = buildDirectedPedestrianGraph(nodes, ways);
   assert.equal(graph.get(1)?.[0]?.to, 2);
-  assert.equal(graph.has(2), false);
+  assert.equal(graph.get(2)?.[0]?.to, 3);
   assert.equal(graph.has(3), false);
+  assert.equal(graph.has(4), false);
 });
 
 test("Dijkstra respects direction, distance cap, and disconnected components", () => {
