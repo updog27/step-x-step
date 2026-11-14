@@ -5,7 +5,8 @@
 // not finished routes; engine routing and safety validation remain separate steps.
 import process from "node:process";
 import {
-  buildDirectedPedestrianGraph, dijkstra, haversineMeters, isEligiblePedestrianWay, kShortestPaths, reconstructNodePath
+  buildDirectedPedestrianGraph, dijkstra, haversineMeters, isEligiblePedestrianWay,
+  kShortestPaths, reconstructNodePath, selectDiversePaths
 } from "./pedestrian-graph.mjs";
 
 const lat = Number(process.env.STEPX_TEST_LAT), lon = Number(process.env.STEPX_TEST_LON);
@@ -66,12 +67,12 @@ const results = miles.map(requestedMiles => {
     .slice(0,12)
     .map(([id, meters]) => {
       const path = reconstructNodePath(previous,start,id);
-      const alternatives = kShortestPaths(adjacency,start,id,3,{maxDistanceMeters:target+Math.max(20,target*0.035)});
+      const pathPool = kShortestPaths(adjacency,start,id,8,{maxDistanceMeters:target+Math.max(20,target*0.035)});\n      const alternatives = selectDiversePaths(pathPool,3,0.65);
       return {nodeId:id,networkDistanceMeters:+meters.toFixed(1),
         networkDistanceMiles:+(meters/MILE).toFixed(4),pathNodeCount:path?.length ?? 0,
         pathVariants:alternatives.map((variant,index)=>({
           rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
-          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length
+          distanceMiles:+(variant.distanceMeters/MILE).toFixed(4),nodeCount:variant.nodes.length,\n          maxOverlapWithSelected:+variant.maxOverlapWithSelected.toFixed(3)
         }))};
     });
   return {requestedOutAndBackMiles:requestedMiles,
@@ -83,7 +84,7 @@ console.log(JSON.stringify({
   graphNodeCount:adjacency.size,snappedStartOffsetMeters:+snap.toFixed(1),results,
   limitations:[
     "Candidate distances are graph lengths over selected OSM-tagged ways, not provider-routed distances.",
-    "Candidates currently come from one shortest-path tree and are not independent route alternatives.",
+    "Candidate turnaround nodes are drawn from one shortest-path tree; path variants to each node are independently searched with Yen k-shortest paths and filtered by directed-edge overlap.",\n    "Diversity is measured by directed-edge Jaccard overlap (maximum 0.65); this is a structural proxy, not a guarantee of visually distinct or safer routes.",
     "The GPS origin is snapped to a nearby graph node by proximity; a verified on-network connector is not yet built.",
     "Crossing legality, polygon/parcel exclusions, field overlays, and side-specific sidewalk geometry are not enforced.",
     "Road centerlines are included only when OSM explicitly tags a sidewalk; side-specific geometry still needs validation.",
