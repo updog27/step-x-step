@@ -12,7 +12,8 @@ export function validateFieldObservation(o,expected={},options={}) {
  if(typeof expected.featureId!=="string"||!expected.featureId||o.featureId!==expected.featureId) failures.push("feature_id_mismatch");
  if(!TYPES.has(o.featureType)||(expected.featureType&&o.featureType!==expected.featureType)) failures.push("feature_type_mismatch");
  if(o.status!=="verified") failures.push("observation_not_verified");
- const timestampPattern=/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?(?:Z|[+-]\\d{2}:\\d{2})$/;\n const stamp=typeof o.observedAt==="string"&&timestampPattern.test(o.observedAt)?Date.parse(o.observedAt):NaN;
+  const timestampPattern=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+  const stamp=typeof o.observedAt==="string"&&timestampPattern.test(o.observedAt)?Date.parse(o.observedAt):NaN;
  if(!Number.isFinite(stamp)) failures.push("observation_timestamp_invalid");
  else {const age=now.getTime()-stamp;if(age<0)failures.push("observation_timestamp_in_future");else if(age>maxAge*86400000)failures.push("observation_stale");}
  const e=o.evidence||{};
