@@ -4,7 +4,7 @@ import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
   isEligiblePedestrianWay, pedestrianDirections, reconstructNodePath,
   directedPathOverlap, selectDiversePaths, kShortestPaths,
-  corridorPathOverlap, selectCorridorDiversePaths
+  corridorPathOverlap, selectCorridorDiversePaths, snapOriginToPedestrianGraph
 } from "./pedestrian-graph.mjs";
 
 const nodes = new Map([
@@ -250,4 +250,43 @@ test("splitting an identified edge gives each sub-edge a stable distinct identit
   assert.equal(first.edgeId,"700:1:f:a");
   assert.equal(second.edgeId,"700:1:f:b");
   assert.notEqual(first.edgeId,second.edgeId);
+});
+
+
+test("origin snap inserts a virtual node on an interior directed edge", () => {
+  const graph=new Map([[1,[{to:2,meters:100,wayId:10,edgeId:"10:1:f"}]]]);
+  const result=snapOriginToPedestrianGraph(nodes,graph,{lat:27.0001,lon:-81.9995},30);
+  assert.equal(result.ok,true);
+  assert.equal(result.connectorStatus,"unverified");
+  assert.equal(result.projection.isVirtual,true);
+  assert.equal(result.graph.get(result.startNode)[0].to,2);
+  assert.ok(result.virtualNode);
+  assert.equal(graph.get(1)[0].to,2,"input graph remains unchanged");
+});
+
+test("origin snap accepts a directed endpoint only when it can walk onward", () => {
+  const forwardOnly=new Map([[1,[{to:2,meters:100,wayId:10}]]]);
+  const atStart=snapOriginToPedestrianGraph(nodes,forwardOnly,{lat:27,lon:-82},5);
+  assert.equal(atStart.ok,true);
+  assert.equal(atStart.startNode,1);
+  const atDeadEnd=snapOriginToPedestrianGraph(nodes,forwardOnly,{lat:27,lon:-81.999},5);
+  assert.equal(atDeadEnd.ok,false);
+  assert.equal(atDeadEnd.reason,"snapped_node_has_no_outgoing_pedestrian_edge");
+});
+
+test("origin snap preserves outgoing direction on a bidirectional edge", () => {
+  const bidirectional=new Map([
+    [1,[{to:2,meters:100,wayId:10,edgeId:"f"}]],
+    [2,[{to:1,meters:100,wayId:10,edgeId:"b"}]]
+  ]);
+  const result=snapOriginToPedestrianGraph(nodes,bidirectional,{lat:27.0001,lon:-81.9995},30);
+  assert.equal(result.ok,true);
+  assert.deepEqual(result.graph.get(result.startNode).map(edge=>edge.to),[2,1]);
+});
+
+test("origin snap rejects an existing virtual node ID and distant origins", () => {
+  const graph=new Map([[1,[{to:2,meters:100,wayId:10}]]]);
+  assert.throws(()=>snapOriginToPedestrianGraph(new Map([[ "__stepx_private_origin_snap__",{} ]]),graph,
+    {lat:27,lon:-82},30),/already exists/);
+  assert.equal(snapOriginToPedestrianGraph(nodes,graph,{lat:27.01,lon:-82},10).ok,false);
 });
