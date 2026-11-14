@@ -4,7 +4,7 @@
 Build and validate a route-generation prototype independently of the current Netlify/ORS implementation. Do not merge into production until the acceptance tests pass.
 
 ## Current system baseline
-The existing application uses Leaflet for map display, Netlify Functions for route generation, OpenStreetMap data queried through Overpass, and the HeiGIT-hosted OpenRouteService foot-walking endpoint. Its out-and-back method chooses eight compass bearings, routes to a geographic endpoint, trims the resulting geometry at half the requested distance, and reverses that trimmed geometry. This can produce an exact length while selecting a poor or invalid turnaround location.
+The repository has multiple materially different branches, and the Netlify production deployment branch has not yet been confirmed. The `main` branch is the basic GPS tracker and does not contain the route-generation function. The `route-generation-work` branch contains the current route-generation implementation reviewed for this prototype: a Netlify Function calls the HeiGIT-hosted OpenRouteService foot-walking endpoint and Overpass map-data screening. Its out-and-back candidate logic still uses eight compass bearings, calculates geographic endpoints, adds offset waypoints for diagonal alternatives, trims the returned route geometry at half the requested distance, and reverses that trimmed geometry. Later commits also added directional-detour filtering and a specific corridor experiment, but the underlying endpoint-and-trim approach remains. This can produce a near-exact length while selecting a poor or invalid turnaround location. The client sends the device's live latitude/longitude, requested distance in meters, and route type to `/.netlify/functions/routes`; free-run bypasses the route function. Do not assume this branch is deployed at the public Netlify URL until the site's deploy metadata is confirmed.
 
 ## Proposed prototype architecture
 1. **OSM pedestrian graph extraction** — retrieve pedestrian-relevant ways and nodes for a bounded test area. Preserve way geometry, node connectivity, tags, access restrictions, crossings, and sidewalk-side metadata. Separately mapped sidewalks must remain separate graph edges; never infer that a route on one side of a road is supported by a sidewalk on the other side.
@@ -44,3 +44,12 @@ OSM coverage and tags are incomplete. A route engine cannot establish actual sid
 - This branch is experimental and separate from `main` and PR #2.
 - Do not change production, merge PR #2, or replace the current app.
 - First deliverable is a reproducible graph/route comparison for the Tampa test area, then decide whether Valhalla should become the primary engine.
+
+
+## Repository review update (2026-11-13)
+- `main` is the repository default branch and contains the basic tracker; it is 101 commits behind `route-generation-work` at the time of review.
+- `route-generation-work` contains the actual route-generation UI and serverless function. It is not equivalent to `main`, and it should not be merged wholesale as a routing fix.
+- The client expects a JSON response with a `routes` array and reports a strict maximum-distance message. The backend currently assigns the requested total distance to some candidate records after trimming; acceptance testing must independently recompute the polyline length rather than trust the returned `distanceMeters` field.
+- The latest branch history includes commits to correct directional alternatives, constrain route backtracking, restore exact-distance out-and-back generation, and test the Palmetto/Grady/Columbus and Harold corridors. These are meaningful iterative improvements, but they do not convert the algorithm into a connected pedestrian graph.
+- Pull request #2 (`route-network-constraints`) remains open and draft. Its own description says Deploy Preview testing against real starting coordinates is still required. It must not be treated as production-ready.
+- Netlify project lookup by the site name returned no accessible project records in this session. Therefore the deployed branch and published deploy cannot be verified from the connected Netlify account yet.
