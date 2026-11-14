@@ -63,3 +63,34 @@ test("haversine distance is positive and symmetric", () => {
   assert.ok(haversineMeters(a,b)>0);
   assert.ok(Math.abs(haversineMeters(a,b)-haversineMeters(b,a))<1e-8);
 });
+
+
+test("Yen k-shortest paths returns distinct loopless alternatives in distance order", async () => {
+  const {kShortestPaths} = await import("./pedestrian-graph.mjs");
+  const graph = new Map([
+    ["S", [{to:"A",meters:1},{to:"B",meters:1}]],
+    ["A", [{to:"T",meters:1},{to:"B",meters:0.5}]],
+    ["B", [{to:"T",meters:1},{to:"A",meters:0.5}]],
+    ["T", []]
+  ]);
+  const paths = kShortestPaths(graph,"S","T",3);
+  assert.equal(paths.length,3);
+  assert.deepEqual(paths.map(path => path.nodes), [
+    ["S","A","T"], ["S","B","T"], ["S","A","B","T"]
+  ]);
+  assert.deepEqual(paths.map(path => path.distanceMeters), [2,2,2.5]);
+  for (const path of paths) assert.equal(new Set(path.nodes).size,path.nodes.length);
+});
+
+test("Yen k-shortest paths respect directed edges and return no fake alternatives", async () => {
+  const {kShortestPaths} = await import("./pedestrian-graph.mjs");
+  const graph = new Map([
+    [1,[{to:2,meters:1}]],
+    [2,[{to:3,meters:1}]],
+    [3,[]]
+  ]);
+  const paths = kShortestPaths(graph,1,3,4);
+  assert.equal(paths.length,1);
+  assert.deepEqual(paths[0].nodes,[1,2,3]);
+  assert.deepEqual(kShortestPaths(graph,3,1,2),[]);
+});
