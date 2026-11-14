@@ -315,3 +315,17 @@ Interpretation and limits:
 - Current route acceptance still requires feature-matched, current field observations for any required crossing and a separately established origin connector.
 
 Added synthetic tests for a perpendicular roadway intersection, parallel pedestrian/road geometry, exclusion of footways from roadway classes, malformed path input, and multiple roadway intersections. GitHub Actions passed for candidate-generator commit `3db6734e2b54e6dacce2033cbc78517f8caa2352`.
+
+
+### Crossing-aware alternative ranking (2026-11-14)
+
+Added `selectCrossingAwarePaths` and wired it into candidate generation. For the already distance-bounded Yen path pool to a candidate turnaround, variants are now ranked first by the number of mapped roadway-centerline intersections, then by network distance, while retaining the corridor-overlap ceiling. This allows a slightly longer alternative within the existing distance search bound to be preferred when it has fewer mapped roadway intersections.
+
+The ranking is intentionally narrow:
+- It minimizes detected mapped roadway intersections; it is not a safety score.
+- It only chooses among the bounded k-shortest pool already generated. It cannot discover a long detour outside that pool or guarantee a crossing-free alternative exists.
+- An intersection count of zero is not proof of no roadway crossing because OSM geometry may be incomplete or grade-separated.
+- A crossing count greater than zero does not mean the crossing is unusable. The candidate still needs mapped crossing review and current field verification.
+- The existing fail-closed origin connector gate remains in place; no candidate is exposed as a usable route.
+
+Added a regression test proving a mapped-crossing-free detour is ranked ahead of a shorter path that intersects a mapped roadway. The complete graph, field-observation, route-acceptance, and candidate syntax CI workflow passed for commit `f29b6336d582e1ed7bd5bf5d1f44b1eddfef2bd6`.
