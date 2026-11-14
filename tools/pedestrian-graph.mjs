@@ -349,8 +349,8 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   forward.splice(index,1);
   const firstMeters=edge.meters*projection.fraction;
   const secondMeters=edge.meters-firstMeters;
-  forward.push({...edge,to:virtualNodeId,meters:firstMeters,edgeId:edge.edgeId ? edge.edgeId+":a" : undefined});
-  next.get(virtualNodeId).push({...edge,to:projection.to,meters:secondMeters,edgeId:edge.edgeId ? edge.edgeId+":b" : undefined});
+  forward.push({...edge,to:virtualNodeId,meters:firstMeters,...(edge.edgeId ? {edgeId:edge.edgeId+":a"} : {})});
+  next.get(virtualNodeId).push({...edge,to:projection.to,meters:secondMeters,...(edge.edgeId ? {edgeId:edge.edgeId+":b"} : {})});
 
   // If the exact reverse arc exists, split it too, but preserve its own
   // direction. One-way pedestrian edges remain one-way.
@@ -363,8 +363,8 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   if (reverseIndex >= 0) {
     const reverseEdge=reverse[reverseIndex];
     reverse.splice(reverseIndex,1);
-    reverse.push({...reverseEdge,to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction),edgeId:reverseEdge.edgeId ? reverseEdge.edgeId+":a" : undefined});
-    next.get(virtualNodeId).push({...reverseEdge,to:projection.from,meters:reverseEdge.meters*projection.fraction,edgeId:reverseEdge.edgeId ? reverseEdge.edgeId+":b" : undefined});
+    reverse.push({...reverseEdge,to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction),...(reverseEdge.edgeId ? {edgeId:reverseEdge.edgeId+":a"} : {})});
+    next.get(virtualNodeId).push({...reverseEdge,to:projection.from,meters:reverseEdge.meters*projection.fraction,...(reverseEdge.edgeId ? {edgeId:reverseEdge.edgeId+":b"} : {})});
   }
   return next;
 }
