@@ -127,3 +127,26 @@ The candidate utility now honors explicit pedestrian direction tags when constru
 The utility also validates its configured search radius and start-snap limit before making a request.
 
 This improves graph semantics but does not solve the remaining topology and safety gaps. In particular, the nearest-node snap is only a proximity check: it does not yet build a verified connector from the exact GPS origin to the graph. The current Dijkstra tree produces candidate nodes on shortest paths from the selected snap node; those candidates are not yet three distinct route alternatives. Candidate node IDs are diagnostic identifiers, not route coordinates or a guarantee of legal access. No live Overpass execution has been performed from this environment.
+
+
+### Reusable graph module and k-shortest alternatives (2026-11-13)
+
+The graph logic has been extracted to `tools/pedestrian-graph.mjs`, with offline unit tests in `tools/pedestrian-graph.test.mjs`. The candidate generator now imports these shared functions rather than keeping a second copy of eligibility and direction rules.
+
+The module provides:
+- Haversine edge-length calculation.
+- Pedestrian-way eligibility and explicit foot-direction handling.
+- Directed graph construction.
+- Binary-heap Dijkstra shortest paths with an optional maximum distance.
+- Path reconstruction.
+- Yen's loopless k-shortest-path algorithm, bounded to 1–10 requested paths.
+
+For each candidate turnaround node, the utility now reports up to three shortest loopless path variants to that same endpoint, subject to the outbound-distance tolerance. Each variant reports its rank, independently summed graph distance, and node count; geometry and coordinates remain omitted.
+
+Important interpretation:
+- These are alternate paths to one endpoint, not yet independently selected turnaround points or guaranteed user-distinct route choices.
+- Yen's algorithm prevents repeated nodes within an individual path, but does not enforce a minimum edge-disjointness or route-overlap threshold between alternatives.
+- Alternatives are ordered by network length, not by safety or comfort. The hard safety validator and route-diversity scoring are still outstanding.
+- The candidate generator has not been executed against live Overpass data in this environment. The unit tests are committed but must be run in a Node.js environment before this branch is treated as verified.
+
+The earlier description of the graph as undirected is superseded by the explicit directed-way implementation described above.
