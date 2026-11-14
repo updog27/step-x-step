@@ -446,3 +446,10 @@ Candidate generation now expands beyond the single shortest-path tree in a bound
 Corridor overlap now supplements OSM way-ID overlap with normalized explicit `name` and `ref` tags carried on graph edges. This catches some cases where a street or route is split across multiple OSM ways, or where separate mapped pedestrian ways explicitly identify the same named street. Name and reference labels are compared independently, case/whitespace normalized; unnamed edges continue to rely on way IDs. Tests cover case-insensitive shared names and distinct names/references.
 
 This is deliberately a conservative identity signal, not geometric proof: common street names can span disconnected segments or parallel facilities, and missing/inconsistent OSM tags remain common. The calculation does not infer that two paths occupy the same sidewalk, side of street, or crossing environment. It is used only to screen route alternatives; it does not certify safety or field accessibility.
+
+
+### Geometry-aware corridor overlap (2026-11-14)
+
+Pedestrian graph edges now retain their two endpoint coordinates. Corridor comparison samples these edge geometries at approximately five-metre intervals and measures proximity against the other candidate route using a narrow default tolerance of 2.5 metres. The resulting geometric overlap is combined with existing OSM way-ID and explicit name/reference overlap. The tolerance is configurable from 0 to 20 metres for controlled tests and tuning.
+
+Regression coverage verifies that separately identified paths following nearly coincident geometry are recognized as overlapping, while a parallel path offset by eight metres remains distinct under the default tolerance. This is an initial geometric screening heuristic, not a sidewalk-side classifier: GPS/map offsets, separate carriageway/sidewalk geometry, curves, incomplete geometry, and dense junctions require further evaluation. It does not establish legal pedestrian access, crossing safety, or field verification.
