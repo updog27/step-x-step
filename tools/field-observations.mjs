@@ -12,7 +12,7 @@ export function validateFieldObservation(o,expected={},options={}) {
  if(typeof expected.featureId!=="string"||!expected.featureId||o.featureId!==expected.featureId) failures.push("feature_id_mismatch");
  if(!TYPES.has(o.featureType)||(expected.featureType&&o.featureType!==expected.featureType)) failures.push("feature_type_mismatch");
  if(o.status!=="verified") failures.push("observation_not_verified");
-  const timestampPattern=/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})(?:\\.\\d{1,3})?(Z|([+-])(\\d{2}):(\\d{2}))$/;
+  const timestampPattern=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|([+-])(\d{2}):(\d{2}))$/;
   const timestampMatch=typeof o.observedAt==="string"?o.observedAt.match(timestampPattern):null;
   let stamp=NaN;
   if(timestampMatch){
