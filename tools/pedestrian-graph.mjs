@@ -444,6 +444,7 @@ export function crossingEvidenceForNode(nodes, nodeId) {
 export function auditPedestrianConnectivity(nodes, adjacency) {
   const incident = new Map();
   const incomingCounts = new Map();
+  let crossingTaggedEdges=0;
   const add = (id, neighbor, edge) => {
     if (!incident.has(id)) incident.set(id,new Map());
     const neighbors=incident.get(id);
@@ -459,7 +460,6 @@ export function auditPedestrianConnectivity(nodes, adjacency) {
     }
   }
   const isolated=[], terminals=[], junctions=[];
-  let crossingTaggedEdges=0;
   for (const [id,node] of nodes) {
     const neighbors=incident.get(id);
     const degree=neighbors?.size || 0;
