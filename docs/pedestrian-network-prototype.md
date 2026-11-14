@@ -274,3 +274,28 @@ These findings are review flags, not safety judgments. A junction without crossi
 Refined crossing evidence to avoid treating every `highway=traffic_signals` node as a mapped pedestrian crossing. A signalized road node without crossing-specific tags now reports signal evidence separately while leaving pedestrian-crossing status unknown. Explicit `crossing=traffic_signals` remains mapped crossing evidence. Crossing-marking values are retained as the evidence type, including explicit `no` markings. Added regression cases for these distinctions.
 
 The connectivity audit also counts edges explicitly tagged as `footway=crossing` or `highway=crossing`. The candidate utility exposes this as an aggregate count only. This remains descriptive OSM evidence; it does not establish crossing legality, signal availability to pedestrians, or safety.
+
+
+### Structured field-observation and path-crossing review (2026-11-14)
+
+Added `tools/field-observations.mjs` with a versioned, feature-matched observation record and deterministic validation:
+
+- Common fields: schema version, observation ID, feature ID/type, verification status, and ISO-8601 observation timestamp.
+- Observations must match the exact route feature and expected feature type.
+- Observations older than 90 days are stale by default; future-dated records, missing fields, and mismatched feature IDs fail closed.
+- Connector observations require continuity, same-side access, and public-access checks.
+- Ordinary pedestrian connection observations require continuity and public-access checks.
+- Crossing observations require crossing presence, pedestrian access, and a curb-ramp status. If mapped evidence indicates a controlled crossing, signal operation must also be explicitly verified.
+- The maximum observation age can be configured by the caller, within a bounded 0–365 day range.
+
+Added `assessCrossingRequirement` to preserve three distinct outcomes: not required, field review needed, and field verified. The function does not infer crossing necessity: `crossingRequired` must come from a separate geometry/context review. A mapped crossing tag alone never passes the field-verification gate.
+
+Updated `tools/route-acceptance.mjs` to require structured, current, feature-matched field observations for origin connectors, ordinary route connections, and required crossings. The previous boolean-only fieldVerified shortcut is no longer sufficient. Acceptance remains a supplied-evidence gate, not a guarantee of safety.
+
+Added `inspectPathCrossingEvidence` to the graph module. Given a path's node sequence and optional edge records, it reports explicit mapped crossing nodes and crossing-tagged way edges, while separately counting unknown nodes and signal-only nodes. A generic traffic-signal node is not misclassified as a pedestrian crossing. The inspector reports evidence only; it does not decide whether a roadway crossing is required.
+
+Offline CI now runs the graph, field-observation, and route-acceptance suites together. The latest run for commit `6975be68ef65361b2f532cff8bf242ceb63c6ff7` completed successfully.
+
+### Remaining integration boundary
+
+The candidate generator still withholds all user-facing routes because its GPS-origin connector is unverified. The new observation and crossing-inspection modules establish validation primitives, but no live Overpass run, real-world field observation, geometry-based road-crossing inference, or app/UI integration has been completed. Do not mark any route accepted until the app supplies complete per-feature observations and the separate geometry/context review has classified crossing necessity.
