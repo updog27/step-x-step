@@ -15,7 +15,7 @@ on:
       - "tools/field-observations.mjs"
       - "tools/field-observations.test.mjs"
       - "tools/route-acceptance.mjs"
-      - "tools/route-acceptance.test.mjs tools/turnaround-discovery.test.mjs"
+      - "tools/route-acceptance.test.mjs"
       - ".github/workflows/pedestrian-graph-tests.yml"
 jobs:
   graph-and-acceptance-tests:
@@ -30,4 +30,4 @@ jobs:
       - name: Check candidate generator syntax
         run: node --check tools/pedestrian-candidates.mjs && node --check tools/turnaround-discovery.mjs
       - name: Run offline graph, field-observation, and acceptance tests
-        run: node --test tools/pedestrian-graph.test.mjs tools/field-observations.test.mjs tools/route-acceptance.test.mjs
+        run: node --test tools/pedestrian-graph.test.mjs tools/field-observations.test.mjs tools/route-acceptance.test.mjs tools/turnaround-discovery.test.mjs
