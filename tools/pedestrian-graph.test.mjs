@@ -1,5 +1,6 @@
 import test from "node:test";
 import { inspectPathCrossingEvidence } from "./pedestrian-graph.mjs";
+import { detectRoadwayCrossingsForPath } from "./pedestrian-graph.mjs";
 import assert from "node:assert/strict";
 import {
   buildDirectedPedestrianGraph, dijkstra, haversineMeters,
@@ -383,4 +384,58 @@ test("path crossing inspection does not infer crossing requirement from unknown 
   assert.equal(result.mappedCrossingNodeCount,0);
   assert.equal(result.unknownNodeCount,1);
   assert.equal(result.crossingWayEdgeCount,0);
+});
+
+
+test("detects a pedestrian path segment that geometrically crosses a mapped residential road", () => {
+ const fixtureNodes=new Map([
+  ["p1",{id:"p1",lat:27,lon:-82}],
+  ["p2",{id:"p2",lat:27.001,lon:-82}],
+  ["r1",{id:"r1",lat:27.0005,lon:-82.001}],
+  ["r2",{id:"r2",lat:27.0005,lon:-81.999}]
+ ]);
+ const ways=[{id:700,nodes:["r1","r2"],tags:{highway:"residential"}}];
+ const result=detectRoadwayCrossingsForPath(fixtureNodes,ways,["p1","p2"]);
+ assert.equal(result.status,"crossing_geometry_detected");
+ assert.equal(result.crossingCount,1);
+ assert.equal(result.crossings[0].wayId,700);
+ assert.equal(result.crossings[0].roadClass,"residential");
+});
+
+test("does not classify parallel sidewalk and roadway geometry as a crossing", () => {
+ const fixtureNodes=new Map([
+  ["p1",{id:"p1",lat:27,lon:-82}],
+  ["p2",{id:"p2",lat:27.001,lon:-82}],
+  ["r1",{id:"r1",lat:27,lon:-82.0001}],
+  ["r2",{id:"r2",lat:27.001,lon:-82.0001}]
+ ]);
+ const result=detectRoadwayCrossingsForPath(fixtureNodes,
+  [{id:701,nodes:["r1","r2"],tags:{highway:"residential"}}],["p1","p2"]);
+ assert.equal(result.crossingCount,0);
+});
+
+test("does not treat footways as roadways and rejects malformed geometry", () => {
+ const fixtureNodes=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],["b",{id:"b",lat:27.001,lon:-82}],
+  ["c",{id:"c",lat:27.0005,lon:-82.001}],["d",{id:"d",lat:27.0005,lon:-81.999}]
+ ]);
+ const result=detectRoadwayCrossingsForPath(fixtureNodes,
+  [{id:702,nodes:["c","d"],tags:{highway:"footway"}}],["a","b"]);
+ assert.equal(result.crossingCount,0);
+ assert.throws(()=>detectRoadwayCrossingsForPath(fixtureNodes,[],["a"]),TypeError);
+});
+
+test("detects crossings on multiple road segments and reports unknown crossing status conservatively", () => {
+ const fixtureNodes=new Map([
+  ["a",{id:"a",lat:27,lon:-82}],["b",{id:"b",lat:27.002,lon:-82}],
+  ["c",{id:"c",lat:27.0005,lon:-82.001}],["d",{id:"d",lat:27.0005,lon:-82.0001}],
+  ["e",{id:"e",lat:27.0015,lon:-82.001}],["f",{id:"f",lat:27.0015,lon:-82.0001}]
+ ]);
+ const ways=[
+  {id:703,nodes:["c","d"],tags:{highway:"tertiary"}},
+  {id:704,nodes:["e","f"],tags:{highway:"primary"}}
+ ];
+ const result=detectRoadwayCrossingsForPath(fixtureNodes,ways,["a","b"]);
+ assert.equal(result.crossingCount,2);
+ assert.ok(result.crossings.every(item=>item.mappedCrossingEvidence===false));
 });
