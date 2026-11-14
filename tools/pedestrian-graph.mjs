@@ -631,9 +631,13 @@ export function detectRoadwayCrossingsForPath(nodes,ways,path,options={}) {
   const crossings=assessment.crossings.map(c=>{
    const id="crossing:osm-way:"+String(c.wayId)+":route-segment:"+c.pathSegmentIndex;
    const a=nodes.get(routeNodes[c.pathSegmentIndex])?.tags||{},b=nodes.get(routeNodes[c.pathSegmentIndex+1])?.tags||{};
-   const road=ways.find(w=>w.id===c.wayId);
+   const ae=pedestrianCrossingEvidence(a),be=pedestrianCrossingEvidence(b);
+   const road=ways.find(w=>w.id===c.wayId),roadTags=road?.tags||{};
+   const mapped=ae.mapped||be.mapped;
+   const controlled=ae.controlled||be.controlled||roadTags.crossing==="traffic_signals"||
+    roadTags["crossing:signals"]==="yes";
    return {id,featureType:"crossing",status:"unverified",crossingRequired:true,
-    crossingEvidence:{mapped:Boolean(a.crossing||b.crossing),controlled:road?.tags?.crossing==="traffic_signals"},
+    crossingEvidence:{mapped,controlled},
     osmWayId:c.wayId,roadClass:c.roadClass,routeSegmentIndex:c.pathSegmentIndex,
     intersectionAngleDegrees:c.intersectionAngleDegrees};
   });
