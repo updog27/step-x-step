@@ -32,9 +32,9 @@ export function pedestrianDirections(tags = {}) {
 // nodes: Map(id -> {id,lat,lon}); ways: [{id,nodes:[...],tags:{...}}]
 export function buildDirectedPedestrianGraph(nodes, ways, maxEdgeMeters = 250) {
   const adjacency = new Map();
-  const add = (from, to, meters, wayId) => {
+  const add = (from, to, meters, wayId, edgeId) => {
     if (!adjacency.has(from)) adjacency.set(from, []);
-    adjacency.get(from).push({ to, meters, wayId });
+    adjacency.get(from).push({ to, meters, wayId, edgeId });
   };
   for (const way of ways) {
     if (!isEligiblePedestrianWay(way.tags)) continue;
@@ -44,8 +44,8 @@ export function buildDirectedPedestrianGraph(nodes, ways, maxEdgeMeters = 250) {
       if (!from || !to) continue;
       const meters = haversineMeters(from, to);
       if (!(meters > 0 && meters < maxEdgeMeters)) continue;
-      if (direction.forward) add(from.id, to.id, meters, way.id);
-      if (direction.backward) add(to.id, from.id, meters, way.id);
+      if (direction.forward) add(from.id, to.id, meters, way.id, String(way.id)+":"+i+":f");
+      if (direction.backward) add(to.id, from.id, meters, way.id, String(way.id)+":"+i+":b");
     }
   }
   return adjacency;
@@ -114,74 +114,31 @@ export function reconstructNodePath(previous, start, end) {
 
 
 const directedEdgeKey = (from, to) => JSON.stringify([from, to]);
+const graphEdgeKey = (from, edge, index=0) => edge.edgeId ?? JSON.stringify([from,edge.to,edge.wayId ?? null,edge.meters,index]);
 
 function shortestPath(adjacency, start, end, options = {}) {
-  const bannedNodes = options.bannedNodes || new Set();
-  const bannedEdges = options.bannedEdges || new Set();
-  const maxDistanceMeters = options.maxDistanceMeters ?? Infinity;
-  if (bannedNodes.has(start) || bannedNodes.has(end)) return null;
-
-  const distances = new Map([[start, 0]]);
-  const previous = new Map();
-  const queue = [];
-  const push = item => {
-    queue.push(item);
-    let index = queue.length - 1;
-    while (index > 0) {
-      const parent = (index - 1) >> 1;
-      if (queue[parent][0] <= item[0]) break;
-      queue[index] = queue[parent];
-      index = parent;
-    }
-    queue[index] = item;
-  };
-  const pop = () => {
-    if (!queue.length) return null;
-    const root = queue[0], last = queue.pop();
-    if (queue.length) {
-      let index = 0;
-      while (true) {
-        let child = index * 2 + 1;
-        if (child >= queue.length) break;
-        if (child + 1 < queue.length && queue[child + 1][0] < queue[child][0]) child++;
-        if (queue[child][0] >= last[0]) break;
-        queue[index] = queue[child];
-        index = child;
-      }
-      queue[index] = last;
-    }
-    return root;
-  };
-
-  push([0, start]);
-  while (queue.length) {
-    const [cost, node] = pop();
-    if (cost !== distances.get(node) || cost > maxDistanceMeters) continue;
-    if (node === end) break;
-    for (const edge of adjacency.get(node) || []) {
-      if (bannedNodes.has(edge.to) || bannedEdges.has(directedEdgeKey(node, edge.to))) continue;
-      const next = cost + edge.meters;
-      if (next < (distances.get(edge.to) ?? Infinity) && next <= maxDistanceMeters) {
-        distances.set(edge.to, next);
-        previous.set(edge.to, node);
-        push([next, edge.to]);
-      }
+  const bannedNodes=options.bannedNodes||new Set(), bannedEdges=options.bannedEdges||new Set();
+  const maxDistanceMeters=options.maxDistanceMeters??Infinity;
+  if(bannedNodes.has(start)||bannedNodes.has(end))return null;
+  const distances=new Map([[start,0]]), previous=new Map(), queue=[];
+  const push=item=>{queue.push(item);let i=queue.length-1;while(i>0){const p=(i-1)>>1;if(queue[p][0]<=item[0])break;queue[i]=queue[p];i=p;}queue[i]=item;};
+  const pop=()=>{if(!queue.length)return null;const root=queue[0],last=queue.pop();if(queue.length){let i=0;while(true){let ch=i*2+1;if(ch>=queue.length)break;if(ch+1<queue.length&&queue[ch+1][0]<queue[ch][0])ch++;if(queue[ch][0]>=last[0])break;queue[i]=queue[ch];i=ch;}queue[i]=last;}return root;};
+  push([0,start]);
+  while(queue.length){const [cost,node]=pop();if(cost!==distances.get(node)||cost>maxDistanceMeters)continue;if(node===end)break;
+    const edges=adjacency.get(node)||[];
+    for(let edgeIndex=0;edgeIndex<edges.length;edgeIndex++){const edge=edges[edgeIndex],key=graphEdgeKey(node,edge,edgeIndex);
+      if(bannedNodes.has(edge.to)||bannedEdges.has(key))continue;
+      const next=cost+edge.meters;if(next<(distances.get(edge.to)??Infinity)&&next<=maxDistanceMeters){distances.set(edge.to,next);previous.set(edge.to,{from:node,edge,key});push([next,edge.to]);}
     }
   }
-  if (!distances.has(end)) return null;
-  const nodes = reconstructNodePath(previous, start, end);
-  return {nodes, distanceMeters:distances.get(end)};
+  if(!distances.has(end))return null;
+  const nodes=[end],edges=[],edgeKeys=[];let current=end;
+  while(current!==start){const step=previous.get(current);if(!step)return null;edges.push(step.edge);edgeKeys.push(step.key);current=step.from;nodes.push(current);}
+  nodes.reverse();edges.reverse();edgeKeys.reverse();
+  return {nodes,edges,edgeKeys,distanceMeters:distances.get(end)};
 }
 
-function pathDistance(adjacency, nodes) {
-  let total = 0;
-  for (let i = 1; i < nodes.length; i++) {
-    const edge = (adjacency.get(nodes[i - 1]) || []).find(item => item.to === nodes[i]);
-    if (!edge) return Infinity;
-    total += edge.meters;
-  }
-  return total;
-}
+function pathDistance(adjacency,path){if(Array.isArray(path.edges))return path.edges.reduce((sum,edge)=>sum+edge.meters,0);let total=0;for(let i=1;i<path.nodes.length;i++){const edge=(adjacency.get(path.nodes[i-1])||[]).find(item=>item.to===path.nodes[i]);if(!edge)return Infinity;total+=edge.meters;}return total;}
 
 // Yen's loopless k-shortest paths. Results are ordered by network distance.
 // This finds alternatives to one endpoint; it does not by itself prove that
@@ -203,7 +160,7 @@ export function kShortestPaths(adjacency, start, end, k = 3, options = {}) {
       for (const path of accepted) {
         if (path.nodes.length > spurIndex + 1 &&
             root.every((node, i) => path.nodes[i] === node)) {
-          bannedEdges.add(directedEdgeKey(path.nodes[spurIndex], path.nodes[spurIndex + 1]));
+          bannedEdges.add(path.edgeKeys?.[spurIndex] ?? directedEdgeKey(path.nodes[spurIndex], path.nodes[spurIndex + 1]));
         }
       }
       const bannedNodes = new Set(root.slice(0, -1));
@@ -212,10 +169,12 @@ export function kShortestPaths(adjacency, start, end, k = 3, options = {}) {
       });
       if (!spur) continue;
       const combinedNodes = root.slice(0, -1).concat(spur.nodes);
-      const key = JSON.stringify(combinedNodes);
+      const combinedEdges = previousPath.edges.slice(0,spurIndex).concat(spur.edges);
+      const combinedKeys = previousPath.edgeKeys.slice(0,spurIndex).concat(spur.edgeKeys);
+      const key = JSON.stringify(combinedKeys);
       if (accepted.some(path => JSON.stringify(path.nodes) === key) || candidates.has(key)) continue;
-      const distanceMeters = pathDistance(adjacency, combinedNodes);
-      if (distanceMeters <= maxDistanceMeters) candidates.set(key, {nodes:combinedNodes,distanceMeters});
+      const distanceMeters = pathDistance(adjacency, {nodes:combinedNodes,edges:combinedEdges});
+      if (distanceMeters <= maxDistanceMeters) candidates.set(key, {nodes:combinedNodes,edges:combinedEdges,edgeKeys:combinedKeys,distanceMeters});
     }
     if (!candidates.size) break;
     const best = [...candidates.entries()].sort((a,b) =>
@@ -275,9 +234,9 @@ export function corridorPathOverlap(adjacency, pathA, pathB) {
   const weightsFor = path => {
     const weights = new Map();
     for (let i = 1; i < path.length; i++) {
-      const edge = (adjacency.get(path[i - 1]) || [])
-        .filter(item => item.to === path[i])
-        .sort((a,b) => a.meters - b.meters)[0];
+      const edge = Array.isArray(path.edges) ? path.edges[i-1] :
+        (adjacency.get(path[i - 1]) || []).filter(item => item.to === path[i])
+          .sort((a,b) => a.meters - b.meters)[0];
       if (!edge) continue;
       const key = String(edge.wayId ?? directedEdgeKey(path[i - 1],path[i]));
       weights.set(key,(weights.get(key) || 0) + edge.meters);
@@ -389,8 +348,8 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   forward.splice(index,1);
   const firstMeters=edge.meters*projection.fraction;
   const secondMeters=edge.meters-firstMeters;
-  forward.push({to:virtualNodeId,meters:firstMeters,wayId:edge.wayId});
-  next.get(virtualNodeId).push({to:projection.to,meters:secondMeters,wayId:edge.wayId});
+  forward.push({...edge,to:virtualNodeId,meters:firstMeters});
+  next.get(virtualNodeId).push({...edge,to:projection.to,meters:secondMeters});
 
   // If the exact reverse arc exists, split it too, but preserve its own
   // direction. One-way pedestrian edges remain one-way.
@@ -403,8 +362,8 @@ export function splitPedestrianEdgeAtProjection(adjacency, projection, virtualNo
   if (reverseIndex >= 0) {
     const reverseEdge=reverse[reverseIndex];
     reverse.splice(reverseIndex,1);
-    reverse.push({to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction),wayId:reverseEdge.wayId});
-    next.get(virtualNodeId).push({to:projection.from,meters:reverseEdge.meters*projection.fraction,wayId:reverseEdge.wayId});
+    reverse.push({...reverseEdge,to:virtualNodeId,meters:reverseEdge.meters*(1-projection.fraction)});
+    next.get(virtualNodeId).push({...reverseEdge,to:projection.from,meters:reverseEdge.meters*projection.fraction});
   }
   return next;
 }
