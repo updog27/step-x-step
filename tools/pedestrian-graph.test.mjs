@@ -707,6 +707,18 @@ test("origin snap reports connector distance and geometry class without claiming
  assert.equal(farther.connectorReview.distanceClass,"requires_field_review");
 });
 
+
+test("crossing detector ignores intersections only when explicit numeric layers differ", () => {
+ const map = new Map([[1,{id:1,lat:0,lon:-0.001}],[2,{id:2,lat:0,lon:0.001}],[3,{id:3,lat:-0.001,lon:0}],[4,{id:4,lat:0.001,lon:0}]]);
+ const road=[{id:77,nodes:[3,4],tags:{highway:"residential",layer:"1"}}];
+ const separated=detectRoadwayCrossingsForPath(map,road,{nodes:[1,2],edges:[{tags:{highway:"footway",layer:"0"}}]});
+ assert.equal(separated.crossingCount,0);
+ const sameLayer=detectRoadwayCrossingsForPath(map,[{id:77,nodes:[3,4],tags:{highway:"residential",layer:"0"}}],{nodes:[1,2],edges:[{tags:{highway:"footway",layer:"0"}}]});
+ assert.equal(sameLayer.crossingCount,1);
+ const unknownLayer=detectRoadwayCrossingsForPath(map,road,{nodes:[1,2],edges:[{tags:{highway:"footway"}}]});
+ assert.equal(unknownLayer.crossingCount,1);
+});
+
 test("origin connector roadway review flags mapped centerline intersection and stays unverified", () => {
  const map = new Map([
   [1,{id:1,lat:-0.001,lon:0.0005}],
