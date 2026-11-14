@@ -15,3 +15,13 @@ test("unknown crossing requirement remains review",()=>assert.equal(assessCrossi
 test("mapped tags alone never pass field gate",()=>assert.equal(assessCrossingRequirement({featureId:"crossing-7",crossingRequired:true,mappedEvidence:{mapped:true}},{now}).status,"needs_field_review"));
 test("complete field-verified controlled crossing passes",()=>assert.equal(assessCrossingRequirement({featureId:"crossing-7",crossingRequired:true,mappedEvidence:{mapped:true,controlled:true},fieldObservation:good()},{now}).status,"field_verified"));
 test("not-required differs from unknown",()=>assert.equal(assessCrossingRequirement({featureId:"link-1",crossingRequired:false}).status,"not_required"));
+
+test("rejects timestamps without an explicit timezone",()=>{
+ const result=validateFieldObservation(good({observedAt:"2026-11-10T12:00:00"}),{featureId:"crossing-7",featureType:"crossing"},{now});
+ assert.ok(result.failures.includes("observation_timestamp_invalid"));
+ assert.equal(result.verified,false);
+});
+test("rejects malformed calendar timestamps",()=>{
+ const result=validateFieldObservation(good({observedAt:"not-a-date"}),{featureId:"crossing-7",featureType:"crossing"},{now});
+ assert.ok(result.failures.includes("observation_timestamp_invalid"));
+});
