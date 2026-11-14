@@ -258,6 +258,17 @@ test("corridor overlap recognizes separately mapped segments sharing an explicit
  assert.equal(corridorPathOverlap(graph,ref,oak),0);
 });
  
+test("geometric corridor overlap recognizes coincident paths with different OSM IDs",()=>{
+ const graph=new Map();
+ const path=(wayId,offset)=>({nodes:[wayId+"a",wayId+"b"],edges:[{
+  to:wayId+"b",meters:100,wayId,
+  geometry:[{lat:27+offset/111320,lon:-82},{lat:27+offset/111320,lon:-81.999}]
+ }]});
+ const base=path(101,0),same=path(202,1),parallel=path(303,8);
+ assert.ok(corridorPathOverlap(graph,base,same)>0.9);
+ assert.equal(corridorPathOverlap(graph,base,parallel),0);
+});
+ 
 test("edge-aware corridor overlap distinguishes parallel ways with identical nodes", () => {
   const graph=new Map([["S",[
     {to:"T",meters:10,wayId:501,edgeId:"sidewalk-east"},
