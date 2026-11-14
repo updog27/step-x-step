@@ -8,7 +8,7 @@ import {
   buildDirectedPedestrianGraph, dijkstra, isEligiblePedestrianWay,
   kShortestPaths, selectCorridorDiversePaths, corridorPathOverlap,
   snapOriginToPedestrianGraph, auditPedestrianConnectivity, detectRoadwayCrossingsForPath,
-  selectCrossingAwarePaths, buildDirectedOutAndBackCandidate
+  selectCrossingAwarePaths, buildDirectedOutAndBackCandidate, buildRouteFeatureInventory
 } from "./pedestrian-graph.mjs";
 import {evaluateRouteAcceptance} from "./route-acceptance.mjs";
 
@@ -90,11 +90,12 @@ const results = miles.map(requestedMiles => {
             requestedDistanceMeters:requestedMiles*MILE,
             distanceToleranceMeters:Math.max(15,requestedMiles*MILE*0.02)
           });
+          const inventory=assembled.ok?buildRouteFeatureInventory(nodes,ways,variant,assembled.returnPath):null;
           const acceptance=assembled.ok?evaluateRouteAcceptance({
             requestedDistanceMeters:requestedMiles*MILE,
             pathDistanceMeters:assembled.route.properties.totalDistanceMeters,
             originConnector:{status:"unverified"},
-            connections:[]
+            connections:inventory.connections.concat(inventory.crossings)
           }):null;
           return {
             rank:index+1,distanceMeters:+variant.distanceMeters.toFixed(1),
@@ -106,6 +107,12 @@ const results = miles.map(requestedMiles => {
               mappedCrossingEvidence:crossing.mappedCrossingEvidence
             })),
             detectedRoadwayCrossingCount:variant.detectedRoadwayCrossingCount,
+            routeFeatureInventory:inventory?{
+              connectionFeatureCount:inventory.connections.length,
+              roadwayCrossingFeatureCount:inventory.crossings.length,
+              mappedCrossingNodeCount:inventory.mappedNodeCrossings.length,
+              crossingGeometryStatus:inventory.crossingGeometryStatus
+            }:null,
             returnLeg:assembled.ok?{
               status:"directed_return_found",
               returnDistanceMeters:+assembled.distance.returnMeters.toFixed(1),
