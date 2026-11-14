@@ -241,6 +241,23 @@ test("Yen search preserves distinct parallel-edge alternatives with identical no
 });
 
 
+test("corridor overlap recognizes separately mapped segments sharing an explicit street name or ref",()=>{
+ const graph=new Map([["S",[
+  {to:"A",meters:100,wayId:11,tags:{name:"Main Street"}},
+  {to:"B",meters:100,wayId:22,tags:{name:"MAIN STREET"}},
+  {to:"C",meters:100,wayId:33,tags:{name:"Oak Avenue"}},
+  {to:"D",meters:100,wayId:44,tags:{ref:"US 1"}}
+ ]],["A",[]],["B",[]],["C",[]],["D",[]]]);
+ const route=(node,wayId,tags)=>({nodes:["S",node],edges:[{to:node,meters:100,wayId,tags}]});
+ const mainA=route("A",11,{name:"Main Street"});
+ const mainB=route("B",22,{name:"MAIN STREET"});
+ const oak=route("C",33,{name:"Oak Avenue"});
+ const ref=route("D",44,{ref:"US 1"});
+ assert.equal(corridorPathOverlap(graph,mainA,mainB),1);
+ assert.equal(corridorPathOverlap(graph,mainA,oak),0);
+ assert.equal(corridorPathOverlap(graph,ref,oak),0);
+});
+ 
 test("edge-aware corridor overlap distinguishes parallel ways with identical nodes", () => {
   const graph=new Map([["S",[
     {to:"T",meters:10,wayId:501,edgeId:"sidewalk-east"},
