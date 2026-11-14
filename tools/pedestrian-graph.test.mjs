@@ -21,9 +21,18 @@ test("footway is eligible and private/service ways are rejected", () => {
   assert.equal(isEligiblePedestrianWay({highway:"path",foot:"no"}), false);
 });
 
-test("road centerline requires an explicitly mapped sidewalk", () => {
+test("road centerlines are excluded even when sidewalk presence is tagged", () => {
   assert.equal(isEligiblePedestrianWay({highway:"residential"}), false);
-  assert.equal(isEligiblePedestrianWay({highway:"residential",sidewalk:"left"}), true);
+  assert.equal(isEligiblePedestrianWay({highway:"residential",sidewalk:"left"}), false);
+  assert.equal(isEligiblePedestrianWay({highway:"tertiary",sidewalk:"both"}), false);
+  assert.equal(isEligiblePedestrianWay({highway:"footway",footway:"sidewalk"}), true);
+});
+
+test("destination-only and restricted access ways are excluded from through routes", () => {
+  for (const access of ["destination","agricultural","forestry","restricted","private","customers"]) {
+    assert.equal(isEligiblePedestrianWay({highway:"footway",access}),false,access);
+  }
+  assert.equal(isEligiblePedestrianWay({highway:"footway",access:"yes"}),true);
 });
 
 test("vehicle oneway does not restrict pedestrians", () => {
