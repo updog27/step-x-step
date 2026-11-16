@@ -140,3 +140,28 @@ CI has passed on commit `348f8e6228226881439037e2afe8237436cee4fb`, including br
 4. Resolve the current origin-connector and route-feature field-verification workflow. Until then, the API correctly returns field-review status and no usable geometry.
 5. Test the Netlify function in a preview environment and verify browser/API behavior end-to-end.
 6. Only after those gates pass should route geometry be enabled for navigation or a production deployment be considered.
+
+
+### Live OSM validation checkpoint — 2026-11-16
+
+A bounded live-data harness and manually triggerable GitHub Actions workflow were added. The harness uses a public Tampa landmark test area, not a user's home or device location, and prints aggregate metrics only (no coordinates or OSM node/way IDs).
+
+Live validation succeeded using the North America regional Overpass provider:
+- 25,969 raw OSM nodes and 7,768 ways acquired.
+- Local classification: 4,799 eligible dedicated pedestrian ways, 174 needs-review ways, and 2,795 excluded ways.
+- Directed pedestrian graph: 16,796 graph nodes and 36,558 directed edges.
+- Connectivity audit over graph nodes only: 100 weakly connected components and zero isolated graph nodes.
+- The public test origin snapped within the production 60 m threshold, but its projection offset was 35.04 m; connector status remains unverified and requires field review.
+- For a 0.5-mile out-and-back request, the engine generated 16 complete graph-based round-trip candidates. The three returned candidate distances were 806.41 m, 802.37 m, and 800.64 m against a requested 804.672 m. All three remained withheld because origin access and route-feature evidence are not field verified.
+
+The first live attempt using only the global Overpass instances timed out from the GitHub-hosted runner. The provider order was changed to prefer the North America regional extract, after which live acquisition and route generation completed successfully. The live workflow is separate from the deterministic test workflow and can be run manually or on provider/harness changes.
+
+The deterministic suite passed 106/106 tests on commit e6c7da01d6090ec25ba63e28950e3ae4da4a8b03.
+
+### Next validation gates
+
+1. Repeat live graph validation in at least two additional public test areas with distinct street/sidewalk patterns; compare connectivity and candidate distance behavior.
+2. Inspect why the test origin projects 35.04 m from mapped pedestrian geometry and confirm how origin connectors should be reviewed or rejected.
+3. Validate route-feature inventory against actual OSM crossing and connection patterns; do not infer safety or legality from OSM tags alone.
+4. Add provider latency/response-size telemetry using aggregate metrics only, and consider regional-extract freshness as a documented tradeoff.
+5. Keep route geometry withheld until the field-observation acceptance gate is satisfied.
