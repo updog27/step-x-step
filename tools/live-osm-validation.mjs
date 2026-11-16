@@ -111,7 +111,7 @@ async function validateMappedSidewalkJunction(site,map){
     nodes,ways:map.ways,adjacency:snapped.graph,startNode:snapped.startNode,
     miles:TEST_DISTANCE_MILES,originConnector:{status:"unverified"}
   });
-  const incoming=[...snapped.graph.values()].flat().some(edges=>edges.some(edge=>edge.to===snapped.startNode));
+  const incoming=[...snapped.graph.values()].some(edges=>edges.some(edge=>edge.to===snapped.startNode));
   const outgoing=(snapped.graph.get(snapped.startNode)||[]).length>0;
   console.log("Mapped sidewalk-junction origin offset / position:",snapped.connectorReview.straightLineOffsetMeters,
     "m /",snapped.connectorReview.projectedPosition);
