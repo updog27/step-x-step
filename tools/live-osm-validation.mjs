@@ -59,7 +59,7 @@ async function validateSite(site){
     tags:snapped.connectorReview.nearestWayTags
   }));
   const connectorRoadwayReview=detectOriginConnectorRoadwayIntersections(
-    map.nodes,map.ways,site.origin,snapped.projection.point
+    map.nodes,map.ways,site.origin,(snapped.virtualNode || map.nodes.get(snapped.startNode))
   );
   console.log("Straight-line connector roadway intersections:",connectorRoadwayReview.crossingCount,
     connectorRoadwayReview.crossings.map(item=>item.roadClass));
