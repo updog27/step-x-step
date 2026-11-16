@@ -45,3 +45,14 @@ test("maps provider rate limiting into a stable error code",async()=>{
   error=>error.code==="PROVIDER_RATE_LIMITED"
  );
 });
+
+test("rejects partial Overpass responses even when elements are present",async()=>{
+ const partial={elements:[
+  {type:"node",id:930001,lat:27.31,lon:-82.31,tags:{}},
+  {type:"way",id:930002,nodes:[930001,930003],tags:{highway:"footway"}}
+ ],remark:"runtime error: Query timed out in 'query'"};
+ await assert.rejects(
+  loadOsmGraph(27.31,-82.31,610,async()=>({ok:true,status:200,json:async()=>partial}),300000),
+  error=>error.code==="MAP_DATA_INCOMPLETE"&&/timed out/.test(error.message)
+ );
+});
