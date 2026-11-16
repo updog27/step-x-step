@@ -20,7 +20,8 @@ Request JSON:
 - `lat` and `lon` are the device's current location. Do not log or persist them.
 - `miles` must be greater than 0 and no more than 3.
 - Only `out_and_back` is supported by this prototype endpoint.
-- The endpoint requests OSM highway ways and their referenced nodes from Overpass. The graph builder classifies ways locally, retaining dedicated pedestrian geometry and excluding or flagging roadway centerlines conservatively; roadway context is also needed for crossing review.
+- The endpoint requests OSM highway ways and their referenced nodes from Overpass. The preferred provider is https://ovp.dresel.systems/api-na/interpreter; fallback providers are https://overpass.private.coffee/api/interpreter and https://overpass-api.de/api/interpreter. A meaningful User-Agent identifies the project. The graph builder classifies ways locally, retaining dedicated pedestrian geometry and excluding or flagging roadway centerlines conservatively; roadway context is also needed for crossing review.
+- The regional provider publishes a North America extract refreshed daily; this improves response time for the target region but means its map data can lag live OSM edits.
 - Overpass responses containing a runtime `remark` are rejected as incomplete, even if they include partial elements. The API does not route on a potentially truncated map extract.
 - Map data is cached in the function instance for five minutes (up to 32 bounding boxes).
 - Requests are rate-limited per forwarded client address per function instance.
