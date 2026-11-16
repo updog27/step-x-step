@@ -315,6 +315,8 @@ test("origin snap inserts a virtual node on an interior directed edge", () => {
   assert.equal(result.ok,true);
   assert.equal(result.connectorStatus,"unverified");
   assert.equal(result.projection.isVirtual,true);
+  assert.equal(result.connectorReview.nearestWayTags.highway,undefined);
+  assert.equal(result.connectorReview.nearestWayClassification.status,"excluded");
   assert.equal(result.graph.get(result.startNode)[0].to,2);
   assert.ok(result.virtualNode);
   assert.equal(graph.get(1)[0].to,2,"input graph remains unchanged");
