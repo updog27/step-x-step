@@ -11,7 +11,9 @@ on:
       - "tools/pedestrian-graph.test.mjs"
       - "tools/pedestrian-candidates.mjs"
       - "tools/route-engine.mjs"
-      - "tools/route-engine.test.mjs"
+      - "tools/route-engine.test.mjs netlify/functions/routes.test.mjs"
+      - "netlify/functions/routes.mjs"
+      - "netlify/functions/routes.test.mjs"
       - "tools/turnaround-discovery.mjs"
       - "tools/turnaround-discovery.test.mjs"
       - "tools/field-observations.mjs"
@@ -30,6 +32,6 @@ jobs:
         with:
           node-version: 22
       - name: Check candidate generator syntax
-        run: node --check tools/pedestrian-candidates.mjs && node --check tools/turnaround-discovery.mjs && node --check tools/route-engine.mjs
+        run: node --check tools/pedestrian-candidates.mjs && node --check tools/turnaround-discovery.mjs && node --check tools/route-engine.mjs && node --check netlify/functions/routes.mjs
       - name: Run offline graph, field-observation, and acceptance tests
         run: node --test tools/pedestrian-graph.test.mjs tools/field-observations.test.mjs tools/route-acceptance.test.mjs tools/turnaround-discovery.test.mjs tools/route-engine.test.mjs
