@@ -48,7 +48,7 @@ export async function loadOsmGraph(lat,lon,radius,fetchImpl=fetch,now=Date.now()
    response=await fetchImpl(endpoint,{method:"POST",headers:{
     "content-type":"application/x-www-form-urlencoded;charset=UTF-8",
     "accept":"application/json",
-    "user-agent":"StepXStepRouteValidation/0.1 (contact: route-validation@stepxstep.app)"
+    "user-agent":"StepXStep/0.1 (+https://github.com/Updog27/step-x-step)"
    },body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(45000)});
   }catch(error){
    lastError=Object.assign(new Error("Pedestrian map provider could not be reached"),{code:"PROVIDER_TIMEOUT",cause:error});
