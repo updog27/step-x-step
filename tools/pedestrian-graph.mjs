@@ -540,7 +540,17 @@ export function snapOriginToPedestrianGraph(nodes, adjacency, origin, maxSnapMet
       straightLineOffsetMeters:+projection.offsetMeters.toFixed(2),
       projectedPosition:projection.fraction<=0.000001?"from_endpoint":
         projection.fraction>=0.999999?"to_endpoint":"edge_interior",
-      directedEdge:{from:projection.from,to:projection.to,wayId:projection.wayId},
+      edgeLengthMeters:+projection.meters.toFixed(2),
+      nearestWayClassification:classifyPedestrianWay(projection.tags||{}),
+      nearestWayTags:{
+        highway:projection.tags?.highway??null,
+        foot:projection.tags?.foot??null,
+        access:projection.tags?.access??null,
+        sidewalk:projection.tags?.sidewalk??null,
+        footway:projection.tags?.footway??null,
+        surface:projection.tags?.surface??null,
+        layer:projection.tags?.layer??null
+      },
       warning:"Geometric proximity is not evidence of a walkable, public, accessible, or same-side connection."
     },
     projection:{from:projection.from,to:projection.to,wayId:projection.wayId,
