@@ -24,6 +24,53 @@ function countBy(values,keyFn){
   return counts;
 }
 
+function findBidirectionalTestEdge(nodes,graph){
+  for(const [from,edges] of graph){
+    for(const edge of edges){
+      const reverse=(graph.get(edge.to)||[]).filter(candidate=>
+        candidate.to===from&&candidate.wayId===edge.wayId&&Math.abs(candidate.meters-edge.meters)<0.001
+      );
+      const a=nodes.get(from),b=nodes.get(edge.to);
+      if(reverse.length===1&&a&&b&&edge.geometry?.length>=2){
+        return {from,to:edge.to,a,b};
+      }
+    }
+  }
+  return null;
+}
+
+function midpoint(a,b){
+  return {lat:(a.lat+b.lat)/2,lon:(a.lon+b.lon)/2};
+}
+
+async function validateOnNetworkOrigin(site,map){
+  const edge=findBidirectionalTestEdge(map.nodes,map.graph);
+  if(!edge){
+    console.log("Controlled on-network origin fixture: unavailable (no unambiguous bidirectional edge)");
+    return {available:false,offsetMeters:null,candidateCount:0};
+  }
+  const origin=midpoint(edge.a,edge.b);
+  const snapped=snapOriginToPedestrianGraph(map.nodes,map.graph,origin,5);
+  if(!snapped.ok)throw new Error("Controlled on-network origin failed to snap: "+snapped.reason);
+  const offset=snapped.connectorReview.straightLineOffsetMeters;
+  const nodes=new Map(map.nodes);
+  if(snapped.virtualNode)nodes.set(snapped.startNode,snapped.virtualNode);
+  const result=generateOutAndBackMiles({
+    nodes,ways:map.ways,adjacency:snapped.graph,startNode:snapped.startNode,
+    miles:TEST_DISTANCE_MILES,originConnector:{status:"unverified"}
+  });
+  const incoming=[...snapped.graph.values()].flat().some(item=>item.to===snapped.startNode);
+  const outgoing=(snapped.graph.get(snapped.startNode)||[]).length>0;
+  console.log("Controlled on-network origin offset:",offset,"m");
+  console.log("Controlled origin split position / incoming / outgoing:",
+    snapped.connectorReview.projectedPosition,incoming,outgoing);
+  console.log("Controlled on-network round-trip candidates:",result.candidateCount);
+  console.log("Controlled on-network evidence status / geometry withheld:",
+    result.status,result.routes.every(route=>!route.acceptance.accepted));
+  return {available:true,offsetMeters:offset,incoming,outgoing,candidateCount:result.candidateCount,
+    evidenceStatus:result.status,geometryWithheld:result.routes.every(route=>!route.acceptance.accepted)};
+}
+
 async function validateSite(site){
   console.log("\n---",site.name,"---");
   const map=await loadOsmGraph(site.origin.lat,site.origin.lon,SEARCH_RADIUS_METERS);
@@ -89,7 +136,8 @@ async function validateSite(site){
   }:null));
   console.log("Best candidate acceptance review codes:",JSON.stringify(best?.acceptance.reviewItems.map(item=>item.code)||[]));
   console.log("Navigation geometry withheld:",result.routes.every(route=>!route.acceptance.accepted));
-  return {site:site.name,mapLoaded:true,originSnapped:true,candidateCount:result.candidateCount,componentCount:audit.componentCount,
+  const controlled=await validateOnNetworkOrigin(site,map);
+  return {site:site.name,mapLoaded:true,originSnapped:true,candidateCount:result.candidateCount,controlledOnNetworkOrigin:controlled,componentCount:audit.componentCount,
     originOffsetMeters:snapped.connectorReview.straightLineOffsetMeters,
     nearestHighway:snapped.connectorReview.nearestWayTags.highway,
     connectorRoadwayIntersections:connectorRoadwayReview.crossingCount,
