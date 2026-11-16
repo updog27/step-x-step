@@ -34,20 +34,51 @@ export async function loadOsmGraph(lat,lon,radius,fetchImpl=fetch,now=Date.now()
  const key=[south.toFixed(4),west.toFixed(4),north.toFixed(4),east.toFixed(4)].join(",");
  const cached=cache.get(key);
  if(cached&&now-cached.createdAt<CACHE_TTL_MS){cached.lastUsed=now;return {...cached,cacheHit:true};}
- const endpoint=process.env.OSM_OVERPASS_URL||"https://overpass-api.de/api/interpreter";
+ const configured=process.env.OSM_OVERPASS_URL;
+ const endpoints=configured?[configured]:[
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter"
+ ];
  const query=`[out:json][timeout:35];(way["highway"](${south},${west},${north},${east}););out body;>;out skel qt;`;
- let response;
- try{
-  response=await fetchImpl(endpoint,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded;charset=UTF-8"},body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(45000)});
- }catch(error){throw Object.assign(new Error("Pedestrian map provider could not be reached"),{code:"PROVIDER_TIMEOUT",cause:error});}
- if(response.status===429)throw Object.assign(new Error("Pedestrian map provider rate limit reached"),{code:"PROVIDER_RATE_LIMITED"});
- if(!response.ok)throw Object.assign(new Error("Pedestrian map provider returned HTTP "+response.status),{code:"MAP_DATA_UNAVAILABLE"});
- let data;
- try{data=await response.json();}catch{throw Object.assign(new Error("Pedestrian map provider returned invalid data"),{code:"MAP_DATA_INCOMPLETE"});}
- // Overpass can return partial elements alongside a timeout/runtime remark.
- // Treat those responses as incomplete rather than routing on a truncated graph.
- if(data?.remark)throw Object.assign(new Error("Pedestrian map provider returned incomplete data: "+String(data.remark).slice(0,240)),{code:"MAP_DATA_INCOMPLETE"});
- if(!Array.isArray(data.elements)||!data.elements.length)throw Object.assign(new Error("No pedestrian map data was returned"),{code:"MAP_DATA_INCOMPLETE"});
+ let data=null,lastError=null,providerUsed=null;
+ for(const endpoint of endpoints){
+  let response;
+  try{
+   response=await fetchImpl(endpoint,{method:"POST",headers:{
+    "content-type":"application/x-www-form-urlencoded;charset=UTF-8",
+    "accept":"application/json",
+    "user-agent":"StepXStepRouteValidation/0.1 (contact: route-validation@stepxstep.app)"
+   },body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(45000)});
+  }catch(error){
+   lastError=Object.assign(new Error("Pedestrian map provider could not be reached"),{code:"PROVIDER_TIMEOUT",cause:error});
+   continue;
+  }
+  if(response.status===429){
+   lastError=Object.assign(new Error("Pedestrian map provider rate limit reached"),{code:"PROVIDER_RATE_LIMITED"});
+   continue;
+  }
+  if(!response.ok){
+   lastError=Object.assign(new Error("Pedestrian map provider returned HTTP "+response.status),{code:"MAP_DATA_UNAVAILABLE"});
+   continue;
+  }
+  let parsed;
+  try{parsed=await response.json();}catch{
+   lastError=Object.assign(new Error("Pedestrian map provider returned invalid data"),{code:"MAP_DATA_INCOMPLETE"});
+   continue;
+  }
+  // Do not accept partial map extracts with an Overpass timeout/runtime remark.
+  if(parsed?.remark){
+   lastError=Object.assign(new Error("Pedestrian map provider returned incomplete data: "+String(parsed.remark).slice(0,240)),{code:"MAP_DATA_INCOMPLETE"});
+   continue;
+  }
+  if(!Array.isArray(parsed.elements)||!parsed.elements.length){
+   lastError=Object.assign(new Error("No pedestrian map data was returned"),{code:"MAP_DATA_INCOMPLETE"});
+   continue;
+  }
+  data=parsed;providerUsed=new URL(endpoint).hostname;break;
+ }
+ if(!data)throw lastError||Object.assign(new Error("No pedestrian map provider responded"),{code:"MAP_DATA_UNAVAILABLE"});
  const nodes=new Map(),ways=[];
  for(const element of data.elements){
   if(element.type==="node"&&finite(element.lat)&&finite(element.lon))nodes.set(element.id,{id:element.id,lat:element.lat,lon:element.lon,tags:element.tags||{}});
@@ -56,7 +87,7 @@ export async function loadOsmGraph(lat,lon,radius,fetchImpl=fetch,now=Date.now()
  if(!nodes.size||!ways.length)throw Object.assign(new Error("Pedestrian map response was incomplete"),{code:"MAP_DATA_INCOMPLETE"});
  const graph=buildDirectedPedestrianGraph(nodes,ways);
  if(!graph.size)throw Object.assign(new Error("No eligible pedestrian paths were found"),{code:"NO_CONNECTED_PEDESTRIAN_NETWORK"});
- const result={nodes,ways,graph,createdAt:now,lastUsed:now,cacheHit:false};
+ const result={nodes,ways,graph,provider:providerUsed,createdAt:now,lastUsed:now,cacheHit:false};
  cache.set(key,result);
  if(cache.size>MAX_CACHE_ENTRIES){
   const oldest=[...cache.entries()].sort((a,b)=>a[1].lastUsed-b[1].lastUsed)[0];
