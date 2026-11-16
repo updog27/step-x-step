@@ -66,6 +66,9 @@ routeLine =
 L.polyline([], { color: "blue" })
 .addTo(map);
 
+// Keep generated navigation candidates separate from the live GPS activity trace.
+let generatedRouteLine = L.polyline([], { color: "green", weight: 5, opacity: 0.85 }).addTo(map);
+
 
 // ---------- LOCATION ----------
 
@@ -346,6 +349,7 @@ if (findRouteButton) {
     }
 
     findRouteButton.disabled = true;
+    generatedRouteLine.setLatLngs([]);
     statusBox.textContent = "Getting your location and checking pedestrian paths…";
     navigator.geolocation.getCurrentPosition(async position => {
       try {
@@ -369,8 +373,8 @@ if (findRouteButton) {
           const accepted = result.routes.find(route => route.geometry?.coordinates?.length);
           if (accepted) {
             const points = accepted.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
-            routeLine.setLatLngs(points);
-            map.fitBounds(routeLine.getBounds(), { padding: [24, 24] });
+            generatedRouteLine.setLatLngs(points);
+            map.fitBounds(generatedRouteLine.getBounds(), { padding: [24, 24] });
             statusBox.textContent = "A verified route is ready. Review the map before starting.";
           } else {
             statusBox.textContent = "The service reported a route but did not return approved route geometry.";
