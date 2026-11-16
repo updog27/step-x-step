@@ -1,5 +1,6 @@
 // Manual, bounded live-data validation against public Tampa landmarks.
 // Aggregate diagnostics only: never print coordinates or OSM node/way IDs.
+// Snap and feature diagnostics are review aids, never route-acceptance evidence.
 import {loadOsmGraph} from "../netlify/functions/routes.mjs";
 import {
   classifyPedestrianWay,
