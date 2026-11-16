@@ -144,24 +144,26 @@ CI has passed on commit `348f8e6228226881439037e2afe8237436cee4fb`, including br
 
 ### Live OSM validation checkpoint — 2026-11-16
 
-A bounded live-data harness and manually triggerable GitHub Actions workflow were added. The harness uses a public Tampa landmark test area, not a user's home or device location, and prints aggregate metrics only (no coordinates or OSM node/way IDs).
+A bounded live-data harness and manually triggerable GitHub Actions workflow were added. The harness now tests three public Tampa areas with different street/sidewalk patterns, not a user's home or device location, and prints aggregate metrics only (no coordinates or OSM node/way IDs).
 
-Live validation succeeded using the North America regional Overpass provider:
-- 25,969 raw OSM nodes and 7,768 ways acquired.
-- Local classification: 4,799 eligible dedicated pedestrian ways, 174 needs-review ways, and 2,795 excluded ways.
-- Directed pedestrian graph: 16,796 graph nodes and 36,558 directed edges.
-- Connectivity audit over graph nodes only: 100 weakly connected components and zero isolated graph nodes.
-- The public test origin snapped within the production 60 m threshold, but its projection offset was 35.04 m; connector status remains unverified and requires field review.
-- For a 0.5-mile out-and-back request, the engine generated 16 complete graph-based round-trip candidates. The three returned candidate distances were 806.41 m, 802.37 m, and 800.64 m against a requested 804.672 m. All three remained withheld because origin access and route-feature evidence are not field verified.
+Live validation succeeded at all three areas using the North America regional Overpass provider:
 
-The first live attempt using only the global Overpass instances timed out from the GitHub-hosted runner. The provider order was changed to prefer the North America regional extract, after which live acquisition and route generation completed successfully. The live workflow is separate from the deterministic test workflow and can be run manually or on provider/harness changes.
+| Public test area | Raw OSM nodes / ways | Eligible pedestrian ways | Graph nodes / directed edges | Weak components | Origin projection offset | Complete 0.5-mile round trips |
+|---|---:|---:|---:|---:|---:|---:|
+| Curtis Hixon Waterfront Park | 25,969 / 7,768 | 4,799 | 16,796 / 36,558 | 100 | 35.04 m | 16 |
+| Armature Works / Tampa Heights | 18,496 / 5,920 | 3,957 | 11,798 / 25,486 | 75 | 37.86 m | 15 |
+| Ybor City Historic District | 11,962 / 3,707 | 2,081 | 5,992 / 12,910 | 25 | 7.57 m | 10 |
 
-The deterministic suite passed 106/106 tests on commit e6c7da01d6090ec25ba63e28950e3ae4da4a8b03.
+All three graph audits reported zero isolated graph nodes. Each test origin snapped within the production 60 m geometric threshold. However, all three connector statuses remain unverified and require field review. The route engine generated 10–16 complete graph-based round-trip candidates per test area. The leading candidates were close to the requested 804.672 m distance; all were withheld because origin access and route-feature evidence are not field verified. No navigation geometry was exposed.
+
+The first live attempt using only global Overpass instances timed out from the GitHub-hosted runner. The provider order was changed to prefer the North America regional extract, after which live acquisition and route generation completed successfully at all three test sites. This regional extract is refreshed daily, so its data may lag current OSM edits. The live workflow is separate from deterministic tests and can be run manually or on provider/harness changes.
+
+The deterministic suite passed 106/106 tests on commit bab294912b335ed034d6b2482f7994355b826081.
 
 ### Next validation gates
 
-1. Repeat live graph validation in at least two additional public test areas with distinct street/sidewalk patterns; compare connectivity and candidate distance behavior.
-2. Inspect why the test origin projects 35.04 m from mapped pedestrian geometry and confirm how origin connectors should be reviewed or rejected.
-3. Validate route-feature inventory against actual OSM crossing and connection patterns; do not infer safety or legality from OSM tags alone.
-4. Add provider latency/response-size telemetry using aggregate metrics only, and consider regional-extract freshness as a documented tradeoff.
+1. Inspect why two test origins project approximately 35–38 m from mapped pedestrian geometry and confirm how origin connectors should be reviewed or rejected.
+2. Validate route-feature inventory against actual OSM crossing and connection patterns; do not infer safety or legality from OSM tags alone.
+3. Add provider latency/response-size telemetry using aggregate metrics only, and monitor regional-extract freshness.
+4. Add an explicit way to distinguish missing map coverage from disconnected or unclassified pedestrian geometry.
 5. Keep route geometry withheld until the field-observation acceptance gate is satisfied.
