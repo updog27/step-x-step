@@ -36,11 +36,12 @@ export async function loadOsmGraph(lat,lon,radius,fetchImpl=fetch,now=Date.now()
  if(cached&&now-cached.createdAt<CACHE_TTL_MS){cached.lastUsed=now;return {...cached,cacheHit:true};}
  const configured=process.env.OSM_OVERPASS_URL;
  const endpoints=configured?[configured]:[
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.private.coffee/api/interpreter"
+  // Regional North America extract, refreshed daily and intended for lower-latency queries.
+  "https://ovp.dresel.systems/api-na/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://overpass-api.de/api/interpreter"
  ];
- const query=`[out:json][timeout:35];(way["highway"](${south},${west},${north},${east}););out body;>;out skel qt;`;
+ const query=`[out:json][timeout:20];(way["highway"](${south},${west},${north},${east}););out body;>;out skel qt;`;
  let data=null,lastError=null,providerUsed=null;
  for(const endpoint of endpoints){
   let response;
@@ -49,7 +50,7 @@ export async function loadOsmGraph(lat,lon,radius,fetchImpl=fetch,now=Date.now()
     "content-type":"application/x-www-form-urlencoded;charset=UTF-8",
     "accept":"application/json",
     "user-agent":"StepXStep/0.1 (+https://github.com/Updog27/step-x-step)"
-   },body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(45000)});
+   },body:new URLSearchParams({data:query}),signal:AbortSignal.timeout(25000)});
   }catch(error){
    lastError=Object.assign(new Error("Pedestrian map provider could not be reached"),{code:"PROVIDER_TIMEOUT",cause:error});
    continue;
