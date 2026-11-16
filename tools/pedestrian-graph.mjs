@@ -435,7 +435,7 @@ export function findNearestPedestrianEdge(nodes, adjacency, origin, maxSnapMeter
       const projection=projectPointToSegment(origin,a,b);
       if (!best || projection.offsetMeters < best.offsetMeters) {
         best={from,to:edge.to,wayId:edge.wayId,meters:edge.meters,edgeIndex,
-          fraction:projection.fraction,point:projection.point,
+          tags:{...(edge.tags||{})},fraction:projection.fraction,point:projection.point,
           offsetMeters:projection.offsetMeters};
       }
     }
