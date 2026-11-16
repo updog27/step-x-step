@@ -2,6 +2,12 @@ name: Live OpenStreetMap validation
 
 on:
   workflow_dispatch:
+  push:
+    branches: [pedestrian-network-prototype]
+    paths:
+      - 'tools/live-osm-validation.mjs'
+      - 'netlify/functions/routes.mjs'
+      - '.github/workflows/live-osm-validation.yml'
 
 permissions:
   contents: read
