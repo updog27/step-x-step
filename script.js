@@ -315,3 +315,81 @@ statusBox.textContent =
 "GPS error";
 
 }
+
+
+// ---------- PEDESTRIAN ROUTE GENERATION ----------
+// This is separate from the GPS activity tracker above. The server returns
+// geometry only after all acceptance evidence gates pass; review-only
+// candidates are intentionally displayed as a status, never as navigation.
+const findRouteButton = document.getElementById("find-route-button");
+if (findRouteButton) {
+  findRouteButton.addEventListener("click", async () => {
+    const distanceInput = document.getElementById("distance-input");
+    const requested = Number(distanceInput.value);
+    if (!Number.isFinite(requested) || requested <= 0) {
+      statusBox.textContent = "Enter a valid distance first.";
+      return;
+    }
+
+    const miles = unitSelect.value === "km" ? requested * 0.621371 : requested;
+    if (miles > 3) {
+      statusBox.textContent = "The route preview currently supports distances up to 3 miles.";
+      return;
+    }
+    if (document.getElementById("route-type").value !== "outback") {
+      statusBox.textContent = "Loop and free-run routing are not available yet. Choose Out-and-back.";
+      return;
+    }
+    if (!navigator.geolocation) {
+      statusBox.textContent = "This device does not provide location services.";
+      return;
+    }
+
+    findRouteButton.disabled = true;
+    statusBox.textContent = "Getting your location and checking pedestrian paths…";
+    navigator.geolocation.getCurrentPosition(async position => {
+      try {
+        const response = await fetch("/.netlify/functions/routes", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+            miles,
+            routeType: "out_and_back"
+          })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          statusBox.textContent = result.error?.message || "The route service is temporarily unavailable.";
+          return;
+        }
+
+        if (result.status === "routes_available") {
+          const accepted = result.routes.find(route => route.geometry?.coordinates?.length);
+          if (accepted) {
+            const points = accepted.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+            routeLine.setLatLngs(points);
+            map.fitBounds(routeLine.getBounds(), { padding: [24, 24] });
+            statusBox.textContent = "A verified route is ready. Review the map before starting.";
+          } else {
+            statusBox.textContent = "The service reported a route but did not return approved route geometry.";
+          }
+        } else if (result.status === "field_review_required") {
+          statusBox.textContent = "Pedestrian paths were found, but access and crossing details still need field verification. No route has been approved for navigation.";
+        } else if (result.status === "no_complete_round_trip_found" || result.status === "no_route") {
+          statusBox.textContent = result.message || "No complete pedestrian out-and-back route was found for this distance.";
+        } else {
+          statusBox.textContent = result.error?.message || "Route service unavailable. Please try again later.";
+        }
+      } catch (error) {
+        statusBox.textContent = "Could not contact the route service. Check your connection and try again.";
+      } finally {
+        findRouteButton.disabled = false;
+      }
+    }, () => {
+      statusBox.textContent = "Location permission is needed to generate a route.";
+      findRouteButton.disabled = false;
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  });
+}
