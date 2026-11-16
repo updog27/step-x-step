@@ -56,3 +56,28 @@ test("rejects partial Overpass responses even when elements are present",async()
   error=>error.code==="MAP_DATA_INCOMPLETE"&&/timed out/.test(error.message)
  );
 });
+
+test("fails over to a second Overpass provider after a rate limit",async()=>{
+ const original=process.env.OSM_OVERPASS_URL;
+ delete process.env.OSM_OVERPASS_URL;
+ const elements=[
+  {type:"node",id:940001,lat:27.41,lon:-82.41,tags:{}},
+  {type:"node",id:940002,lat:27.411,lon:-82.41,tags:{}},
+  {type:"way",id:940003,nodes:[940001,940002],tags:{highway:"footway"}}
+ ];
+ const calls=[];
+ const fakeFetch=async(url,options)=>{
+  calls.push({url,headers:options.headers});
+  if(calls.length===1)return {ok:false,status:429};
+  return {ok:true,status:200,json:async()=>({elements})};
+ };
+ try{
+  const result=await loadOsmGraph(27.41,-82.41,620,fakeFetch,400000);
+  assert.equal(calls.length,2);
+  assert.match(calls[0].headers["user-agent"],/github.com\\/Updog27\\/step-x-step/);
+  assert.equal(result.provider,"overpass.kumi.systems");
+  assert.equal(result.nodes.size,2);
+ }finally{
+  if(original===undefined)delete process.env.OSM_OVERPASS_URL;else process.env.OSM_OVERPASS_URL=original;
+ }
+});
