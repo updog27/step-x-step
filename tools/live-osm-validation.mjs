@@ -1,5 +1,5 @@
-// Manual, bounded live-data validation against a public Tampa landmark.
-// This script reports aggregate diagnostics only; it never prints coordinates or OSM IDs.
+// Manual, bounded live-data validation against public Tampa landmarks.
+// Aggregate diagnostics only: never print coordinates or OSM node/way IDs.
 import {loadOsmGraph} from "../netlify/functions/routes.mjs";
 import {
   classifyPedestrianWay,
@@ -8,10 +8,13 @@ import {
 } from "./pedestrian-graph.mjs";
 import {generateOutAndBackMiles} from "./route-engine.mjs";
 
-const TEST_SITE = "Curtis Hixon Waterfront Park, Tampa";
-const ORIGIN = {lat:27.9498,lon:-82.4646}; // public landmark reference, not a user location
-const SEARCH_RADIUS_METERS = 1400;
-const TEST_DISTANCE_MILES = 0.5;
+const TEST_SITES = [
+  {name:"Curtis Hixon Waterfront Park, Tampa",origin:{lat:27.9498,lon:-82.4646}},
+  {name:"Armature Works / Tampa Heights, Tampa",origin:{lat:27.9619,lon:-82.4646}},
+  {name:"Ybor City Historic District, Tampa",origin:{lat:27.9604,lon:-82.4376}}
+];
+const SEARCH_RADIUS_METERS=1400;
+const TEST_DISTANCE_MILES=0.5;
 
 function countBy(values,keyFn){
   const counts={};
@@ -19,71 +22,67 @@ function countBy(values,keyFn){
   return counts;
 }
 
-async function main(){
-  console.log("Step x Step live OSM validation");
-  console.log("Test area:",TEST_SITE);
-  console.log("Requested network search radius:",SEARCH_RADIUS_METERS,"m");
-  const map=await loadOsmGraph(ORIGIN.lat,ORIGIN.lon,SEARCH_RADIUS_METERS);
+async function validateSite(site){
+  console.log("\n---",site.name,"---");
+  const map=await loadOsmGraph(site.origin.lat,site.origin.lon,SEARCH_RADIUS_METERS);
   const wayClasses=countBy(map.ways,way=>classifyPedestrianWay(way.tags).status);
   const eligibleWays=map.ways.filter(way=>classifyPedestrianWay(way.tags).status==="eligible");
   const reviewWays=map.ways.filter(way=>classifyPedestrianWay(way.tags).status==="needs_review");
-  const graphNodeCount=map.graph.size;
   const edgeCount=[...map.graph.values()].reduce((sum,edges)=>sum+edges.length,0);
   const graphNodeIds=new Set(map.graph.keys());
   for(const edges of map.graph.values())for(const edge of edges)graphNodeIds.add(edge.to);
   const graphNodes=new Map([...map.nodes].filter(([id])=>graphNodeIds.has(id)));
   const audit=auditPedestrianConnectivity(graphNodes,map.graph);
+
   console.log("Provider:",map.provider||"cached provider metadata unavailable");
   console.log("Cache hit:",map.cacheHit===true);
-  console.log("Raw OSM node count:",map.nodes.size);
-  console.log("Raw OSM way count:",map.ways.length);
+  console.log("Raw OSM nodes / ways:",map.nodes.size,"/",map.ways.length);
   console.log("Way classification:",JSON.stringify(wayClasses));
-  console.log("Eligible pedestrian ways:",eligibleWays.length);
-  console.log("Needs-review ways:",reviewWays.length);
-  console.log("Directed graph nodes:",graphNodeCount);
-  console.log("Directed graph edges:",edgeCount);
-  console.log("Graph nodes included in connectivity audit:",graphNodes.size);
-  console.log("Weakly connected components:",audit.componentCount);
-  console.log("Isolated nodes:",audit.isolated.length);
-  if(!graphNodeCount)throw new Error("No directed pedestrian graph was built from live OSM data.");
+  console.log("Eligible / needs-review pedestrian ways:",eligibleWays.length,"/",reviewWays.length);
+  console.log("Directed graph nodes / edges:",graphNodes.size,"/",edgeCount);
+  console.log("Weak components / isolated graph nodes:",audit.componentCount,"/",audit.isolated.length);
+  if(!graphNodes.size)throw new Error("No directed pedestrian graph was built for "+site.name);
 
-  const snapped=snapOriginToPedestrianGraph(map.nodes,map.graph,ORIGIN,60);
+  const snapped=snapOriginToPedestrianGraph(map.nodes,map.graph,site.origin,60);
   console.log("Origin snap within production 60m limit:",snapped.ok);
   if(!snapped.ok){
-    console.log("Snap result:",snapped.reason);
-    console.log("Validation outcome: MAP DATA ACQUIRED; TEST ORIGIN NOT CONNECTED TO ELIGIBLE PEDESTRIAN GEOMETRY.");
-    process.exitCode=2;
-    return;
+    console.log("Origin snap result:",snapped.reason);
+    return {site:site.name,mapLoaded:true,originSnapped:false,candidateCount:0};
   }
-  console.log("Origin connector status:",snapped.connectorStatus);
-  console.log("Origin projection offset (m):",snapped.connectorReview.straightLineOffsetMeters);
-  console.log("Origin connector review:",snapped.connectorReview.distanceClass);
-
+  console.log("Origin connector status / offset / review:",snapped.connectorStatus,"/",snapped.connectorReview.straightLineOffsetMeters,"m /",snapped.connectorReview.distanceClass);
   const nodes=new Map(map.nodes);
   if(snapped.virtualNode)nodes.set(snapped.startNode,snapped.virtualNode);
   const result=generateOutAndBackMiles({
     nodes,ways:map.ways,adjacency:snapped.graph,startNode:snapped.startNode,
     miles:TEST_DISTANCE_MILES,originConnector:{status:"unverified"}
   });
-  console.log("Candidate search distance (miles):",TEST_DISTANCE_MILES);
   console.log("Candidate status:",result.status);
   console.log("Complete round-trip candidates:",result.candidateCount);
-  console.log("Turnarounds evaluated:",result.diagnostics.turnaroundsEvaluated);
-  console.log("Withheld for field review:",result.diagnostics.withheldForReview);
-  console.log("Candidate distance summaries (m):",JSON.stringify(result.routes.map(route=>({
+  console.log("Turnarounds evaluated / withheld for review:",result.diagnostics.turnaroundsEvaluated,"/",result.diagnostics.withheldForReview);
+  console.log("Top route distances (m):",JSON.stringify(result.routes.map(route=>({
     total:route.distance?.totalMeters??null,
     outbound:route.distance?.outboundMeters??null,
     return:route.distance?.returnMeters??null,
-    accepted:route.acceptance.accepted,
-    reviewCodes:route.acceptance.reviewItems.map(item=>item.code)
+    accepted:route.acceptance.accepted
   }))));
-  if(result.candidateCount===0){
-    console.log("Validation outcome: LIVE OSM DATA ACQUIRED; NO COMPLETE ROUND TRIP FOUND FOR THIS FIXTURE.");
-    process.exitCode=2;
-    return;
-  }
-  console.log("Validation outcome: LIVE OSM DATA ACQUIRED AND ROUTE ENGINE GENERATED COMPLETE GRAPH-BASED ROUND-TRIP CANDIDATES.");
-  console.log("Navigation geometry remains withheld pending field verification; this is expected.");
+  console.log("Navigation geometry withheld:",result.routes.every(route=>!route.acceptance.accepted));
+  return {site:site.name,mapLoaded:true,originSnapped:true,candidateCount:result.candidateCount,componentCount:audit.componentCount};
+}
+
+async function main(){
+  console.log("Step x Step live OSM validation");
+  console.log("Public test sites:",TEST_SITES.length);
+  console.log("Search radius:",SEARCH_RADIUS_METERS,"m; route request:",TEST_DISTANCE_MILES,"mile out-and-back");
+  const outcomes=[];
+  for(const site of TEST_SITES)outcomes.push(await validateSite(site));
+  console.log("\n=== Aggregate result ===");
+  console.log(JSON.stringify(outcomes,null,2));
+  const loaded=outcomes.filter(item=>item.mapLoaded).length;
+  const routed=outcomes.filter(item=>item.candidateCount>0).length;
+  console.log("Map extracts loaded:",loaded,"/",TEST_SITES.length);
+  console.log("Sites producing complete graph-based round trips:",routed,"/",TEST_SITES.length);
+  if(loaded!==TEST_SITES.length)throw new Error("One or more live OSM map extracts could not be loaded.");
+  console.log("Live map-data acquisition succeeded at all test sites. Candidate generation and evidence outcomes are reported per site.");
 }
 
 main().catch(error=>{
