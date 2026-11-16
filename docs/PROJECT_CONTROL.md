@@ -160,6 +160,26 @@ The first live attempt using only global Overpass instances timed out from the G
 
 The deterministic suite passed 106/106 tests on commit bab294912b335ed034d6b2482f7994355b826081.
 
+#### Origin and route-feature diagnostic follow-up — 2026-11-16
+
+The live harness was expanded to report the nearest mapped feature's sanitized OSM classification/tags, straight-line origin-connector roadway intersections, route connection/crossing inventory, and acceptance review codes. The current branch's offline test workflow passed on commit `8a39eefea01a13c439b075bf71886c86f7bd111a`; the expanded live OSM workflow also passed on that commit.
+
+| Public test area | Nearest mapped feature | Origin-to-feature offset | Mapped roadway intersections on straight connector | Route connection features | Route roadway intersections |
+|---|---|---:|---:|---:|---:|
+| Curtis Hixon Waterfront Park | `highway=footway`, `footway=sidewalk`, `layer=1` | 35.04 m | 0 | 6 | 0 |
+| Armature Works / Tampa Heights | `highway=footway`, `footway=sidewalk` | 37.86 m | 2 (`residential`, `service`) | 8 | 2 (`residential`) |
+| Ybor City Historic District | `highway=footway`, `footway=sidewalk` | 7.57 m | 0 | 8 | 3 (`residential`) |
+
+Interpretation:
+- The first two public test origins are not close to the nearest mapped sidewalk geometry. This is consistent with test points placed inside a park/plaza or complex rather than on a sidewalk, but the diagnostics do not prove the exact physical reason. The Curtis Hixon nearest way is tagged as layer 1, so the nearest feature may be grade-separated; this needs map/context review rather than an assumed connector.
+- The Armature Works origin's straight-line connector crosses two mapped roadway centerlines. That is a direct warning that the nearest-edge projection cannot be treated as a walkable connection.
+- The Ybor origin is closer, but 7.57 m is still not evidence of same-side/public access.
+- Route inventories found 0, 2, and 3 geometric roadway intersections respectively. These are review candidates, not confirmed pedestrian crossings. None had matching mapped pedestrian-crossing node evidence in the selected top candidate.
+- The top route candidates contained 6–8 distinct OSM-way connection features each. Every connection is still unverified; each requires feature-matched continuity/public-access observations. Crossing candidates also require current field verification.
+- The expanded diagnostics do not change acceptance behavior: all candidates remain field-review-required and all navigation geometry remains withheld.
+
+The origin snap function now retains sanitized nearest-way metadata (highway/access/foot/sidewalk/surface/layer tags and edge length) for diagnostics. It still never upgrades connector status from unverified based on geometric proximity.
+
 ### Next validation gates
 
 1. Inspect why two test origins project approximately 35–38 m from mapped pedestrian geometry and confirm how origin connectors should be reviewed or rejected.
