@@ -29,7 +29,10 @@ async function main(){
   const reviewWays=map.ways.filter(way=>classifyPedestrianWay(way.tags).status==="needs_review");
   const graphNodeCount=map.graph.size;
   const edgeCount=[...map.graph.values()].reduce((sum,edges)=>sum+edges.length,0);
-  const audit=auditPedestrianConnectivity(map.nodes,map.graph);
+  const graphNodeIds=new Set(map.graph.keys());
+  for(const edges of map.graph.values())for(const edge of edges)graphNodeIds.add(edge.to);
+  const graphNodes=new Map([...map.nodes].filter(([id])=>graphNodeIds.has(id)));
+  const audit=auditPedestrianConnectivity(graphNodes,map.graph);
   console.log("Provider:",map.provider||"cached provider metadata unavailable");
   console.log("Cache hit:",map.cacheHit===true);
   console.log("Raw OSM node count:",map.nodes.size);
@@ -39,6 +42,7 @@ async function main(){
   console.log("Needs-review ways:",reviewWays.length);
   console.log("Directed graph nodes:",graphNodeCount);
   console.log("Directed graph edges:",edgeCount);
+  console.log("Graph nodes included in connectivity audit:",graphNodes.size);
   console.log("Weakly connected components:",audit.componentCount);
   console.log("Isolated nodes:",audit.isolated.length);
   if(!graphNodeCount)throw new Error("No directed pedestrian graph was built from live OSM data.");
