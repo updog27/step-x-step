@@ -44,6 +44,9 @@ export async function loadOsmGraph(lat,lon,radius,fetchImpl=fetch,now=Date.now()
  if(!response.ok)throw Object.assign(new Error("Pedestrian map provider returned HTTP "+response.status),{code:"MAP_DATA_UNAVAILABLE"});
  let data;
  try{data=await response.json();}catch{throw Object.assign(new Error("Pedestrian map provider returned invalid data"),{code:"MAP_DATA_INCOMPLETE"});}
+ // Overpass can return partial elements alongside a timeout/runtime remark.
+ // Treat those responses as incomplete rather than routing on a truncated graph.
+ if(data?.remark)throw Object.assign(new Error("Pedestrian map provider returned incomplete data: "+String(data.remark).slice(0,240)),{code:"MAP_DATA_INCOMPLETE"});
  if(!Array.isArray(data.elements)||!data.elements.length)throw Object.assign(new Error("No pedestrian map data was returned"),{code:"MAP_DATA_INCOMPLETE"});
  const nodes=new Map(),ways=[];
  for(const element of data.elements){
