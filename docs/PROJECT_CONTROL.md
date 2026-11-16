@@ -105,3 +105,34 @@ Do not choose a provider based on marketing claims. Run the same anonymized benc
 ## Release language
 
 Until Gate E is complete, describe the product as a prototype under development. A passing offline test suite proves the tested algorithmic behavior only; it does not prove live map-data coverage, real-world sidewalk access, safe crossings, or launch readiness.
+
+
+## Current implementation checkpoint — 2026-11-16
+
+The pedestrian candidate engine has been extracted into `tools/route-engine.mjs` and is callable with normalized graph data. Deterministic contract tests live in `tools/route-engine.test.mjs`.
+
+A Netlify serverless adapter now exists at `netlify/functions/routes.mjs`. It:
+- accepts POST requests with origin and requested out-and-back distance;
+- validates inputs and limits prototype requests to 3 miles;
+- acquires pedestrian-tagged OSM ways from Overpass server-side;
+- normalizes map data into the directed pedestrian graph;
+- snaps the origin to the eligible graph while retaining an unverified connector status;
+- invokes the callable engine;
+- caches map responses in-process for five minutes (maximum 32 bounding boxes);
+- applies an instance-local per-client request limit;
+- returns stable failure codes and suppresses route geometry unless acceptance passes.
+
+The browser interface now has a separate **Find My Route** action. It calls the serverless endpoint and communicates review/no-route/provider states without pretending that withheld geometry is navigable. The existing GPS activity tracker remains separate.
+
+API contract and known limitations are documented in `docs/ROUTE_API.md`. Serverless adapter tests cover request validation, withheld geometry, OSM normalization/cache behavior, and provider rate limiting.
+
+CI has passed on commit `348f8e6228226881439037e2afe8237436cee4fb`, including browser/server syntax checks and the offline test suite. Production/main has not been changed and no deployment has been performed.
+
+### Remaining integration gates
+
+1. Validate a real Overpass response and complete route candidate against controlled test coordinates without exposing precise coordinates in logs.
+2. Add provider timeout/retry/backoff and shared cache/rate limiting before production use.
+3. Improve candidate engine tests with realistic directed pedestrian graph fixtures and explicit expected route-distance behavior.
+4. Resolve the current origin-connector and route-feature field-verification workflow. Until then, the API correctly returns field-review status and no usable geometry.
+5. Test the Netlify function in a preview environment and verify browser/API behavior end-to-end.
+6. Only after those gates pass should route geometry be enabled for navigation or a production deployment be considered.
