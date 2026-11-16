@@ -26,7 +26,7 @@ test("generates a complete round trip from independently directed graph legs and
   const {nodes,ways,adjacency}=squareFixture();
   const expected=2*(haversineMeters(nodes.get("o"),nodes.get("a"))+haversineMeters(nodes.get("a"),nodes.get("b")));
   const result=generateOutAndBackCandidates({
-    nodes,ways,adjacency,startNode:"o",requestedDistanceMeters:expected*2,
+    nodes,ways,adjacency,startNode:"o",requestedDistanceMeters:expected,
     minimumSearchBandMeters:20,searchBandRatio:0.05
   });
   assert.equal(result.status,"field_review_required");
@@ -37,7 +37,7 @@ test("generates a complete round trip from independently directed graph legs and
   assert.equal(route.outboundPath.nodes[0],"o");
   assert.equal(route.returnPath.nodes.at(-1),"o");
   assert.equal(route.returnPath.nodes[0],route.outboundPath.nodes.at(-1));
-  assert.ok(Math.abs(route.distance.totalMeters-expected*2)<=5);
+  assert.ok(Math.abs(route.distance.totalMeters-expected)<=5);
   assert.equal(route.acceptance.accepted,false);
   assert.equal(route.route,null,"unverified field evidence must withhold navigation geometry");
 });
@@ -45,7 +45,7 @@ test("generates a complete round trip from independently directed graph legs and
 test("does not fabricate a return leg when directed pedestrian edges prohibit it",()=>{
   const {nodes,ways,adjacency}=squareFixture({oneWayReturn:true});
   // A simple directed chain has an outbound route but no legal graph path back.
-  const chainWays=[ways[0],ways[1]];
+  const chainWays=[\n    {...ways[0],tags:{...ways[0].tags,"oneway:foot":"yes"}},\n    {...ways[1],tags:{...ways[1].tags,"oneway:foot":"yes"}}\n  ];
   const chainGraph=buildDirectedPedestrianGraph(nodes,chainWays);
   const result=generateOutAndBackCandidates({
     nodes,ways:chainWays,adjacency:chainGraph,startNode:"o",
