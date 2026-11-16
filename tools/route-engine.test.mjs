@@ -69,6 +69,25 @@ test("snaps an origin to an eligible edge without claiming connector verificatio
   assert.ok(snapped.graph.get(snapped.startNode).length>0);
 });
 
+test("on-network midpoint origin splits a mapped pedestrian edge with near-zero projection offset",()=>{
+  const {nodes,ways,adjacency}=squareFixture();
+  const a=nodes.get("o"),b=nodes.get("a");
+  const origin={lat:(a.lat+b.lat)/2,lon:(a.lon+b.lon)/2};
+  const snapped=snapOriginToPedestrianGraph(nodes,adjacency,origin,5);
+  assert.equal(snapped.ok,true);
+  assert.equal(snapped.connectorStatus,"unverified","on-network geometry does not prove public access");
+  assert.ok(snapped.connectorReview.straightLineOffsetMeters<0.01);
+  assert.equal(snapped.connectorReview.projectedPosition,"edge_interior");
+  assert.equal(snapped.projection.isVirtual,true);
+  assert.ok(snapped.graph.get(snapped.startNode)?.length>0,"split origin must have outgoing pedestrian edges");
+  assert.ok([...snapped.graph.values()].some(edges=>edges.some(edge=>edge.to===snapped.startNode)),
+    "bidirectional mapped edge should retain incoming connectivity at the split origin");
+  const splitMeters=[...snapped.graph.values()].flat().filter(edge=>
+    edge.to===snapped.startNode || (snapped.graph.get(snapped.startNode)||[]).some(out=>out.to===edge.to)
+  ).reduce((sum,edge)=>sum+edge.meters,0);
+  assert.ok(splitMeters>0);
+});
+
 test("callable engine validates inputs",()=>{
   const {nodes,adjacency}=squareFixture();
   assert.throws(()=>generateOutAndBackCandidates({nodes,adjacency,startNode:"missing",requestedDistanceMeters:100}),/startNode/);
