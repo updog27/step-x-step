@@ -114,7 +114,7 @@ The pedestrian candidate engine has been extracted into `tools/route-engine.mjs`
 A Netlify serverless adapter now exists at `netlify/functions/routes.mjs`. It:
 - accepts POST requests with origin and requested out-and-back distance;
 - validates inputs and limits prototype requests to 3 miles;
-- acquires pedestrian-tagged OSM ways from Overpass server-side;
+- acquires OSM highway ways and referenced nodes from Overpass server-side, then conservatively classifies pedestrian geometry locally;
 - normalizes map data into the directed pedestrian graph;
 - snaps the origin to the eligible graph while retaining an unverified connector status;
 - invokes the callable engine;
@@ -124,15 +124,19 @@ A Netlify serverless adapter now exists at `netlify/functions/routes.mjs`. It:
 
 The browser interface now has a separate **Find My Route** action. It calls the serverless endpoint and communicates review/no-route/provider states without pretending that withheld geometry is navigable. The existing GPS activity tracker remains separate.
 
-API contract and known limitations are documented in `docs/ROUTE_API.md`. Serverless adapter tests cover request validation, withheld geometry, OSM normalization/cache behavior, and provider rate limiting.
+API contract and known limitations are documented in `docs/ROUTE_API.md`. Serverless adapter tests cover request validation, withheld geometry, OSM normalization/cache behavior, provider rate limiting, and rejection of partial Overpass responses carrying runtime remarks. The provider adapter fails closed on truncated map extracts.
+
+The route engine fixture suite now exercises a realistic directed square network, independently represented outbound and return legs, one-way pedestrian restrictions, origin snapping without access claims, and alternative-count bounds. The test suite passed 105/105 tests on commit `86e7093e3b408aa19aa0f497ec28025d1663b6c9`.
+
+The browser now uses a dedicated generated-route layer, separate from the live GPS activity trace, and clears stale generated geometry before a new route request. The HTML route selector IDs/values match the browser handler assumptions.
 
 CI has passed on commit `348f8e6228226881439037e2afe8237436cee4fb`, including browser/server syntax checks and the offline test suite. Production/main has not been changed and no deployment has been performed.
 
 ### Remaining integration gates
 
-1. Validate a real Overpass response and complete route candidate against controlled test coordinates without exposing precise coordinates in logs.
+1. Validate live Overpass response acquisition against controlled, non-sensitive test coordinates; confirm real-world graph coverage and candidate behavior without exposing precise coordinates in logs.
 2. Add provider timeout/retry/backoff and shared cache/rate limiting before production use.
-3. Improve candidate engine tests with realistic directed pedestrian graph fixtures and explicit expected route-distance behavior.
+3. Add more topology-diverse pedestrian fixtures (parallel corridors, disconnected gaps, crossing-heavy networks) and explicit expected route-distance behavior.
 4. Resolve the current origin-connector and route-feature field-verification workflow. Until then, the API correctly returns field-review status and no usable geometry.
 5. Test the Netlify function in a preview environment and verify browser/API behavior end-to-end.
 6. Only after those gates pass should route geometry be enabled for navigation or a production deployment be considered.
