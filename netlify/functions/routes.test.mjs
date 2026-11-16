@@ -20,3 +20,28 @@ test("does not publish route geometry when origin access is unverified",async()=
  const body=JSON.parse(response.body);
  if(body.routes)for(const route of body.routes)assert.equal(route.geometry,null);
 });
+
+import {loadOsmGraph} from "./routes.mjs";
+
+test("loads and caches normalized OSM pedestrian map data",async()=>{
+ const elements=[
+  {type:"node",id:910001,lat:27.1,lon:-82.1,tags:{}},
+  {type:"node",id:910002,lat:27.101,lon:-82.1,tags:{}},
+  {type:"way",id:920001,nodes:[910001,910002],tags:{highway:"footway"}}
+ ];
+ let calls=0;
+ const fakeFetch=async()=>{calls++;return {ok:true,status:200,json:async()=>({elements})};};
+ const first=await loadOsmGraph(27.1,-82.1,600,fakeFetch,100000);
+ const second=await loadOsmGraph(27.1,-82.1,600,fakeFetch,100001);
+ assert.equal(calls,1);
+ assert.equal(first.nodes.size,2);
+ assert.equal(first.ways.length,1);
+ assert.ok(first.graph.size>0);
+ assert.equal(second.cacheHit,true);
+});
+test("maps provider rate limiting into a stable error code",async()=>{
+ await assert.rejects(
+  loadOsmGraph(27.2,-82.2,600,async()=>({ok:false,status:429}),200000),
+  error=>error.code==="PROVIDER_RATE_LIMITED"
+ );
+});
