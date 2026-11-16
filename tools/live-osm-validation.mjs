@@ -4,7 +4,8 @@ import {loadOsmGraph} from "../netlify/functions/routes.mjs";
 import {
   classifyPedestrianWay,
   snapOriginToPedestrianGraph,
-  auditPedestrianConnectivity
+  auditPedestrianConnectivity,
+  detectOriginConnectorRoadwayIntersections
 } from "./pedestrian-graph.mjs";
 import {generateOutAndBackMiles} from "./route-engine.mjs";
 
@@ -50,6 +51,17 @@ async function validateSite(site){
     return {site:site.name,mapLoaded:true,originSnapped:false,candidateCount:0};
   }
   console.log("Origin connector status / offset / review:",snapped.connectorStatus,"/",snapped.connectorReview.straightLineOffsetMeters,"m /",snapped.connectorReview.distanceClass);
+  console.log("Nearest mapped feature:",JSON.stringify({
+    position:snapped.connectorReview.projectedPosition,
+    edgeLengthMeters:snapped.connectorReview.edgeLengthMeters,
+    classification:snapped.connectorReview.nearestWayClassification,
+    tags:snapped.connectorReview.nearestWayTags
+  }));
+  const connectorRoadwayReview=detectOriginConnectorRoadwayIntersections(
+    map.nodes,map.ways,site.origin,snapped.projection.point
+  );
+  console.log("Straight-line connector roadway intersections:",connectorRoadwayReview.crossingCount,
+    connectorRoadwayReview.crossings.map(item=>item.roadClass));
   const nodes=new Map(map.nodes);
   if(snapped.virtualNode)nodes.set(snapped.startNode,snapped.virtualNode);
   const result=generateOutAndBackMiles({
@@ -65,8 +77,22 @@ async function validateSite(site){
     return:route.distance?.returnMeters??null,
     accepted:route.acceptance.accepted
   }))));
+  const best=result.routes[0];
+  const inventory=best?.featureInventory;
+  console.log("Best candidate feature inventory:",JSON.stringify(inventory?{
+    connectionFeatures:inventory.connections.length,
+    roadwayCrossingFeatures:inventory.crossings.length,
+    mappedCrossingNodes:inventory.mappedNodeCrossings.length,
+    crossingGeometryStatus:inventory.crossingGeometryStatus,
+    crossingRoadClasses:countBy(inventory.crossings,item=>item.roadClass)
+  }:null));
+  console.log("Best candidate acceptance review codes:",JSON.stringify(best?.acceptance.reviewItems.map(item=>item.code)||[]));
   console.log("Navigation geometry withheld:",result.routes.every(route=>!route.acceptance.accepted));
-  return {site:site.name,mapLoaded:true,originSnapped:true,candidateCount:result.candidateCount,componentCount:audit.componentCount};
+  return {site:site.name,mapLoaded:true,originSnapped:true,candidateCount:result.candidateCount,componentCount:audit.componentCount,
+    originOffsetMeters:snapped.connectorReview.straightLineOffsetMeters,
+    nearestHighway:snapped.connectorReview.nearestWayTags.highway,
+    connectorRoadwayIntersections:connectorRoadwayReview.crossingCount,
+    routeConnections:inventory?.connections.length??0,routeCrossings:inventory?.crossings.length??0};
 }
 
 async function main(){
