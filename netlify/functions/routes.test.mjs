@@ -74,7 +74,7 @@ test("fails over to a second Overpass provider after a rate limit",async()=>{
  try{
   const result=await loadOsmGraph(27.41,-82.41,620,fakeFetch,400000);
   assert.equal(calls.length,2);
-  assert.match(calls[0].headers["user-agent"],/github.com\\/Updog27\\/step-x-step/);
+  assert.ok(calls[0].headers["user-agent"].includes("github.com/Updog27/step-x-step"));
   assert.equal(result.provider,"overpass.kumi.systems");
   assert.equal(result.nodes.size,2);
  }finally{
