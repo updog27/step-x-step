@@ -71,6 +71,62 @@ async function validateOnNetworkOrigin(site,map){
     evidenceStatus:result.status,geometryWithheld:result.routes.every(route=>!route.acceptance.accepted)};
 }
 
+
+function findMappedSidewalkJunction(nodes,ways,graph){
+  const incident=new Map();
+  for(const way of ways){
+    if(way.tags?.highway!=="footway"||way.tags?.footway!=="sidewalk")continue;
+    if(["no","private","customers","delivery","destination","restricted"].includes(way.tags?.access))continue;
+    for(const id of new Set(way.nodes||[])){
+      if(!nodes.has(id))continue;
+      if(!incident.has(id))incident.set(id,new Set());
+      incident.get(id).add(String(way.id));
+    }
+  }
+  const candidates=[];
+  for(const [id,wayIds] of incident){
+    const outgoing=graph.get(id)||[];
+    const incoming=[...graph.values()].flat().filter(edge=>edge.to===id);
+    const degree=outgoing.length+incoming.length;
+    if(wayIds.size>=2&&degree>=3&&outgoing.length>0&&incoming.length>0){
+      const node=nodes.get(id);
+      candidates.push({id,node,wayCount:wayIds.size,degree,outgoing:outgoing.length,incoming:incoming.length});
+    }
+  }
+  return candidates.sort((a,b)=>b.degree-a.degree||b.wayCount-a.wayCount)[0]||null;
+}
+
+async function validateMappedSidewalkJunction(site,map){
+  const junction=findMappedSidewalkJunction(map.nodes,map.ways,map.graph);
+  if(!junction){
+    console.log("Mapped sidewalk-junction origin: unavailable (no qualifying multi-way sidewalk node)");
+    return {available:false,candidateCount:0};
+  }
+  const snapped=snapOriginToPedestrianGraph(map.nodes,map.graph,junction.node,3);
+  if(!snapped.ok)throw new Error("Mapped sidewalk-junction origin failed to snap: "+snapped.reason);
+  const connectorReview=detectOriginConnectorRoadwayIntersections(map.nodes,map.ways,junction.node,junction.node);
+  const nodes=new Map(map.nodes);
+  if(snapped.virtualNode)nodes.set(snapped.startNode,snapped.virtualNode);
+  const result=generateOutAndBackMiles({
+    nodes,ways:map.ways,adjacency:snapped.graph,startNode:snapped.startNode,
+    miles:TEST_DISTANCE_MILES,originConnector:{status:"unverified"}
+  });
+  const incoming=[...snapped.graph.values()].flat().some(edges=>edges.some(edge=>edge.to===snapped.startNode));
+  const outgoing=(snapped.graph.get(snapped.startNode)||[]).length>0;
+  console.log("Mapped sidewalk-junction origin offset / position:",snapped.connectorReview.straightLineOffsetMeters,
+    "m /",snapped.connectorReview.projectedPosition);
+  console.log("Mapped sidewalk ways / graph degree / incoming / outgoing:",
+    junction.wayCount,junction.degree,incoming,outgoing);
+  console.log("Mapped sidewalk-junction connector roadway intersections:",connectorReview.crossingCount);
+  console.log("Mapped sidewalk-junction round-trip candidates:",result.candidateCount);
+  console.log("Mapped sidewalk-junction evidence status / geometry withheld:",
+    result.status,result.routes.every(route=>!route.acceptance.accepted));
+  return {available:true,offsetMeters:snapped.connectorReview.straightLineOffsetMeters,
+    wayCount:junction.wayCount,degree:junction.degree,incoming,outgoing,
+    connectorRoadwayIntersections:connectorReview.crossingCount,candidateCount:result.candidateCount,
+    evidenceStatus:result.status,geometryWithheld:result.routes.every(route=>!route.acceptance.accepted)};
+}
+
 async function validateSite(site){
   console.log("\n---",site.name,"---");
   const map=await loadOsmGraph(site.origin.lat,site.origin.lon,SEARCH_RADIUS_METERS);
@@ -137,7 +193,8 @@ async function validateSite(site){
   console.log("Best candidate acceptance review codes:",JSON.stringify(best?.acceptance.reviewItems.map(item=>item.code)||[]));
   console.log("Navigation geometry withheld:",result.routes.every(route=>!route.acceptance.accepted));
   const controlled=await validateOnNetworkOrigin(site,map);
-  return {site:site.name,mapLoaded:true,originSnapped:true,candidateCount:result.candidateCount,controlledOnNetworkOrigin:controlled,componentCount:audit.componentCount,
+  const sidewalkJunction=await validateMappedSidewalkJunction(site,map);
+  return {site:site.name,mapLoaded:true,originSnapped:true,candidateCount:result.candidateCount,controlledOnNetworkOrigin:controlled,mappedSidewalkJunction:sidewalkJunction,componentCount:audit.componentCount,
     originOffsetMeters:snapped.connectorReview.straightLineOffsetMeters,
     nearestHighway:snapped.connectorReview.nearestWayTags.highway,
     connectorRoadwayIntersections:connectorRoadwayReview.crossingCount,
