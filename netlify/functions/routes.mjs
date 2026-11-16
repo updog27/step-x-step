@@ -93,8 +93,8 @@ export async function handleRouteRequest(event,dependencies={}){
  const {lat,lon,miles,routeType="out_and_back"}=body;
  if(!finite(lat)||Math.abs(lat)>90||!finite(lon)||Math.abs(lon)>180)
   return json(400,{error:{code:"INVALID_ORIGIN",message:"A valid latitude and longitude are required."}});
- if(!finite(miles)||miles<=0||miles>10)
-  return json(400,{error:{code:"INVALID_DISTANCE",message:"Distance must be greater than 0 and no more than 10 miles."}});
+ if(!finite(miles)||miles<=0||miles>3)
+  return json(400,{error:{code:"INVALID_DISTANCE",message:"Distance must be greater than 0 and no more than 3 miles."}});
  if(routeType!=="out_and_back")
   return json(400,{error:{code:"UNSUPPORTED_ROUTE_TYPE",message:"This endpoint currently supports out-and-back routes only."}});
  const radius=Math.min(5000,Math.max(500,miles*MILE_METERS*0.9+300));
