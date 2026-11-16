@@ -29,7 +29,7 @@ function bboxFor(lat,lon,radius){
  const dy=radius/111320,dx=radius/(111320*Math.cos(lat*Math.PI/180));
  return [lat-dy,lon-dx,lat+dy,lon+dx];
 }
-async function loadOsmGraph(lat,lon,radius,fetchImpl=fetch,now=Date.now()){
+export async function loadOsmGraph(lat,lon,radius,fetchImpl=fetch,now=Date.now()){
  const [south,west,north,east]=bboxFor(lat,lon,radius);
  const key=[south.toFixed(4),west.toFixed(4),north.toFixed(4),east.toFixed(4)].join(",");
  const cached=cache.get(key);
