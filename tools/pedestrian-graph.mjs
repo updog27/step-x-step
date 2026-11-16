@@ -551,6 +551,7 @@ export function snapOriginToPedestrianGraph(nodes, adjacency, origin, maxSnapMet
         surface:projection.tags?.surface??null,
         layer:projection.tags?.layer??null
       },
+      directedEdge:{from:projection.from,to:projection.to,wayId:projection.wayId},
       warning:"Geometric proximity is not evidence of a walkable, public, accessible, or same-side connection."
     },
     projection:{from:projection.from,to:projection.to,wayId:projection.wayId,
