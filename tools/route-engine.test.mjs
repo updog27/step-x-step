@@ -45,7 +45,10 @@ test("generates a complete round trip from independently directed graph legs and
 test("does not fabricate a return leg when directed pedestrian edges prohibit it",()=>{
   const {nodes,ways,adjacency}=squareFixture({oneWayReturn:true});
   // A simple directed chain has an outbound route but no legal graph path back.
-  const chainWays=[\n    {...ways[0],tags:{...ways[0].tags,"oneway:foot":"yes"}},\n    {...ways[1],tags:{...ways[1].tags,"oneway:foot":"yes"}}\n  ];
+  const chainWays=[
+    {...ways[0],tags:{...ways[0].tags,"oneway:foot":"yes"}},
+    {...ways[1],tags:{...ways[1].tags,"oneway:foot":"yes"}}
+  ];
   const chainGraph=buildDirectedPedestrianGraph(nodes,chainWays);
   const result=generateOutAndBackCandidates({
     nodes,ways:chainWays,adjacency:chainGraph,startNode:"o",
