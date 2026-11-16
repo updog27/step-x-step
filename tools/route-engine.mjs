@@ -65,6 +65,7 @@ export function generateOutAndBackCandidates({
         returnPath:assembled.returnPath,
         route:assembled.route,
         distance:assembled.distance,
+        distanceErrorMeters:assembled.distance.errorMeters,
         featureInventory:inventory,
         acceptance,
         outboundRoadwayCrossingCount:outboundPath.detectedRoadwayCrossingCount??0,
